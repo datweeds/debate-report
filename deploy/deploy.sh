@@ -5,7 +5,7 @@
 
 set -e
 
-APP_DIR="/home/david/debate-report"
+APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 echo "==> Pulling latest code..."
 cd "$APP_DIR"
