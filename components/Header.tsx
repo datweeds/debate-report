@@ -96,7 +96,7 @@ export default function Header() {
             {user ? (
               <div className="flex items-center gap-1">
                 <Link
-                  href="/dashboard"
+                  href="/profile"
                   className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-blue-400 transition-colors hover:bg-blue-500/10"
                 >
                   <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
@@ -190,6 +190,18 @@ export default function Header() {
             </>
           )}
 
+          {user && (
+            <Link
+              href="/profile"
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-300 transition-colors hover:bg-blue-500/10 hover:text-blue-300"
+            >
+              <svg className="h-4 w-4 text-blue-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+              </svg>
+              My Profile
+            </Link>
+          )}
           <Link
             href="/dashboard"
             onClick={() => setMenuOpen(false)}
