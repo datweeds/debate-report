@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAuthenticationResponse } from '@simplewebauthn/server';
+import { verifyAuthenticationResponse, type AuthenticatorTransportFuture } from '@simplewebauthn/server';
 import pool from '@/lib/db';
 import {
   verifyChallengeToken, clearChallengeCookie,
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
         id:         pk.credential_id,
         publicKey:  new Uint8Array(pk.public_key),
         counter:    Number(pk.counter),
-        transports: pk.transports ?? undefined,
+        transports: (pk.transports ?? undefined) as AuthenticatorTransportFuture[] | undefined,
       },
       requireUserVerification: false,
     });

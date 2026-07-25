@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateAuthenticationOptions } from '@simplewebauthn/server';
+import { generateAuthenticationOptions, type AuthenticatorTransportFuture } from '@simplewebauthn/server';
 import pool from '@/lib/db';
 import { signChallengeToken, challengeCookie } from '@/lib/auth';
 
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     );
     allowCredentials = pkRes.rows.map(r => ({
       id:         r.credential_id,
-      transports: r.transports ?? undefined,
+      transports: (r.transports ?? undefined) as AuthenticatorTransportFuture[] | undefined,
     }));
   }
 
