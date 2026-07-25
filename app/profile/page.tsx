@@ -281,7 +281,14 @@ export default function ProfilePage() {
         <div className="flex items-center gap-4 mb-2">
           <Initials handle={profile.user_handle} name={profile.user_full_name} />
           <div>
-            <h1 className="text-xl font-bold text-slate-100">{profile.user_full_name || profile.user_handle}</h1>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl font-bold text-slate-100">{profile.user_full_name || profile.user_handle}</h1>
+              {user?.isSysAdmin && (
+                <span className="rounded bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-400">
+                  sysadmin
+                </span>
+              )}
+            </div>
             <p className="text-sm text-slate-500">@{profile.user_handle}</p>
             <span className={`text-xs font-medium ${tierInfo.color}`}>{tierInfo.label}</span>
           </div>

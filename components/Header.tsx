@@ -103,6 +103,11 @@ export default function Header() {
                     <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12Zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8Z" />
                   </svg>
                   {user.handle}
+                  {user.isSysAdmin && (
+                    <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-xs font-semibold text-amber-400 leading-none">
+                      sys
+                    </span>
+                  )}
                 </Link>
                 {user.isSysAdmin && (
                   <Link href="/admin" className="rounded px-2 py-1 text-xs text-amber-400 hover:bg-amber-500/10 transition-colors">
