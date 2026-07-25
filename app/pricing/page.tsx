@@ -85,11 +85,85 @@ const TIERS = [
   },
 ];
 
+function PasskeyModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="card-dr w-full max-w-lg p-7 relative"
+        onClick={e => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-slate-500 hover:text-slate-300 transition-colors"
+          aria-label="Close"
+        >
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+          </svg>
+        </button>
+
+        <div className="flex items-center gap-3 mb-5">
+          <div className="rounded-full bg-blue-500/10 p-2">
+            <svg className="h-5 w-5 text-blue-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 0 1 21.75 8.25Z" />
+            </svg>
+          </div>
+          <h2 className="text-base font-semibold text-slate-100">About passkeys</h2>
+        </div>
+
+        <div className="space-y-5 text-sm text-slate-400">
+          <div>
+            <p className="font-medium text-slate-200 mb-1">What is a passkey?</p>
+            <p>
+              A passkey uses your device&apos;s built-in security chip — the same technology behind
+              Face ID, Touch ID, and Windows Hello — to prove it&apos;s you. Your private key is
+              created on your device and never sent anywhere. We only store the corresponding
+              public key, which is useless on its own.
+            </p>
+          </div>
+
+          <div>
+            <p className="font-medium text-slate-200 mb-1">Why passkeys are stronger than passwords</p>
+            <ul className="space-y-1.5 list-none">
+              <li className="flex items-start gap-2">
+                <span className="mt-1 h-1.5 w-1.5 rounded-full bg-blue-400 shrink-0" />
+                <span><strong className="text-slate-300">Phishing-proof.</strong> A passkey is cryptographically bound to this exact domain. Even a perfect fake login page cannot capture it — there is nothing to steal.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-1 h-1.5 w-1.5 rounded-full bg-blue-400 shrink-0" />
+                <span><strong className="text-slate-300">No password database.</strong> If our servers were ever compromised, there are no password hashes to crack. Attackers get nothing useful.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="mt-1 h-1.5 w-1.5 rounded-full bg-blue-400 shrink-0" />
+                <span><strong className="text-slate-300">No reuse risk.</strong> Passkeys are unique per site by design, so a breach elsewhere cannot affect your account here.</span>
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <p className="font-medium text-slate-200 mb-1">What about the recovery code?</p>
+            <p>
+              When you sign up, we generate a one-time recovery code and show it to you immediately.
+              This is your backup if you lose your device. Treat it like a spare house key kept somewhere
+              safe — not in your everyday wallet, but accessible if you ever need it. Recovery code
+              logins are rate-limited to prevent guessing attacks.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PricingPage() {
   const { user, refresh } = useAuth();
   const router = useRouter();
   const [annual, setAnnual] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
+  const [showPasskeyModal, setShowPasskeyModal] = useState(false);
 
   async function subscribe(tierId: string) {
     if (!user) {
@@ -112,6 +186,7 @@ export default function PricingPage() {
 
   return (
     <div className="min-h-screen bg-dr-base py-16 px-4 sm:px-6">
+      {showPasskeyModal && <PasskeyModal onClose={() => setShowPasskeyModal(false)} />}
       <div className="mx-auto max-w-5xl">
 
         {/* Header */}
@@ -241,6 +316,12 @@ export default function PricingPage() {
                 there is no password database for anyone to breach. Your private key never leaves your device.
                 A recovery code is shown once at signup in case you lose your device.
               </p>
+              <button
+                onClick={() => setShowPasskeyModal(true)}
+                className="mt-2 text-blue-400 hover:text-blue-300 transition-colors underline underline-offset-2"
+              >
+                More about passkeys
+              </button>
             </div>
             <div>
               <p className="font-medium text-slate-300 mb-1">Payment options</p>
