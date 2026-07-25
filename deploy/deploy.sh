@@ -20,7 +20,7 @@ npm run build
 echo "==> Restarting PM2..."
 # Start if not running, restart if already running
 npx pm2 describe debate-report > /dev/null 2>&1 \
-  && npx pm2 restart debate-report \
+  && npx pm2 restart debate-report --update-env \
   || npx pm2 start ecosystem.config.cjs
 
 npx pm2 save
