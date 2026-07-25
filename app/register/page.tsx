@@ -13,6 +13,15 @@ const TIER_LABELS: Record<string, string> = {
   moderator: 'Moderator — £9/mo',
 };
 
+const TIER_LABELS_ANNUAL: Record<string, string> = {
+  follower:  'Follower (Free)',
+  voter:     'Voter — £1.50/mo',
+  debater:   'Debater — £3/mo',
+  moderator: 'Moderator — £6.75/mo',
+};
+
+const BIO_MAX = 200;
+
 function AccessCodeScreen({ code, onDone }: { code: string; onDone: () => void }) {
   const [saved, setSaved] = useState(false);
   return (
@@ -61,12 +70,16 @@ function RegisterForm() {
   const router   = useRouter();
   const { refresh } = useAuth();
 
-  const [tier,       setTier]       = useState(params.get('tier') || 'follower');
-  const [userHandle, setUserHandle] = useState('');
-  const [email,      setEmail]      = useState('');
-  const [error,      setError]      = useState('');
-  const [loading,    setLoading]    = useState(false);
-  const [accessCode, setAccessCode] = useState<string | null>(null);
+  const billingParam = params.get('billing') === 'annual';
+  const [tier,        setTier]        = useState(params.get('tier') || 'follower');
+  const [annual]                      = useState(billingParam);
+  const [userHandle,  setUserHandle]  = useState('');
+  const [email,       setEmail]       = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [bio,         setBio]         = useState('');
+  const [error,       setError]       = useState('');
+  const [loading,     setLoading]     = useState(false);
+  const [accessCode,  setAccessCode]  = useState<string | null>(null);
 
   if (accessCode) {
     return (
@@ -88,6 +101,10 @@ function RegisterForm() {
       setError('Username may only contain letters, numbers, _ and -');
       return;
     }
+    if (bio.length > BIO_MAX) {
+      setError(`Bio must be ${BIO_MAX} characters or fewer`);
+      return;
+    }
     if (!browserSupportsWebAuthn()) {
       setError('Your browser does not support passkeys. Please use a modern browser.');
       return;
@@ -99,7 +116,13 @@ function RegisterForm() {
       const optRes = await fetch('/api/auth/passkey/register-options', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ userHandle: userHandle.trim(), email: email.trim() || undefined, tier }),
+        body:    JSON.stringify({
+          userHandle:  userHandle.trim(),
+          email:       email.trim() || undefined,
+          tier,
+          displayName: displayName.trim() || undefined,
+          bio:         bio.trim() || undefined,
+        }),
       });
       const optData = await optRes.json();
       if (!optRes.ok) { setError(optData.error || 'Failed to start registration'); return; }
@@ -134,6 +157,8 @@ function RegisterForm() {
     }
   }
 
+  const tierLabels = annual ? TIER_LABELS_ANNUAL : TIER_LABELS;
+
   return (
     <div className="min-h-screen bg-dr-base flex items-center justify-center px-4 py-16">
       <div className="card-dr w-full max-w-md p-8">
@@ -142,7 +167,10 @@ function RegisterForm() {
           <h1 className="text-xl font-bold text-slate-100 mb-1">Create your account</h1>
           <p className="text-sm text-slate-500">
             Signing up as{' '}
-            <span className="text-blue-400">{TIER_LABELS[tier] || tier}</span>.{' '}
+            <span className="text-blue-400">
+              {tierLabels[tier] || tier}
+              {annual && tier !== 'follower' && ' (annual)'}
+            </span>.{' '}
             <Link href="/pricing" className="text-slate-500 underline underline-offset-2 hover:text-slate-400">
               Change
             </Link>
@@ -150,6 +178,8 @@ function RegisterForm() {
         </div>
 
         <div className="space-y-4">
+
+          {/* Username */}
           <div>
             <label className="block text-xs font-medium text-slate-400 mb-1">
               Username <span className="text-red-400">*</span>
@@ -165,6 +195,40 @@ function RegisterForm() {
             <p className="mt-1 text-xs text-slate-600">Letters, numbers, _ and - only. Shown publicly.</p>
           </div>
 
+          {/* Display name */}
+          <div>
+            <label className="block text-xs font-medium text-slate-400 mb-1">
+              Display name <span className="text-slate-600">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={displayName}
+              onChange={e => setDisplayName(e.target.value)}
+              placeholder="e.g. Alice or The Pragmatist"
+              autoComplete="name"
+              className="w-full rounded-lg border border-slate-700 bg-dr-surface px-3 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Bio */}
+          <div>
+            <label className="block text-xs font-medium text-slate-400 mb-1">
+              Short bio <span className="text-slate-600">(optional)</span>
+            </label>
+            <textarea
+              value={bio}
+              onChange={e => setBio(e.target.value)}
+              placeholder="A sentence or two about your perspective or interests…"
+              rows={3}
+              maxLength={BIO_MAX + 10}
+              className="w-full rounded-lg border border-slate-700 bg-dr-surface px-3 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+            />
+            <p className={`mt-0.5 text-right text-xs ${bio.length > BIO_MAX ? 'text-red-400' : 'text-slate-600'}`}>
+              {bio.length}/{BIO_MAX}
+            </p>
+          </div>
+
+          {/* Email */}
           <div>
             <label className="block text-xs font-medium text-slate-400 mb-1">
               Email <span className="text-slate-600">(optional — for newsletter only)</span>
@@ -194,7 +258,7 @@ function RegisterForm() {
                       : 'border-slate-700 text-slate-500 hover:border-slate-600'
                   }`}
                 >
-                  {TIER_LABELS[t]}
+                  {tierLabels[t]}
                 </button>
               ))}
             </div>
@@ -203,7 +267,7 @@ function RegisterForm() {
           {/* Passkey info */}
           <div className="rounded-lg border border-slate-700 bg-dr-surface px-4 py-3 flex items-start gap-3">
             <svg className="mt-0.5 h-4 w-4 shrink-0 text-blue-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M7.864 4.243A7.5 7.5 0 0 1 19.5 10.5c0 2.92-.556 5.709-1.568 8.268M5.742 6.364A7.465 7.465 0 0 0 4.5 10.5a7.464 7.464 0 0 1-1.15 3.993m1.989 3.559A11.209 11.209 0 0 0 8.25 10.5a3.75 3.75 0 1 1 7.5 0c0 .527-.021 1.049-.064 1.565" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 0 1 21.75 8.25Z" />
             </svg>
             <p className="text-xs text-slate-400">
               We use <strong className="text-slate-300">passkeys</strong> — your device&apos;s biometrics (Face ID, fingerprint, Windows Hello).

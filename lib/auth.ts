@@ -96,6 +96,8 @@ export interface ChallengePayload {
   userHandle?: string;
   email?: string;
   tier?: string;
+  displayName?: string;
+  bio?: string;
 }
 
 export async function signChallengeToken(payload: ChallengePayload): Promise<string> {

@@ -51,8 +51,8 @@ export async function POST(req: NextRequest) {
     await client.query('BEGIN');
 
     const userRes = await client.query(
-      `INSERT INTO users (id, user_handle, email, user_tier, access_code)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO users (id, user_handle, email, user_tier, access_code, user_full_name, user_bio)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id, user_handle, is_sys_admin, user_tier`,
       [
         chal.userId,
@@ -60,6 +60,8 @@ export async function POST(req: NextRequest) {
         chal.email || null,
         tier,
         hashedCode,
+        chal.displayName || null,
+        chal.bio || null,
       ]
     );
     const user = userRes.rows[0];

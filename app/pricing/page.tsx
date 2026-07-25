@@ -93,7 +93,7 @@ export default function PricingPage() {
 
   async function subscribe(tierId: string) {
     if (!user) {
-      router.push(`/register?tier=${tierId}`);
+      router.push(`/register?tier=${tierId}${annual ? '&billing=annual' : ''}`);
       return;
     }
     setLoading(tierId);
@@ -218,24 +218,43 @@ export default function PricingPage() {
           })}
         </div>
 
-        {/* Incognito note */}
-        <div className="card-dr p-5 flex flex-col sm:flex-row items-center gap-4 justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-200 mb-0.5">Prefer to stay anonymous?</h2>
-            <p className="text-xs text-slate-500">
-              All paid tiers support incognito registration — choose a username, skip the email,
-              and we generate a private access code. No personal data stored.
-            </p>
-          </div>
-          <Link
-            href="/register?incognito=true"
-            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-slate-600 px-4 py-2 text-xs font-medium text-slate-300 hover:border-slate-500 transition-colors"
-          >
-            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 0 1 21.75 8.25Z" />
+        {/* Privacy note */}
+        <div className="card-dr p-6">
+          <div className="flex items-start gap-3 mb-4">
+            <svg className="mt-0.5 h-4 w-4 shrink-0 text-blue-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
             </svg>
-            Register incognito
-          </Link>
+            <h2 className="text-sm font-semibold text-slate-200">Your privacy matters</h2>
+          </div>
+          <div className="grid sm:grid-cols-3 gap-4 text-xs text-slate-400 mb-5">
+            <div>
+              <p className="font-medium text-slate-300 mb-1">Designed for privacy</p>
+              <p>
+                debate.report is built from the ground up to collect as little about you as possible.
+                Your email is optional and only used if you want newsletter updates — nothing else.
+              </p>
+            </div>
+            <div>
+              <p className="font-medium text-slate-300 mb-1">Passkeys, not passwords</p>
+              <p>
+                We use passkeys — your device&apos;s biometrics (Face ID, fingerprint, Windows Hello) — so
+                there is no password database for anyone to breach. Your private key never leaves your device.
+                A recovery code is shown once at signup in case you lose your device.
+              </p>
+            </div>
+            <div>
+              <p className="font-medium text-slate-300 mb-1">Anonymous payments</p>
+              <p>
+                We plan to accept Bitcoin and Lightning payments, which do not require us to collect
+                any identity details. Note that the payment provider you choose may have its own
+                data policies — we cannot control what they store.
+              </p>
+            </div>
+          </div>
+          <p className="text-xs text-slate-500">
+            You can optionally add a display name and short bio to give yourself a personality on the platform —
+            or leave them blank and participate entirely under your username.
+          </p>
         </div>
 
         <p className="mt-6 text-center text-xs text-slate-600">
