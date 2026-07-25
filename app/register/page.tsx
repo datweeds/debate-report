@@ -24,6 +24,15 @@ const BIO_MAX = 200;
 
 function AccessCodeScreen({ code, onDone }: { code: string; onDone: () => void }) {
   const [saved, setSaved] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  function copyCode() {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
   return (
     <div className="min-h-screen bg-dr-base flex items-center justify-center px-4 py-16">
       <div className="card-dr w-full max-w-md p-8 text-center">
@@ -39,11 +48,32 @@ function AccessCodeScreen({ code, onDone }: { code: string; onDone: () => void }
           Your passkey is set up. This recovery code is shown <strong className="text-slate-200">once only</strong> —
           keep it somewhere safe in case you lose access to your passkey device.
         </p>
-        <div className="rounded-xl bg-dr-surface border border-blue-700/20 px-6 py-4 mb-5">
+        <button
+          onClick={copyCode}
+          className="w-full rounded-xl bg-dr-surface border border-blue-700/20 px-6 py-4 mb-2 group flex items-center justify-between hover:border-blue-500/40 transition-colors"
+        >
           <p className="font-mono text-lg font-bold tracking-widest text-blue-300 select-all">
             {code}
           </p>
-        </div>
+          <span className="ml-4 shrink-0 flex items-center gap-1.5 text-xs text-slate-500 group-hover:text-slate-300 transition-colors">
+            {copied ? (
+              <>
+                <svg className="h-4 w-4 text-emerald-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                </svg>
+                <span className="text-emerald-400">Copied</span>
+              </>
+            ) : (
+              <>
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
+                </svg>
+                Copy
+              </>
+            )}
+          </span>
+        </button>
+        <p className="text-xs text-slate-600 mb-5">Click the code to copy it to your clipboard</p>
         <label className="flex items-center gap-2 justify-center mb-5 cursor-pointer">
           <input
             type="checkbox"
