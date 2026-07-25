@@ -4,7 +4,7 @@ module.exports = {
       name: 'debate-report',
       script: 'node_modules/.bin/next',
       args: 'start',
-      cwd: '/home/david/debate-report',
+      cwd: __dirname,
       instances: 1,
       autorestart: true,
       watch: false,
