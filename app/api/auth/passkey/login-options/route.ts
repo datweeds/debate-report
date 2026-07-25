@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   // Always return options (even for unknown users) to avoid user enumeration
   const user = userRes.rows[0] ?? null;
 
-  let allowCredentials: { id: string; transports?: string[] }[] = [];
+  let allowCredentials: { id: string; transports?: AuthenticatorTransportFuture[] }[] = [];
   if (user) {
     const pkRes = await pool.query(
       `SELECT credential_id, transports FROM passkeys WHERE user_id = $1`,
