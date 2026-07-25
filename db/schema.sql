@@ -64,8 +64,8 @@ CREATE TABLE users (
     password_hash       TEXT,                       -- null for access-code-only users
     access_code         TEXT         UNIQUE,        -- bcrypt hash; null for email-auth users
     nostr_npub          TEXT         UNIQUE,        -- future Nostr login
-    user_tier           TEXT         NOT NULL DEFAULT 'family'
-                            CHECK (user_tier IN ('family', 'debater', 'moderator', 'sysadmin')),
+    user_tier           TEXT         NOT NULL DEFAULT 'follower'
+                            CHECK (user_tier IN ('follower', 'voter', 'debater', 'moderator', 'sysadmin')),
     user_handle         TEXT         NOT NULL UNIQUE,
     user_full_name      TEXT,
     user_bio            TEXT,

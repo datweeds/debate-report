@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   if (!incognito && !password) {
     return NextResponse.json({ error: 'Password is required' }, { status: 400 });
   }
-  if (!['family', 'debater', 'moderator'].includes(tier)) {
+  if (!['follower', 'voter', 'debater', 'moderator'].includes(tier)) {
     return NextResponse.json({ error: 'Invalid tier' }, { status: 400 });
   }
 

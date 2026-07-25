@@ -1,7 +1,19 @@
--- Reference data — safe to re-run (uses ON CONFLICT DO NOTHING)
--- psql -h localhost -U debate_report -d debate_report -f db/seed.sql
+-- Migration 002: replace family/debater/moderator tier set with
+-- follower/voter/debater/moderator
 
--- Subscription plans (Stripe IDs to be filled in when Stripe is wired)
+-- Drop old constraint, add new one
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_user_tier_check;
+ALTER TABLE users ADD CONSTRAINT users_user_tier_check
+    CHECK (user_tier IN ('follower', 'voter', 'debater', 'moderator', 'sysadmin'));
+
+-- Migrate any existing family-tier users to moderator (closest match)
+UPDATE users SET user_tier = 'moderator' WHERE user_tier = 'family';
+
+-- Change default
+ALTER TABLE users ALTER COLUMN user_tier SET DEFAULT 'follower';
+
+-- Refresh subscription plans
+DELETE FROM subscription_plans;
 INSERT INTO subscription_plans (plan_name, plan_description, plan_role, plan_frequency, plan_cost_gbp, plan_order)
 VALUES
   ('Follower',          'Browse and read all public debates. Free forever.',                   'voter',     'monthly',  0.00, 1),
@@ -10,17 +22,4 @@ VALUES
   ('Debater Monthly',   'Create statements, evidence and rebuttals in any public debate.',     'debater',   'monthly',  4.00, 4),
   ('Debater Annual',    'Full debater access — 25% off with annual billing.',                  'debater',   'annual',   3.00, 5),
   ('Moderator Monthly', 'Create debates, moderate, plus 5 family Voter seats.',               'moderator', 'monthly',  9.00, 6),
-  ('Moderator Annual',  'Full moderator access — 25% off with annual billing.',               'moderator', 'annual',   6.75, 7)
-ON CONFLICT DO NOTHING;
-
--- Default public forum (owned by first sysadmin — update forum_owner after creating admin user)
-INSERT INTO debate_forums (id, created_by, forum_title, forum_description, forum_type, forum_visibility, forum_status, forum_owner)
-VALUES (
-  '00000000-0000-0000-0000-000000000001',
-  '00000000-0000-0000-0000-000000000000',
-  'Public Forum',
-  'The main public debate forum for debate.report',
-  'public', 'public', 'active',
-  '00000000-0000-0000-0000-000000000000'
-)
-ON CONFLICT DO NOTHING;
+  ('Moderator Annual',  'Full moderator access — 25% off with annual billing.',               'moderator', 'annual',   6.75, 7);

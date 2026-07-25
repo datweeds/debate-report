@@ -6,9 +6,10 @@ import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 
 const TIER_LABELS: Record<string, string> = {
-  family: 'Family (Free)',
-  debater: 'Public Debater',
-  moderator: 'Moderator',
+  follower: 'Follower (Free)',
+  voter: 'Voter — £2/mo',
+  debater: 'Debater — £4/mo',
+  moderator: 'Moderator — £9/mo',
 };
 
 function RegisterForm() {
@@ -16,7 +17,7 @@ function RegisterForm() {
   const router = useRouter();
   const { refresh } = useAuth();
 
-  const [tier, setTier] = useState(params.get('tier') || 'family');
+  const [tier, setTier] = useState(params.get('tier') || 'follower');
   const [incognito, setIncognito] = useState(params.get('incognito') === 'true');
   const [userHandle, setUserHandle] = useState('');
   const [email, setEmail] = useState('');
@@ -202,8 +203,8 @@ function RegisterForm() {
           {/* Tier selector */}
           <div>
             <label className="block text-xs font-medium text-slate-400 mb-1.5">Tier</label>
-            <div className="grid grid-cols-3 gap-2">
-              {(['family', 'debater', 'moderator'] as const).map(t => (
+            <div className="grid grid-cols-2 gap-2">
+              {(['follower', 'voter', 'debater', 'moderator'] as const).map(t => (
                 <button
                   key={t}
                   type="button"
