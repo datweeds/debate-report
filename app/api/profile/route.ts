@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
-import { getSession } from '@/lib/auth';
+import { getSession, createToken, sessionCookie } from '@/lib/auth';
 
 export async function GET() {
   const session = await getSession();
@@ -38,13 +38,44 @@ export async function PATCH(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
 
   const body = await req.json();
-  const { displayName, bio, bioPublic, email, newsletter } = body;
+  const { displayName, bio, bioPublic, email, newsletter, userHandle } = body;
 
-  // Validate bio length
+  // ── Username change ───────────────────────────────────────────
+  if (userHandle !== undefined) {
+    const handle = userHandle.trim();
+    if (handle.length < 3) {
+      return NextResponse.json({ error: 'Username must be at least 3 characters' }, { status: 400 });
+    }
+    if (!/^[a-zA-Z0-9_-]+$/.test(handle)) {
+      return NextResponse.json({ error: 'Username may only contain letters, numbers, _ and -' }, { status: 400 });
+    }
+    const taken = await pool.query(
+      `SELECT id FROM users WHERE user_handle = $1 AND id != $2`,
+      [handle, session.sub]
+    );
+    if (taken.rows.length > 0) {
+      return NextResponse.json({ error: 'That username is already taken' }, { status: 409 });
+    }
+    await pool.query(
+      `UPDATE users SET user_handle = $1, updated_at = NOW() WHERE id = $2`,
+      [handle, session.sub]
+    );
+    // Reissue session JWT so the header shows the new handle immediately
+    const newToken = await createToken({
+      sub:        session.sub,
+      handle,
+      isSysAdmin: session.isSysAdmin,
+      tier:       session.tier,
+    });
+    const res = NextResponse.json({ ok: true, userHandle: handle });
+    res.cookies.set(sessionCookie(newToken));
+    return res;
+  }
+
+  // ── Profile fields ────────────────────────────────────────────
   if (bio !== undefined && bio.trim().length > 200) {
     return NextResponse.json({ error: 'Bio must be 200 characters or fewer' }, { status: 400 });
   }
-  // Validate email uniqueness if being set
   if (email !== undefined && email.trim()) {
     const existing = await pool.query(
       `SELECT id FROM users WHERE email = $1 AND id != $2`,

@@ -119,6 +119,12 @@ export default function ProfilePage() {
   const [identitySaved, setIdentitySaved]   = useState(false);
   const [identityError, setIdentityError]   = useState('');
 
+  // Username
+  const [userHandle,       setUserHandle]       = useState('');
+  const [userHandleSaving, setUserHandleSaving] = useState(false);
+  const [userHandleSaved,  setUserHandleSaved]  = useState(false);
+  const [userHandleError,  setUserHandleError]  = useState('');
+
   // Account fields
   const [email, setEmail]           = useState('');
   const [newsletter, setNewsletter] = useState(false);
@@ -145,6 +151,7 @@ export default function ProfilePage() {
     setDisplayName(data.user_full_name ?? '');
     setBio(data.user_bio ?? '');
     setBioPublic(data.bio_public);
+    setUserHandle(data.user_handle);
     setEmail(data.email ?? '');
     setNewsletter(data.newsletter);
     setTier(data.user_tier);
@@ -176,6 +183,30 @@ export default function ProfilePage() {
       setTimeout(() => setIdentitySaved(false), 3000);
     } catch { setIdentityError('Something went wrong'); }
     finally { setIdentitySaving(false); }
+  }
+
+  async function saveUsername(e: React.FormEvent) {
+    e.preventDefault();
+    setUserHandleError(''); setUserHandleSaved(false);
+    if (userHandle.trim() === profile?.user_handle) {
+      setUserHandleSaved(true); setTimeout(() => setUserHandleSaved(false), 2000); return;
+    }
+    setUserHandleSaving(true);
+    try {
+      const res = await fetch('/api/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userHandle }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setUserHandleError(data.error || 'Save failed'); return; }
+      // Update local profile state and refresh header
+      setProfile(p => p ? { ...p, user_handle: data.userHandle } : p);
+      await refresh();
+      setUserHandleSaved(true);
+      setTimeout(() => setUserHandleSaved(false), 3000);
+    } catch { setUserHandleError('Something went wrong'); }
+    finally { setUserHandleSaving(false); }
   }
 
   async function saveAccount(e: React.FormEvent) {
@@ -295,18 +326,34 @@ export default function ProfilePage() {
           </form>
         </Section>
 
+        {/* ── Username ─────────────────────────────────── */}
+        <Section title="Username">
+          <form onSubmit={saveUsername} className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Username</label>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500 select-none">@</span>
+                  <input
+                    type="text"
+                    value={userHandle}
+                    onChange={e => setUserHandle(e.target.value)}
+                    placeholder="your_username"
+                    autoComplete="username"
+                    className="w-full rounded-lg border border-slate-700 bg-dr-surface pl-7 pr-3 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <SaveButton loading={userHandleSaving} saved={userHandleSaved} />
+              </div>
+              <p className="mt-1 text-xs text-slate-600">Letters, numbers, _ and - only. Shown publicly on all your contributions.</p>
+            </div>
+            {userHandleError && <p className="text-xs text-red-400">{userHandleError}</p>}
+          </form>
+        </Section>
+
         {/* ── Account ──────────────────────────────────── */}
         <Section title="Account">
           <form onSubmit={saveAccount} className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">
-                Username
-              </label>
-              <div className="flex items-center rounded-lg border border-slate-700/50 bg-dr-surface/50 px-3 py-2.5">
-                <span className="text-sm text-slate-500">@{profile.user_handle}</span>
-                <span className="ml-auto text-xs text-slate-600">Cannot be changed</span>
-              </div>
-            </div>
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1">
                 Email <span className="text-slate-600">(optional — newsletter only)</span>
