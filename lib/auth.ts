@@ -85,3 +85,55 @@ export function clearCookie() {
     path: '/',
   };
 }
+
+// ── WebAuthn challenge cookie ─────────────────────────────────
+
+export const CHALLENGE_COOKIE = 'dr_chal';
+
+export interface ChallengePayload {
+  challenge: string;
+  userId: string;
+  userHandle?: string;
+  email?: string;
+  tier?: string;
+}
+
+export async function signChallengeToken(payload: ChallengePayload): Promise<string> {
+  return new SignJWT(payload as unknown as Record<string, unknown>)
+    .setProtectedHeader({ alg: 'HS256' })
+    .setExpirationTime('5m')
+    .sign(jwtSecret());
+}
+
+export async function verifyChallengeToken(token: string): Promise<ChallengePayload | null> {
+  try {
+    const { payload } = await jwtVerify(token, jwtSecret());
+    return payload as unknown as ChallengePayload;
+  } catch {
+    return null;
+  }
+}
+
+export function challengeCookie(token: string) {
+  return {
+    name: CHALLENGE_COOKIE,
+    value: token,
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax' as const,
+    maxAge: 300,
+    path: '/',
+  };
+}
+
+export function clearChallengeCookie() {
+  return {
+    name: CHALLENGE_COOKIE,
+    value: '',
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax' as const,
+    maxAge: 0,
+    path: '/',
+  };
+}
