@@ -243,11 +243,12 @@ export default function PricingPage() {
               </p>
             </div>
             <div>
-              <p className="font-medium text-slate-300 mb-1">Anonymous payments</p>
+              <p className="font-medium text-slate-300 mb-1">Payment options</p>
               <p>
-                We plan to accept Bitcoin and Lightning payments, which do not require us to collect
-                any identity details. Note that the payment provider you choose may have its own
-                data policies — we cannot control what they store.
+                We will accept credit and debit cards via Stripe, and Bitcoin/Lightning for those
+                who prefer not to share financial details with us. All payments are handled by
+                third-party processors — they collect and store your payment data according to
+                their own privacy policies, which we have no control over.
               </p>
             </div>
           </div>
