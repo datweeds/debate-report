@@ -36,8 +36,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Passkey verification failed' }, { status: 400 });
   }
 
-  const { credential } = verification.registrationInfo;
-  const transports: string[] = body.response?.transports ?? [];
+  const { credential, credentialDeviceType, credentialBackedUp } = verification.registrationInfo;
+  const transports: string[] = credential.transports ?? body.response?.transports ?? [];
 
   // Generate recovery access code
   const plainCode   = generateAccessCode();
@@ -73,8 +73,8 @@ export async function POST(req: NextRequest) {
         credential.id,
         Buffer.from(credential.publicKey),
         credential.counter,
-        credential.deviceType ?? null,
-        credential.backedUp ?? false,
+        credentialDeviceType ?? null,
+        credentialBackedUp ?? false,
         transports,
       ]
     );
