@@ -12,6 +12,7 @@ cd "$APP_DIR"
 git pull origin main
 
 echo "==> Running database migrations..."
+set -a; [ -f "$APP_DIR/.env.production.local" ] && . "$APP_DIR/.env.production.local"; set +a
 for f in "$APP_DIR"/db/migrations/*.sql; do
   echo "    $f"
   PGPASSWORD="${DB_PASSWORD}" psql -h localhost -U debate_report -d debate_report -f "$f" 2>&1 \
