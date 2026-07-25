@@ -27,11 +27,30 @@ export default function HomePage() {
     <div className="flex flex-col">
 
       {/* ── Hero ──────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden bg-dr-base bg-grid py-24 sm:py-32">
-        {/* Blue glow orb */}
+      <section className="relative overflow-hidden bg-dr-base py-24 sm:py-36">
+        {/* Chamber photo */}
+        {/* Photo: Canadian House of Commons by Daniel Miller / Pexels (free to use) */}
+        <img
+          src="/images/chamber.jpg"
+          alt=""
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover object-center opacity-30"
+        />
+        {/* Gradient overlays — dark vignette + blue tint */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[500px] w-[700px] rounded-full opacity-10"
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background: [
+              'linear-gradient(to bottom, rgba(8,12,25,0.55) 0%, rgba(8,12,25,0.35) 40%, rgba(8,12,25,0.65) 80%, rgba(8,12,25,0.95) 100%)',
+              'linear-gradient(to right,  rgba(8,12,25,0.6) 0%, transparent 40%, transparent 60%, rgba(8,12,25,0.6) 100%)',
+            ].join(', '),
+          }}
+        />
+        {/* Subtle blue glow over image */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[500px] w-[700px] rounded-full opacity-20"
           style={{ background: 'radial-gradient(ellipse, #3b82f6 0%, transparent 70%)' }}
         />
 
