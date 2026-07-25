@@ -60,9 +60,12 @@ CREATE TABLE users (
     created_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
 
-    email               TEXT         NOT NULL UNIQUE,
-    password_hash       TEXT,                       -- null for Nostr-only auth
+    email               TEXT         UNIQUE,         -- null for incognito users
+    password_hash       TEXT,                       -- null for access-code-only users
+    access_code         TEXT         UNIQUE,        -- bcrypt hash; null for email-auth users
     nostr_npub          TEXT         UNIQUE,        -- future Nostr login
+    user_tier           TEXT         NOT NULL DEFAULT 'family'
+                            CHECK (user_tier IN ('family', 'debater', 'moderator', 'sysadmin')),
     user_handle         TEXT         NOT NULL UNIQUE,
     user_full_name      TEXT,
     user_bio            TEXT,
@@ -79,7 +82,9 @@ CREATE TABLE users (
     -- AI job tracking (denormalised for quick status display)
     user_job            TEXT,
     user_job_created    TIMESTAMPTZ,
-    user_job_status     TEXT
+    user_job_status     TEXT,
+
+    CONSTRAINT users_has_auth CHECK (password_hash IS NOT NULL OR access_code IS NOT NULL)
 );
 SELECT add_updated_at('users');
 

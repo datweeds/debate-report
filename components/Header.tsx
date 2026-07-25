@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useTheme } from './ThemeProvider';
+import { useAuth } from './AuthProvider';
 import { DrLogo } from './DrLogo';
 
 const SUBJECT_AREAS = [
@@ -22,6 +23,7 @@ const SUBJECT_AREAS = [
 
 export default function Header() {
   const { theme, toggle } = useTheme();
+  const { user, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [subjectsOpen, setSubjectsOpen] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -48,8 +50,6 @@ export default function Header() {
     return () => { document.body.style.overflow = ''; };
   }, [menuOpen]);
 
-  const isLoggedIn = false;
-  const userHandle = '';
 
   return (
     <>
@@ -93,20 +93,33 @@ export default function Header() {
               )}
             </button>
 
-            {isLoggedIn ? (
-              <Link
-                href="/dashboard"
-                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-blue-400 transition-colors hover:bg-blue-500/10"
-              >
-                <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12Zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8Z" />
-                </svg>
-                {userHandle}
-              </Link>
+            {user ? (
+              <div className="flex items-center gap-1">
+                <Link
+                  href="/dashboard"
+                  className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-blue-400 transition-colors hover:bg-blue-500/10"
+                >
+                  <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12Zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8Z" />
+                  </svg>
+                  {user.handle}
+                </Link>
+                {user.isSysAdmin && (
+                  <Link href="/admin" className="rounded px-2 py-1 text-xs text-amber-400 hover:bg-amber-500/10 transition-colors">
+                    Admin
+                  </Link>
+                )}
+                <button
+                  onClick={logout}
+                  className="rounded px-2 py-1 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                >
+                  Out
+                </button>
+              </div>
             ) : (
-              <button className="rounded-lg border border-blue-700/40 px-3 py-1.5 text-sm font-medium text-blue-400 transition-colors hover:border-blue-500/70 hover:bg-blue-500/10">
+              <Link href="/login" className="rounded-lg border border-blue-700/40 px-3 py-1.5 text-sm font-medium text-blue-400 transition-colors hover:border-blue-500/70 hover:bg-blue-500/10">
                 Login
-              </button>
+              </Link>
             )}
           </div>
         </div>
