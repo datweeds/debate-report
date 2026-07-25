@@ -117,9 +117,14 @@ export default function Header() {
                 </button>
               </div>
             ) : (
-              <Link href="/login" className="rounded-lg border border-blue-700/40 px-3 py-1.5 text-sm font-medium text-blue-400 transition-colors hover:border-blue-500/70 hover:bg-blue-500/10">
-                Login
-              </Link>
+              <div className="flex items-center gap-2">
+                <Link href="/login" className="text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors px-2 py-1.5">
+                  Login
+                </Link>
+                <Link href="/pricing" className="rounded-lg border border-blue-700/40 px-3 py-1.5 text-sm font-medium text-blue-400 transition-colors hover:border-blue-500/70 hover:bg-blue-500/10">
+                  Sign up
+                </Link>
+              </div>
             )}
           </div>
         </div>
@@ -158,6 +163,32 @@ export default function Header() {
 
         {/* Nav items */}
         <nav className="flex-1 overflow-y-auto py-4 px-3">
+
+          {!user && (
+            <>
+              <Link
+                href="/pricing"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-300 transition-colors hover:bg-blue-500/10 hover:text-blue-300"
+              >
+                <svg className="h-4 w-4 text-blue-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+                Sign up / Pricing
+              </Link>
+              <Link
+                href="/login"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-300 transition-colors hover:bg-blue-500/10 hover:text-blue-300"
+              >
+                <svg className="h-4 w-4 text-blue-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" />
+                </svg>
+                Log in
+              </Link>
+              <div className="my-3 border-t border-blue-900/15" />
+            </>
+          )}
 
           <Link
             href="/dashboard"
