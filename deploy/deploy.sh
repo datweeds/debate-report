@@ -12,7 +12,7 @@ cd "$APP_DIR"
 git pull origin main
 
 echo "==> Installing dependencies..."
-npm ci --omit=dev
+npm ci
 
 echo "==> Building..."
 npm run build
