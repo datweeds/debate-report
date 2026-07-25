@@ -245,10 +245,9 @@ export default function PricingPage() {
             <div>
               <p className="font-medium text-slate-300 mb-1">Payment options</p>
               <p>
-                We will accept credit and debit cards via Stripe, and Bitcoin/Lightning for those
-                who prefer not to share financial details with us. All payments are handled by
-                third-party processors — they collect and store your payment data according to
-                their own privacy policies, which we have no control over.
+                We will accept credit and debit cards via Stripe, and Bitcoin/Lightning. All
+                payments are handled by third-party processors — they collect and store your
+                payment data according to their own privacy policies.
               </p>
             </div>
           </div>
