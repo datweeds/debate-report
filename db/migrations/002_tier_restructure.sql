@@ -1,15 +1,18 @@
 -- Migration 002: replace family/debater/moderator tier set with
 -- follower/voter/debater/moderator
 
--- Drop old constraint, add new one
+-- Drop old constraint, add new one (idempotent)
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_user_tier_check;
-ALTER TABLE users ADD CONSTRAINT users_user_tier_check
+DO $$ BEGIN
+  ALTER TABLE users ADD CONSTRAINT users_user_tier_check
     CHECK (user_tier IN ('follower', 'voter', 'debater', 'moderator', 'sysadmin'));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
--- Migrate any existing family-tier users to moderator (closest match)
+-- Migrate any existing family-tier users to moderator (safe to re-run)
 UPDATE users SET user_tier = 'moderator' WHERE user_tier = 'family';
 
--- Change default
+-- Change default (idempotent)
 ALTER TABLE users ALTER COLUMN user_tier SET DEFAULT 'follower';
 
 -- Refresh subscription plans

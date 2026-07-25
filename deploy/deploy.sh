@@ -11,6 +11,13 @@ echo "==> Pulling latest code..."
 cd "$APP_DIR"
 git pull origin main
 
+echo "==> Running database migrations..."
+for f in "$APP_DIR"/db/migrations/*.sql; do
+  echo "    $f"
+  PGPASSWORD="${DB_PASSWORD}" psql -h localhost -U debate_report -d debate_report -f "$f" 2>&1 \
+    | grep -v '^NOTICE' || true
+done
+
 echo "==> Installing dependencies..."
 npm ci
 
