@@ -29,7 +29,7 @@ function StatementNode({ data, selected }: NodeProps & { data: StatementNodeData
       )}
 
       <div
-        style={{ width: 210, minHeight: 88, padding: '10px 12px' }}
+        style={{ width: 230, minHeight: 100, padding: '12px 14px' }}
         className={`rounded-xl border-2 shadow-xl transition-all ${
           isResolution ? 'bg-slate-800' : 'bg-[#0c1322]'
         } ${
@@ -40,15 +40,15 @@ function StatementNode({ data, selected }: NodeProps & { data: StatementNodeData
             : 'border-slate-700/80'
         }`}
       >
-        <p className="text-[11px] leading-snug text-slate-100 font-medium line-clamp-3 mb-2.5">
+        <p className="text-sm leading-snug text-slate-100 font-medium line-clamp-3 mb-3">
           {data.label}
         </p>
-        <div className="flex flex-wrap gap-1">
-          <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold border ${cfg.cls}`}>
+        <div className="flex flex-wrap gap-1.5">
+          <span className={`rounded px-2 py-0.5 text-[11px] font-bold border ${cfg.cls}`}>
             {cfg.badge}
           </span>
           {data.direction && (
-            <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold border ${
+            <span className={`rounded px-2 py-0.5 text-[11px] font-bold border ${
               data.direction === 'for'
                 ? 'bg-blue-500/20 text-blue-200 border-blue-500/40'
                 : 'bg-rose-500/20 text-rose-200 border-rose-500/40'

@@ -93,7 +93,7 @@ async function applyElkLayout(
       'elk.spacing.nodeNode': '60',
       'elk.layered.spacing.nodeNodeBetweenLayers': '80',
     },
-    children: nodes.map(n => ({ id: n.id, width: 210, height: 100 })),
+    children: nodes.map(n => ({ id: n.id, width: 230, height: 110 })),
     edges: edges.map(e => ({ id: e.id, sources: [e.source], targets: [e.target] })),
   };
 

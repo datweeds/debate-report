@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useEffect, useCallback, useRef } from 'react';
+import { Suspense, useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
@@ -111,9 +111,9 @@ function Switchboard({
       <div className="relative z-10 w-full max-w-lg rounded-2xl border border-slate-700 bg-[#0c1322] shadow-2xl flex flex-col max-h-[80vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
-          <h2 className="text-sm font-semibold text-slate-100">Select a Debate</h2>
+          <h2 className="text-base font-semibold text-slate-100">Select a Debate</h2>
           <button onClick={onClose} className="rounded-lg p-1.5 text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors">
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
             </svg>
           </button>
@@ -142,21 +142,21 @@ function Switchboard({
               <button
                 key={d.id}
                 onClick={() => { onSelect(d.id); onClose(); }}
-                className={`w-full text-left px-5 py-3.5 border-b border-slate-800/60 hover:bg-slate-800/50 transition-colors flex items-start gap-3 ${d.id === currentId ? 'bg-blue-500/8' : ''}`}
+                className={`w-full text-left px-5 py-4 border-b border-slate-800/60 hover:bg-slate-800/50 transition-colors flex items-start gap-3 ${d.id === currentId ? 'bg-blue-500/8' : ''}`}
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-slate-100 font-medium line-clamp-2 leading-snug">{d.stat_title}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold border ${SUBJECT_COLOURS[d.subject_area] ?? 'bg-slate-700 text-slate-400 border-slate-600'}`}>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-bold border ${SUBJECT_COLOURS[d.subject_area] ?? 'bg-slate-700 text-slate-400 border-slate-600'}`}>
                       {SUBJECT_LABELS[d.subject_area] ?? d.subject_area}
                     </span>
                     {d.child_count > 0 && (
-                      <span className="text-[10px] text-slate-500">{d.child_count} statement{d.child_count !== 1 ? 's' : ''}</span>
+                      <span className="text-xs text-slate-500">{d.child_count} statement{d.child_count !== 1 ? 's' : ''}</span>
                     )}
                   </div>
                 </div>
                 {d.id === currentId && (
-                  <span className="text-[10px] text-blue-400 font-semibold mt-0.5 flex-shrink-0">Current</span>
+                  <span className="text-xs text-blue-400 font-semibold mt-0.5 flex-shrink-0">Current</span>
                 )}
               </button>
             ))
@@ -171,32 +171,24 @@ function Switchboard({
 
 function DetailPanel({
   statement,
-  resolution,
   onClose,
 }: {
   statement: FullStatement | Resolution | null;
-  resolution: Resolution;
   onClose: () => void;
 }) {
   if (!statement) return null;
 
-  const isResolution = !('stat_type' in statement) || (statement as FullStatement).stat_type === 'resolution';
   const fullStat = statement as FullStatement;
-  const statType = isResolution ? 'resolution' : fullStat.stat_type;
-  const direction = isResolution ? null : fullStat.stat_direction;
-  const title = statement.stat_title;
-  const desc = statement.stat_description;
-  const creator = statement.creator_handle;
-  const createdAt = statement.created_at;
+  const statType = 'stat_type' in fullStat ? fullStat.stat_type : 'resolution';
+  const direction = 'stat_direction' in fullStat ? fullStat.stat_direction : null;
+  const isResolution = statType === 'resolution';
 
   return (
-    <div className="w-72 flex-shrink-0 flex flex-col border-l border-slate-800 bg-[#0c1322] overflow-y-auto">
+    <div className="w-80 flex-shrink-0 flex flex-col border-l border-slate-800 bg-[#0c1322] overflow-y-auto">
 
       {/* Header */}
       <div className="flex items-start justify-between px-4 pt-4 pb-3 border-b border-slate-800">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400">Statement</p>
-        </div>
+        <p className="text-xs font-bold uppercase tracking-widest text-amber-400">Statement</p>
         <button onClick={onClose} className="rounded-lg p-1 text-slate-600 hover:text-slate-400 transition-colors">
           <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -204,20 +196,20 @@ function DetailPanel({
         </button>
       </div>
 
-      <div className="px-4 py-4 space-y-4">
+      <div className="px-4 py-4 space-y-5">
 
         {/* Title */}
-        <p className="text-sm text-slate-100 font-semibold leading-snug">{title}</p>
+        <p className="text-base text-slate-100 font-semibold leading-snug">{statement.stat_title}</p>
 
         {/* Type & Direction */}
         <div>
-          <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1.5">Type & Direction</p>
-          <div className="flex flex-wrap gap-1.5">
-            <span className={`rounded px-2 py-0.5 text-[10px] font-bold border ${STAT_BADGE[statType] ?? STAT_BADGE.claim}`}>
+          <p className="text-xs text-slate-500 uppercase tracking-widest mb-2">Type & Direction</p>
+          <div className="flex flex-wrap gap-2">
+            <span className={`rounded px-2.5 py-1 text-xs font-bold border ${STAT_BADGE[statType] ?? STAT_BADGE.claim}`}>
               {STAT_LABEL[statType] ?? statType}
             </span>
             {direction && (
-              <span className={`rounded px-2 py-0.5 text-[10px] font-bold border ${
+              <span className={`rounded px-2.5 py-1 text-xs font-bold border ${
                 direction === 'for'
                   ? 'bg-blue-500/20 text-blue-200 border-blue-500/40'
                   : 'bg-rose-500/20 text-rose-200 border-rose-500/40'
@@ -229,47 +221,47 @@ function DetailPanel({
         </div>
 
         {/* Description */}
-        {desc && (
+        {statement.stat_description && (
           <div>
-            <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1.5">Description</p>
-            <p className="text-xs text-slate-300 leading-relaxed">{desc}</p>
+            <p className="text-xs text-slate-500 uppercase tracking-widest mb-2">Description</p>
+            <p className="text-sm text-slate-300 leading-relaxed">{statement.stat_description}</p>
           </div>
         )}
 
         {/* Meta */}
-        <div className="space-y-1.5">
-          <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1.5">Details</p>
-          <div className="flex items-center gap-2 text-xs text-slate-500">
-            <svg className="h-3 w-3 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+        <div className="space-y-2">
+          <p className="text-xs text-slate-500 uppercase tracking-widest mb-2">Details</p>
+          <div className="flex items-center gap-2 text-sm text-slate-500">
+            <svg className="h-3.5 w-3.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
             </svg>
-            {new Date(createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+            {new Date(statement.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
           </div>
-          {creator && (
-            <div className="flex items-center gap-2 text-xs text-slate-500">
-              <svg className="h-3 w-3 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          {statement.creator_handle && (
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <svg className="h-3.5 w-3.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
               </svg>
-              @{creator}
+              @{statement.creator_handle}
             </div>
           )}
         </div>
 
-        {/* Voting */}
+        {/* Voting — child statements only */}
         {!isResolution && (
-          <div className="rounded-xl border border-slate-800 bg-slate-800/30 p-3">
-            <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-2">Voting</p>
+          <div className="rounded-xl border border-slate-800 bg-slate-800/30 p-3.5">
+            <p className="text-xs text-slate-500 uppercase tracking-widest mb-3">Voting</p>
             <div className="grid grid-cols-2 gap-2 mb-3">
-              <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-2 text-center">
-                <p className="text-lg font-bold text-emerald-400">{fullStat.agree_count}</p>
-                <p className="text-[10px] text-slate-500">Agree</p>
+              <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-2.5 text-center">
+                <p className="text-xl font-bold text-emerald-400">{fullStat.agree_count}</p>
+                <p className="text-xs text-slate-500 mt-0.5">Agree</p>
               </div>
-              <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-2 text-center">
-                <p className="text-lg font-bold text-rose-400">{fullStat.disagree_count}</p>
-                <p className="text-[10px] text-slate-500">Disagree</p>
+              <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-2.5 text-center">
+                <p className="text-xl font-bold text-rose-400">{fullStat.disagree_count}</p>
+                <p className="text-xs text-slate-500 mt-0.5">Disagree</p>
               </div>
             </div>
-            <button disabled className="w-full rounded-lg border border-slate-700 bg-slate-800 py-2 text-xs font-semibold text-slate-500 cursor-not-allowed opacity-50">
+            <button disabled className="w-full rounded-lg border border-slate-700 bg-slate-800 py-2 text-sm font-semibold text-slate-500 cursor-not-allowed opacity-50">
               Vote — coming soon
             </button>
           </div>
@@ -277,8 +269,8 @@ function DetailPanel({
 
         {/* Debating Actions */}
         <div>
-          <p className="text-[10px] text-amber-400 font-bold uppercase tracking-widest mb-2">Debating Actions</p>
-          <div className="space-y-1.5">
+          <p className="text-xs text-amber-400 font-bold uppercase tracking-widest mb-3">Debating Actions</p>
+          <div className="space-y-2">
             {[
               'Create a new Claim',
               'Create new Evidence',
@@ -286,9 +278,9 @@ function DetailPanel({
               'Rebut this statement',
               'Create a discussion point',
             ].map(action => (
-              <div key={action} className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-800/20 px-3 py-2 opacity-40">
-                <span className="text-xs text-slate-400">{action}</span>
-                <span className="rounded bg-slate-700 px-2 py-0.5 text-[10px] text-slate-500">Soon</span>
+              <div key={action} className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-800/20 px-3 py-2.5 opacity-40">
+                <span className="text-sm text-slate-400">{action}</span>
+                <span className="rounded bg-slate-700 px-2 py-0.5 text-xs text-slate-500">Soon</span>
               </div>
             ))}
           </div>
@@ -323,7 +315,7 @@ function ListPanel({
     : allItems;
 
   return (
-    <div className="w-64 flex-shrink-0 flex flex-col border-r border-slate-800 bg-[#080d1a] overflow-hidden">
+    <div className="w-72 flex-shrink-0 flex flex-col border-r border-slate-800 bg-[#080d1a] overflow-hidden">
       {/* Filter input */}
       <div className="px-3 py-2.5 border-b border-slate-800">
         <input
@@ -331,15 +323,15 @@ function ListPanel({
           placeholder="Filter statements…"
           value={filter}
           onChange={e => setFilter(e.target.value)}
-          className="w-full rounded-lg border border-slate-800 bg-slate-800/50 px-2.5 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:border-blue-500/50 focus:outline-none"
+          className="w-full rounded-lg border border-slate-800 bg-slate-800/50 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-blue-500/50 focus:outline-none"
         />
       </div>
 
       {/* Column headers */}
-      <div className="grid grid-cols-[1fr_auto_auto] gap-1 px-3 py-1.5 border-b border-slate-800">
-        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-600">Statement</span>
-        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-600">Type</span>
-        <span className="text-[9px] font-bold uppercase tracking-widest text-slate-600">Dir</span>
+      <div className="grid grid-cols-[1fr_auto_auto] gap-1 px-3 py-2 border-b border-slate-800">
+        <span className="text-xs font-bold uppercase tracking-widest text-slate-600">Statement</span>
+        <span className="text-xs font-bold uppercase tracking-widest text-slate-600">Type</span>
+        <span className="text-xs font-bold uppercase tracking-widest text-slate-600">Dir</span>
       </div>
 
       {/* Rows */}
@@ -348,20 +340,20 @@ function ListPanel({
           <button
             key={s.id}
             onClick={() => onSelect(s.id)}
-            className={`w-full text-left grid grid-cols-[1fr_auto_auto] gap-1.5 items-center px-3 py-2 border-b border-slate-800/60 transition-colors ${
+            className={`w-full text-left grid grid-cols-[1fr_auto_auto] gap-2 items-center px-3 py-2.5 border-b border-slate-800/60 transition-colors ${
               s.id === selectedId
                 ? 'bg-blue-500/10 border-l-2 border-l-blue-500'
                 : 'hover:bg-slate-800/40'
             }`}
           >
-            <span className="text-[11px] text-slate-200 truncate leading-snug min-w-0">
+            <span className="text-sm text-slate-200 truncate leading-snug min-w-0">
               {s.stat_title}
             </span>
-            <span className={`rounded px-1 py-0.5 text-[8px] font-bold border flex-shrink-0 ${STAT_BADGE[s.stat_type] ?? STAT_BADGE.claim}`}>
+            <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold border flex-shrink-0 ${STAT_BADGE[s.stat_type] ?? STAT_BADGE.claim}`}>
               {STAT_LABEL[s.stat_type]?.slice(0, 4) ?? s.stat_type.slice(0, 4)}
             </span>
             {s.stat_direction ? (
-              <span className={`rounded px-1 py-0.5 text-[8px] font-bold border flex-shrink-0 ${
+              <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold border flex-shrink-0 ${
                 s.stat_direction === 'for'
                   ? 'bg-blue-500/20 text-blue-200 border-blue-500/40'
                   : 'bg-rose-500/20 text-rose-200 border-rose-500/40'
@@ -369,7 +361,7 @@ function ListPanel({
                 {s.stat_direction === 'for' ? 'For' : 'Ag'}
               </span>
             ) : (
-              <span className="w-6" />
+              <span className="w-8" />
             )}
           </button>
         ))}
@@ -377,7 +369,7 @@ function ListPanel({
 
       {/* Footer count */}
       <div className="px-3 py-2 border-t border-slate-800">
-        <span className="text-[10px] text-slate-600">
+        <span className="text-xs text-slate-600">
           {allItems.length} statement{allItems.length !== 1 ? 's' : ''}
         </span>
       </div>
@@ -407,35 +399,35 @@ function ControlBar({
   return (
     <div className="flex-shrink-0 border-b border-slate-800 bg-[#080d1a]">
       {/* Row 1: Chamber label + resolution title + panel buttons */}
-      <div className="flex items-center gap-0 h-11 border-b border-slate-800/50">
+      <div className="flex items-center gap-0 h-12 border-b border-slate-800/50">
         {/* Chamber label */}
-        <div className="flex items-center gap-2 px-4 flex-shrink-0 border-r border-slate-800 h-full">
-          <span className="text-xs font-bold text-slate-200 whitespace-nowrap">Debating Chamber</span>
+        <div className="flex items-center gap-2 px-5 flex-shrink-0 border-r border-slate-800 h-full">
+          <span className="text-sm font-bold text-slate-200 whitespace-nowrap">Debating Chamber</span>
         </div>
 
         {/* Resolution title */}
-        <div className="flex-1 px-4 min-w-0">
+        <div className="flex-1 px-5 min-w-0">
           {res ? (
-            <p className="text-xs text-slate-300 truncate">
-              <span className="text-slate-500 mr-1.5">Resolution:</span>
+            <p className="text-sm text-slate-300 truncate">
+              <span className="text-slate-500 mr-2">Resolution:</span>
               {res.stat_title}
             </p>
           ) : (
-            <p className="text-xs text-slate-600 italic">No debate selected</p>
+            <p className="text-sm text-slate-600 italic">No debate selected — click Switch Debate to begin</p>
           )}
         </div>
 
         {/* Panel toggles */}
-        <div className="flex items-center gap-1 px-3 flex-shrink-0 border-l border-slate-800 h-full">
-          <span className="text-[10px] text-slate-600 mr-1.5">Show:</span>
+        <div className="flex items-center gap-1.5 px-4 flex-shrink-0 border-l border-slate-800 h-full">
+          <span className="text-xs text-slate-600 mr-1">Show:</span>
           {[
-            { label: 'List',    active: showList,   action: onToggleList },
-            { label: 'Detail',  active: showDetail, action: onToggleDetail },
+            { label: 'List',   active: showList,   action: onToggleList },
+            { label: 'Detail', active: showDetail, action: onToggleDetail },
           ].map(btn => (
             <button
               key={btn.label}
               onClick={btn.action}
-              className={`rounded px-2.5 py-1 text-[10px] font-bold transition-colors ${
+              className={`rounded px-3 py-1.5 text-xs font-bold transition-colors ${
                 btn.active
                   ? 'bg-blue-600 text-white'
                   : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
@@ -446,13 +438,13 @@ function ControlBar({
           ))}
           <button
             disabled
-            className="rounded px-2.5 py-1 text-[10px] font-bold bg-slate-800 text-slate-600 cursor-not-allowed opacity-50"
+            className="rounded px-3 py-1.5 text-xs font-bold bg-slate-800 text-slate-600 cursor-not-allowed opacity-50"
           >
             Metrics
           </button>
           <button
             onClick={onOpenSwitchboard}
-            className="ml-2 rounded px-2.5 py-1 text-[10px] font-bold bg-amber-600/80 text-amber-100 hover:bg-amber-500 transition-colors"
+            className="ml-2 rounded px-3 py-1.5 text-xs font-bold bg-amber-600/80 text-amber-100 hover:bg-amber-500 transition-colors"
           >
             Switch Debate
           </button>
@@ -461,7 +453,7 @@ function ControlBar({
 
       {/* Row 2: Meta info */}
       {res && (
-        <div className="flex items-center gap-3 px-4 h-8 text-[10px] text-slate-500">
+        <div className="flex items-center gap-4 px-5 h-9 text-xs text-slate-500">
           <span>
             Subject Area:{' '}
             <span className={`font-semibold ${SUBJECT_COLOURS[res.subject_area]?.split(' ')[1] ?? 'text-slate-300'}`}>
@@ -487,7 +479,7 @@ function ControlBar({
 function ChamberInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { user } = useAuth();
+  useAuth();
   const resolutionParam = searchParams.get('resolution');
 
   const [data, setData] = useState<ChamberData | null>(null);
@@ -498,7 +490,6 @@ function ChamberInner() {
   const [showDetail, setShowDetail] = useState(true);
   const [showSwitchboard, setShowSwitchboard] = useState(!resolutionParam);
 
-  // Load debate data when resolutionParam changes
   useEffect(() => {
     if (!resolutionParam) {
       setData(null);
@@ -519,7 +510,6 @@ function ChamberInner() {
       .finally(() => setLoading(false));
   }, [resolutionParam]);
 
-  // Auto-open detail when a node is selected
   const handleNodeClick = useCallback((id: string) => {
     setSelectedId(id || null);
     if (id) setShowDetail(true);
@@ -529,7 +519,6 @@ function ChamberInner() {
     router.push(`/chamber?resolution=${id}`);
   }, [router]);
 
-  // Find the selected statement (or resolution)
   const selectedStatement: FullStatement | Resolution | null = (() => {
     if (!selectedId || !data) return null;
     if (selectedId === data.resolution.id) return data.resolution;
@@ -538,7 +527,6 @@ function ChamberInner() {
 
   return (
     <>
-      {/* Full-screen chamber below the site header */}
       <div className="fixed inset-0 top-16 z-40 bg-[#080d1a] flex flex-col overflow-hidden">
 
         <ControlBar
@@ -550,7 +538,6 @@ function ChamberInner() {
           onOpenSwitchboard={() => setShowSwitchboard(true)}
         />
 
-        {/* Body */}
         <div className="flex-1 flex overflow-hidden min-h-0">
 
           {/* List panel */}
@@ -574,10 +561,7 @@ function ChamberInner() {
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center">
                   <p className="text-red-400 text-sm mb-3">{error}</p>
-                  <button
-                    onClick={() => setShowSwitchboard(true)}
-                    className="text-xs text-blue-400 hover:underline"
-                  >
+                  <button onClick={() => setShowSwitchboard(true)} className="text-xs text-blue-400 hover:underline">
                     Choose a different debate →
                   </button>
                 </div>
@@ -593,7 +577,7 @@ function ChamberInner() {
                 <p className="text-slate-400 text-sm">Select a debate to begin</p>
                 <button
                   onClick={() => setShowSwitchboard(true)}
-                  className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 transition-colors"
+                  className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 transition-colors"
                 >
                   Open Switchboard
                 </button>
@@ -614,28 +598,22 @@ function ChamberInner() {
           {showDetail && selectedStatement && (
             <DetailPanel
               statement={selectedStatement}
-              resolution={data!.resolution}
               onClose={() => setSelectedId(null)}
             />
           )}
         </div>
       </div>
 
-      {/* Switchboard modal */}
       {showSwitchboard && (
         <Switchboard
           currentId={resolutionParam}
           onSelect={handleSelectDebate}
-          onClose={() => {
-            if (data) setShowSwitchboard(false);
-          }}
+          onClose={() => { if (data) setShowSwitchboard(false); }}
         />
       )}
     </>
   );
 }
-
-// ── Page export (Suspense required for useSearchParams) ────────────────────────
 
 export default function ChamberPage() {
   return (

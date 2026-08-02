@@ -14,7 +14,7 @@ export default function Footer() {
 
   return (
     <footer className="border-t border-blue-900/15 bg-[#04060b] text-slate-400 text-sm">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6">
+      <div className="px-4 sm:px-8 py-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
 
           <Link href="/" className="flex items-center gap-2 opacity-80 hover:opacity-100 transition-opacity">
@@ -56,7 +56,7 @@ export default function Footer() {
         </div>
 
         <p className="mt-4 text-center text-xs text-slate-600">
-          © {new Date().getFullYear()} debate.report — All debates are strictly moderated.
+          (c) Copyright debate.report {new Date().getFullYear()}. All rights reserved.
         </p>
       </div>
     </footer>

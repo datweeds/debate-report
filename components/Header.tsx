@@ -54,7 +54,7 @@ export default function Header() {
   return (
     <>
       <header className="fixed top-0 left-0 right-0 z-40 border-b border-blue-900/20 bg-[#080d1a]/90 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
+        <div className="flex h-16 w-full items-center justify-between px-4 sm:px-8">
 
           {/* Left: hamburger */}
           <button
