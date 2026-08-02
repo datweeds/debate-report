@@ -4,12 +4,14 @@ import { Suspense, useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { useAuth } from '@/components/AuthProvider';
-import ControlBar  from '@/components/chamber/ControlBar';
-import ListPanel   from '@/components/chamber/ListPanel';
-import DetailPanel from '@/components/chamber/DetailPanel';
-import Switchboard from '@/components/chamber/Switchboard';
-import UpdateModal from '@/components/chamber/UpdateModal';
+import ControlBar          from '@/components/chamber/ControlBar';
+import ListPanel            from '@/components/chamber/ListPanel';
+import DetailPanel          from '@/components/chamber/DetailPanel';
+import Switchboard          from '@/components/chamber/Switchboard';
+import UpdateModal          from '@/components/chamber/UpdateModal';
+import CreateStatementModal from '@/components/chamber/CreateStatementModal';
 import type { ChamberData, FullStatement, Resolution } from '@/components/chamber/types';
+import type { ChamberStatement, ChamberRelationship } from '@/components/chamber/ChamberGraph';
 
 const ChamberGraph = dynamic(() => import('@/components/chamber/ChamberGraph'), { ssr: false });
 
@@ -31,6 +33,7 @@ function ChamberInner() {
   const [showSwitchboard,setShowSwitchboard]= useState(!resolutionParam);
   const [showRetracted,  setShowRetracted]  = useState(false);
   const [updateTarget,   setUpdateTarget]   = useState<string | null>(null);
+  const [createTarget,   setCreateTarget]   = useState<string | null>(null);
 
   // ── Load debate
   useEffect(() => {
@@ -98,6 +101,42 @@ function ChamberInner() {
     setUpdateTarget(id);
   }, []);
 
+  // Open create-child modal for a given node
+  const handleCreateChild = useCallback((id: string) => {
+    setCreateTarget(id);
+  }, []);
+
+  // Apply a newly created statement to local state.
+  // The API returns extra fields (stat_description, created_at) that aren't in ChamberStatement;
+  // cast to any to capture them cleanly.
+  const handleStatementCreated = useCallback((
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    statement: any,
+    relationship: ChamberRelationship,
+  ) => {
+    setData(prev => {
+      if (!prev) return prev;
+      const newFull: FullStatement = {
+        id:              statement.id,
+        stat_type:       statement.stat_type,
+        stat_title:      statement.stat_title,
+        stat_direction:  statement.stat_direction ?? null,
+        retracted_at:    statement.retracted_at ?? null,
+        created_by:      statement.created_by ?? null,
+        stat_description: statement.stat_description ?? null,
+        created_at:      statement.created_at ?? new Date().toISOString(),
+        creator_handle:  user?.handle ?? null,
+        agree_count:     0,
+        disagree_count:  0,
+      };
+      return {
+        ...prev,
+        statements:    [...prev.statements, newFull],
+        relationships: [...prev.relationships, relationship],
+      };
+    });
+  }, [user]);
+
   // Apply saved changes from the update modal to local state
   const handleUpdateSave = useCallback((id: string, title: string, description: string | null) => {
     setData(prev => {
@@ -143,6 +182,21 @@ function ChamberInner() {
     if (updateTarget === data.resolution.id) return data.resolution;
     return data.statements.find(s => s.id === updateTarget) ?? null;
   }, [updateTarget, data]);
+
+  // Whether a given statement has downstream connections (locks its title)
+  const statementsWithChildren = useMemo(() => {
+    const set = new Set(data?.relationships.map(r => r.stat_id_supported) ?? []);
+    return set;
+  }, [data]);
+
+  // Data passed to the create modal
+  const createModalParent = useMemo(() => {
+    if (!createTarget || !data) return null;
+    if (createTarget === data.resolution.id) {
+      return { id: data.resolution.id, stat_type: 'resolution', stat_title: data.resolution.stat_title };
+    }
+    return data.statements.find(s => s.id === createTarget) ?? null;
+  }, [createTarget, data]);
 
   // ── Render
 
@@ -215,6 +269,7 @@ function ChamberInner() {
                 onNodeClick={handleNodeClick}
                 onUpdateNode={handleUpdateNode}
                 onRetractNode={handleRetractNode}
+                onCreateChild={handleCreateChild}
               />
             )}
           </div>
@@ -241,8 +296,20 @@ function ChamberInner() {
           statementId={updateTarget}
           initialTitle={updateModalStatement.stat_title}
           initialDescription={updateModalStatement.stat_description}
+          hasChildren={statementsWithChildren.has(updateTarget)}
           onSave={handleUpdateSave}
           onClose={() => setUpdateTarget(null)}
+        />
+      )}
+
+      {createTarget && createModalParent && data && (
+        <CreateStatementModal
+          parentId={createModalParent.id}
+          parentType={createModalParent.stat_type}
+          parentTitle={createModalParent.stat_title}
+          resolutionId={data.resolution.id}
+          onCreated={handleStatementCreated}
+          onClose={() => setCreateTarget(null)}
         />
       )}
     </>

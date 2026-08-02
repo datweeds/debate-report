@@ -6,19 +6,22 @@ type Props = {
   statementId: string;
   initialTitle: string;
   initialDescription: string | null;
+  hasChildren: boolean;   // if true, the title is locked (connected responses exist)
   onSave: (id: string, title: string, description: string | null) => void;
   onClose: () => void;
 };
 
-export default function UpdateModal({ statementId, initialTitle, initialDescription, onSave, onClose }: Props) {
-  const [title, setTitle] = useState(initialTitle);
+export default function UpdateModal({
+  statementId, initialTitle, initialDescription, hasChildren, onSave, onClose,
+}: Props) {
+  const [title,       setTitle]       = useState(initialTitle);
   const [description, setDescription] = useState(initialDescription ?? '');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const [saving,      setSaving]      = useState(false);
+  const [error,       setError]       = useState('');
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const trimTitle = title.trim();
+    const trimTitle = hasChildren ? initialTitle : title.trim();
     if (!trimTitle) { setError('Statement text is required.'); return; }
     setError('');
     setSaving(true);
@@ -26,7 +29,10 @@ export default function UpdateModal({ statementId, initialTitle, initialDescript
       const res = await fetch(`/api/statements/${statementId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: trimTitle, description: description.trim() || null }),
+        body: JSON.stringify({
+          title: trimTitle,
+          description: description.trim() || null,
+        }),
       });
       if (!res.ok) {
         const d = await res.json();
@@ -67,19 +73,41 @@ export default function UpdateModal({ statementId, initialTitle, initialDescript
                 {error}
               </div>
             )}
+
+            {/* Title field */}
             <div>
-              <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
-                Statement text
-              </label>
-              <textarea
-                value={title}
-                onChange={e => setTitle(e.target.value)}
-                rows={3}
-                maxLength={510}
-                className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-              />
-              <p className="mt-1 text-right text-xs text-slate-600">{title.length}/510</p>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                  Statement text
+                </label>
+                {hasChildren && (
+                  <span className="flex items-center gap-1 text-xs text-amber-400/80">
+                    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                    </svg>
+                    Locked — has connected responses
+                  </span>
+                )}
+              </div>
+              {hasChildren ? (
+                <div className="w-full rounded-lg border border-slate-700/50 bg-slate-800/30 px-3 py-2.5 text-sm text-slate-400 min-h-[4rem] leading-relaxed select-none">
+                  {initialTitle}
+                </div>
+              ) : (
+                <>
+                  <textarea
+                    value={title}
+                    onChange={e => setTitle(e.target.value)}
+                    rows={3}
+                    maxLength={510}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                  />
+                  <p className="mt-1 text-right text-xs text-slate-600">{title.length}/510</p>
+                </>
+              )}
             </div>
+
+            {/* Description field — always editable */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-widest text-slate-500 mb-2">
                 Description{' '}

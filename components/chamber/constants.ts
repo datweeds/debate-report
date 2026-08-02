@@ -22,13 +22,47 @@ export const SUBJECT_COLOURS: Record<string, string> = {
 
 export const STAT_BADGE: Record<string, string> = {
   resolution: 'bg-amber-400/20 text-amber-200 border-amber-500/40',
+  framework:  'bg-sky-500/20 text-sky-200 border-sky-500/40',
   claim:      'bg-slate-500/30 text-slate-200 border-slate-400/30',
   warrant:    'bg-violet-500/20 text-violet-200 border-violet-500/40',
   evidence:   'bg-emerald-500/20 text-emerald-200 border-emerald-500/40',
+  impact:     'bg-orange-500/20 text-orange-200 border-orange-500/40',
   rebuttal:   'bg-rose-500/20 text-rose-200 border-rose-500/40',
+  turn:       'bg-fuchsia-500/20 text-fuchsia-200 border-fuchsia-500/40',
 };
 
 export const STAT_LABEL: Record<string, string> = {
-  resolution: 'Resolution', claim: 'Claim', warrant: 'Warrant',
-  evidence: 'Evidence', rebuttal: 'Rebuttal',
+  resolution: 'Resolution', framework: 'Framework', claim: 'Claim',
+  warrant:    'Warrant',    evidence:  'Evidence',  impact: 'Impact',
+  rebuttal:   'Rebuttal',   turn:      'Turn',
+};
+
+// ── Public Forum debate connection rules ──────────────────────────────────────
+// Maps each statement type to the child types that can be added to it.
+export const PF_ALLOWED_CHILDREN: Record<string, string[]> = {
+  resolution: ['framework', 'claim'],
+  framework:  ['warrant', 'evidence', 'rebuttal'],
+  claim:      ['warrant', 'evidence', 'impact', 'rebuttal'],
+  warrant:    ['evidence', 'rebuttal'],
+  evidence:   ['rebuttal'],
+  impact:     ['warrant', 'evidence', 'rebuttal'],
+  rebuttal:   ['warrant', 'evidence', 'turn', 'rebuttal'],
+  turn:       ['warrant', 'evidence', 'rebuttal'],
+};
+
+// ── Direction rules per statement type ───────────────────────────────────────
+// null  → neutral (no direction field shown)
+// 'against' → auto-set, user cannot change
+// 'user' → user picks For / Against
+export type DirectionMode = 'neutral' | 'auto-against' | 'user';
+
+export const TYPE_DIRECTION_MODE: Record<string, DirectionMode> = {
+  resolution: 'neutral',
+  framework:  'neutral',
+  claim:      'user',
+  warrant:    'user',
+  evidence:   'neutral',
+  impact:     'user',
+  rebuttal:   'auto-against',  // always challenges the parent
+  turn:       'user',          // depends on whose turn — debater picks
 };

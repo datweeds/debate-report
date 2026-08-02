@@ -14,6 +14,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import StatementNode, { type StatementNodeData, NODE_W, TOTAL_H } from './StatementNode';
+import { PF_ALLOWED_CHILDREN } from './constants';
 
 const nodeTypes = { statement: StatementNode };
 
@@ -40,6 +41,7 @@ type Props = {
   onNodeClick: (id: string) => void;
   onUpdateNode: (id: string) => void;
   onRetractNode: (id: string) => void;
+  onCreateChild: (parentId: string) => void;
 };
 
 function buildGraph(
@@ -48,8 +50,10 @@ function buildGraph(
   relationships: ChamberRelationship[],
 ): { nodes: Node<StatementNodeData>[]; edges: Edge[] } {
   const all: ChamberStatement[] = [
-    { id: resolution.id, stat_type: 'resolution', stat_title: resolution.stat_title,
-      stat_direction: null, retracted_at: null, created_by: resolution.created_by },
+    {
+      id: resolution.id, stat_type: 'resolution', stat_title: resolution.stat_title,
+      stat_direction: null, retracted_at: null, created_by: resolution.created_by,
+    },
     ...statements,
   ];
 
@@ -63,9 +67,13 @@ function buildGraph(
       statType: s.stat_type as StatementNodeData['statType'],
       direction: s.stat_direction as 'for' | 'against' | null,
       isRetracted: !!s.retracted_at,
-      isOwner: false,      // populated by data-sync effect
-      onUpdate: () => {},  // populated by data-sync effect
-      onRetract: () => {}, // populated by data-sync effect
+      isOwner: false,
+      hasChildren: false,
+      canCreate: false,
+      allowedChildren: [],
+      onUpdate: () => {},
+      onRetract: () => {},
+      onCreateChild: () => {},
     },
   }));
 
@@ -119,7 +127,7 @@ async function applyElkLayout(
 
 export default function ChamberGraph({
   resolution, statements, relationships, selectedId, userId,
-  onNodeClick, onUpdateNode, onRetractNode,
+  onNodeClick, onUpdateNode, onRetractNode, onCreateChild,
 }: Props) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<StatementNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -127,39 +135,40 @@ export default function ChamberGraph({
   const rfRef = useRef<any>(null);
 
   // Stable refs for callbacks — avoids stale closures in node data
-  const onUpdateRef = useRef(onUpdateNode);
-  const onRetractRef = useRef(onRetractNode);
-  onUpdateRef.current = onUpdateNode;
-  onRetractRef.current = onRetractNode;
+  const onUpdateRef      = useRef(onUpdateNode);
+  const onRetractRef     = useRef(onRetractNode);
+  const onCreateChildRef = useRef(onCreateChild);
+  onUpdateRef.current      = onUpdateNode;
+  onRetractRef.current     = onRetractNode;
+  onCreateChildRef.current = onCreateChild;
 
-  const stableUpdate = useCallback((id: string) => onUpdateRef.current(id), []);
-  const stableRetract = useCallback((id: string) => onRetractRef.current(id), []);
+  const stableUpdate      = useCallback((id: string) => onUpdateRef.current(id), []);
+  const stableRetract     = useCallback((id: string) => onRetractRef.current(id), []);
+  const stableCreateChild = useCallback((id: string) => onCreateChildRef.current(id), []);
 
-  // ── Layout effect: reruns when statement IDs or relationship count changes
+  // ── Layout: reruns when visible statement set or relationship count changes
   const statIdKey = [resolution.id, ...statements.map(s => s.id)].join(',');
   useEffect(() => {
     const { nodes: raw, edges: rawEdges } = buildGraph(resolution, statements, relationships);
     applyElkLayout(raw, rawEdges).then(({ nodes: laid, edges: laidEdges }) => {
-      // Decorate with ownership + callbacks; selection synced separately
-      const allWithMeta = decorateNodes(laid, statements, resolution, userId, stableUpdate, stableRetract);
-      setNodes(allWithMeta);
+      setNodes(decorateNodes(laid, statements, relationships, resolution, userId, stableUpdate, stableRetract, stableCreateChild));
       setEdges(laidEdges);
       setTimeout(() => rfRef.current?.fitView({ padding: 0.25, duration: 400 }), 60);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statIdKey, relationships.length]);
 
-  // ── Data-sync effect: update ownership, retracted state, callbacks without re-layout
+  // ── Data-sync: update ownership/retracted/callbacks without re-layout
   useEffect(() => {
     setNodes(prev =>
       prev.length === 0
         ? prev
-        : decorateNodes(prev, statements, resolution, userId, stableUpdate, stableRetract),
+        : decorateNodes(prev, statements, relationships, resolution, userId, stableUpdate, stableRetract, stableCreateChild),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statements, userId, stableUpdate, stableRetract]);
+  }, [statements, relationships, userId]);
 
-  // ── Selection-sync effect: lightweight, just toggles selected flag
+  // ── Selection-sync: lightweight, only toggles selected flag
   useEffect(() => {
     setNodes(prev => prev.map(n => ({ ...n, selected: n.id === selectedId })));
   }, [selectedId, setNodes]);
@@ -199,33 +208,40 @@ export default function ChamberGraph({
   );
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helper ────────────────────────────────────────────────────────────────────
 
 function decorateNodes(
   nodes: Node<StatementNodeData>[],
   statements: ChamberStatement[],
+  relationships: ChamberRelationship[],
   resolution: { id: string; created_by: string | null },
   userId: string | null,
   onUpdate: (id: string) => void,
   onRetract: (id: string) => void,
+  onCreateChild: (id: string) => void,
 ): Node<StatementNodeData>[] {
-  const stmtMap = new Map(statements.map(s => [s.id, s]));
+  const stmtMap    = new Map(statements.map(s => [s.id, s]));
+  const parentIds  = new Set(relationships.map(r => r.stat_id_supported));
 
   return nodes.map(n => {
-    const isRes = n.id === resolution.id;
-    const stmt = isRes ? null : stmtMap.get(n.id);
+    const isRes    = n.id === resolution.id;
+    const stmt     = isRes ? null : stmtMap.get(n.id);
     const createdBy = isRes ? resolution.created_by : stmt?.created_by ?? null;
-    const isRetracted = isRes ? false : !!stmt?.retracted_at;
+    const statType  = (isRes ? 'resolution' : stmt?.stat_type ?? 'claim') as string;
 
     return {
       ...n,
-      // Note: `selected` is managed exclusively by the selection-sync effect
+      // selected managed by selection-sync effect
       data: {
         ...n.data,
-        isRetracted,
-        isOwner: userId != null && createdBy === userId,
+        isRetracted:     isRes ? false : !!stmt?.retracted_at,
+        isOwner:         userId != null && createdBy === userId,
+        hasChildren:     parentIds.has(n.id),
+        canCreate:       userId != null,
+        allowedChildren: PF_ALLOWED_CHILDREN[statType] ?? [],
         onUpdate,
         onRetract,
+        onCreateChild,
       },
     };
   });
