@@ -30,6 +30,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const { rows: statements } = await pool.query(
     `SELECT s.id, s.stat_type, s.stat_title, s.stat_direction,
             s.stat_description, s.created_at, s.created_by,
+            s.retracted_at,
             u.user_handle AS creator_handle,
             COALESCE(agg.agree_count,    0)::int AS agree_count,
             COALESCE(agg.disagree_count, 0)::int AS disagree_count

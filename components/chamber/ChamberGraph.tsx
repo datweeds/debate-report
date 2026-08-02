@@ -13,7 +13,7 @@ import {
   MarkerType,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import StatementNode, { type StatementNodeData } from './StatementNode';
+import StatementNode, { type StatementNodeData, NODE_W, TOTAL_H } from './StatementNode';
 
 const nodeTypes = { statement: StatementNode };
 
@@ -22,6 +22,8 @@ export type ChamberStatement = {
   stat_type: string;
   stat_title: string;
   stat_direction: string | null;
+  retracted_at: string | null;
+  created_by: string | null;
 };
 
 export type ChamberRelationship = {
@@ -30,21 +32,24 @@ export type ChamberRelationship = {
 };
 
 type Props = {
-  resolution: { id: string; stat_title: string };
+  resolution: { id: string; stat_title: string; created_by: string | null };
   statements: ChamberStatement[];
   relationships: ChamberRelationship[];
   selectedId: string | null;
+  userId: string | null;
   onNodeClick: (id: string) => void;
+  onUpdateNode: (id: string) => void;
+  onRetractNode: (id: string) => void;
 };
 
 function buildGraph(
-  resolution: { id: string; stat_title: string },
+  resolution: { id: string; stat_title: string; created_by: string | null },
   statements: ChamberStatement[],
   relationships: ChamberRelationship[],
-  selectedId: string | null,
 ): { nodes: Node<StatementNodeData>[]; edges: Edge[] } {
-  const all = [
-    { id: resolution.id, stat_type: 'resolution', stat_title: resolution.stat_title, stat_direction: null },
+  const all: ChamberStatement[] = [
+    { id: resolution.id, stat_type: 'resolution', stat_title: resolution.stat_title,
+      stat_direction: null, retracted_at: null, created_by: resolution.created_by },
     ...statements,
   ];
 
@@ -52,15 +57,18 @@ function buildGraph(
     id: s.id,
     type: 'statement',
     position: { x: 0, y: 0 },
-    selected: s.id === selectedId,
+    selected: false,
     data: {
       label: s.stat_title,
       statType: s.stat_type as StatementNodeData['statType'],
       direction: s.stat_direction as 'for' | 'against' | null,
+      isRetracted: !!s.retracted_at,
+      isOwner: false,      // populated by data-sync effect
+      onUpdate: () => {},  // populated by data-sync effect
+      onRetract: () => {}, // populated by data-sync effect
     },
   }));
 
-  // Edges: source = the node being supported (visually higher), target = the supporter (visually lower)
   const edges: Edge[] = relationships.map(r => ({
     id: `${r.stat_id_supported}__${r.stat_id_supported_by}`,
     source: r.stat_id_supported,
@@ -91,9 +99,9 @@ async function applyElkLayout(
       'elk.algorithm': 'layered',
       'elk.direction': 'DOWN',
       'elk.spacing.nodeNode': '60',
-      'elk.layered.spacing.nodeNodeBetweenLayers': '80',
+      'elk.layered.spacing.nodeNodeBetweenLayers': '50',
     },
-    children: nodes.map(n => ({ id: n.id, width: 230, height: 110 })),
+    children: nodes.map(n => ({ id: n.id, width: NODE_W, height: TOTAL_H })),
     edges: edges.map(e => ({ id: e.id, sources: [e.source], targets: [e.target] })),
   };
 
@@ -110,25 +118,48 @@ async function applyElkLayout(
 }
 
 export default function ChamberGraph({
-  resolution, statements, relationships, selectedId, onNodeClick,
+  resolution, statements, relationships, selectedId, userId,
+  onNodeClick, onUpdateNode, onRetractNode,
 }: Props) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<StatementNodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rfRef = useRef<any>(null);
 
-  // Recompute full layout when the debate data changes
+  // Stable refs for callbacks — avoids stale closures in node data
+  const onUpdateRef = useRef(onUpdateNode);
+  const onRetractRef = useRef(onRetractNode);
+  onUpdateRef.current = onUpdateNode;
+  onRetractRef.current = onRetractNode;
+
+  const stableUpdate = useCallback((id: string) => onUpdateRef.current(id), []);
+  const stableRetract = useCallback((id: string) => onRetractRef.current(id), []);
+
+  // ── Layout effect: reruns when statement IDs or relationship count changes
+  const statIdKey = [resolution.id, ...statements.map(s => s.id)].join(',');
   useEffect(() => {
-    const { nodes: raw, edges: rawEdges } = buildGraph(resolution, statements, relationships, selectedId);
+    const { nodes: raw, edges: rawEdges } = buildGraph(resolution, statements, relationships);
     applyElkLayout(raw, rawEdges).then(({ nodes: laid, edges: laidEdges }) => {
-      setNodes(laid);
+      // Decorate with ownership + callbacks; selection synced separately
+      const allWithMeta = decorateNodes(laid, statements, resolution, userId, stableUpdate, stableRetract);
+      setNodes(allWithMeta);
       setEdges(laidEdges);
       setTimeout(() => rfRef.current?.fitView({ padding: 0.25, duration: 400 }), 60);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolution.id, statements.length, relationships.length]);
+  }, [statIdKey, relationships.length]);
 
-  // Sync selection without re-layout
+  // ── Data-sync effect: update ownership, retracted state, callbacks without re-layout
+  useEffect(() => {
+    setNodes(prev =>
+      prev.length === 0
+        ? prev
+        : decorateNodes(prev, statements, resolution, userId, stableUpdate, stableRetract),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statements, userId, stableUpdate, stableRetract]);
+
+  // ── Selection-sync effect: lightweight, just toggles selected flag
   useEffect(() => {
     setNodes(prev => prev.map(n => ({ ...n, selected: n.id === selectedId })));
   }, [selectedId, setNodes]);
@@ -166,4 +197,36 @@ export default function ChamberGraph({
       </ReactFlow>
     </div>
   );
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function decorateNodes(
+  nodes: Node<StatementNodeData>[],
+  statements: ChamberStatement[],
+  resolution: { id: string; created_by: string | null },
+  userId: string | null,
+  onUpdate: (id: string) => void,
+  onRetract: (id: string) => void,
+): Node<StatementNodeData>[] {
+  const stmtMap = new Map(statements.map(s => [s.id, s]));
+
+  return nodes.map(n => {
+    const isRes = n.id === resolution.id;
+    const stmt = isRes ? null : stmtMap.get(n.id);
+    const createdBy = isRes ? resolution.created_by : stmt?.created_by ?? null;
+    const isRetracted = isRes ? false : !!stmt?.retracted_at;
+
+    return {
+      ...n,
+      // Note: `selected` is managed exclusively by the selection-sync effect
+      data: {
+        ...n.data,
+        isRetracted,
+        isOwner: userId != null && createdBy === userId,
+        onUpdate,
+        onRetract,
+      },
+    };
+  });
 }
