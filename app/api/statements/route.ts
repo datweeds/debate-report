@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { scanContent } from '@/lib/scanner';
 
 const VALID_TYPES = ['framework', 'claim', 'warrant', 'evidence', 'impact', 'rebuttal', 'turn'] as const;
 
@@ -67,13 +68,20 @@ export async function POST(req: NextRequest) {
     // stat_id_supported = parent (what's being supported)
     // stat_id_supported_by = new child (the supporter)
     await client.query(
-      'INSERT INTO stat_relationships (stat_id_supported, stat_id_supported_by) VALUES ($1, $2)',
-      [parentId, statement.id],
+      'INSERT INTO stat_relationships (stat_id_supported, stat_id_supported_by, created_by) VALUES ($1, $2, $3)',
+      [parentId, statement.id, session.sub],
     );
 
     await client.query('COMMIT');
 
     const relationship = { stat_id_supported: parentId, stat_id_supported_by: statement.id };
+
+    // Async scan — does not block response
+    void scanContent(statTitle.trim(), 'statement_title', statement.id, resolutionId, session.sub);
+    if (statDescription?.trim()) {
+      void scanContent(statDescription.trim(), 'statement_description', statement.id, resolutionId, session.sub);
+    }
+
     return NextResponse.json({ statement, relationship }, { status: 201 });
 
   } catch (err) {

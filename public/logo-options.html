@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>debate.report — Logo Options</title>
+<style>
+:root {
+  --bg:      #070b16;
+  --surface: #0d1225;
+  --border:  #1a2540;
+  --text:    #dde6f8;
+  --muted:   #4a5f88;
+  --blue:    #3b82f6;
+  --rec:     #34d399;
+  --sw-dk:   #080d1a;
+  --sw-lt:   #eef4ff;
+  --sw-lt-border: #ccdcf8;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg:      #f0f5fc;
+    --surface: #ffffff;
+    --border:  #d8e4f5;
+    --text:    #0a1228;
+    --muted:   #637aaa;
+  }
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  padding: 2.5rem 1.5rem 5rem;
+  line-height: 1.5;
+}
+.page-hd { margin-bottom: 2rem; }
+.page-hd h1 { font-size: .9375rem; font-weight: 600; letter-spacing: -.015em; margin-bottom: .3rem; }
+.page-hd p  { font-size: .8125rem; color: var(--muted); }
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  gap: 1.125rem;
+  max-width: 760px;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.card.is-rec { border-color: var(--blue); }
+.card-head {
+  padding: .875rem 1.125rem .75rem;
+  border-bottom: 1px solid var(--border);
+}
+.card-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .75rem;
+}
+.card-name {
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.card-desc {
+  font-size: .75rem;
+  color: var(--muted);
+  margin-top: .25rem;
+  line-height: 1.45;
+}
+.rec-badge {
+  font-size: .6rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--rec);
+  border: 1px solid var(--rec);
+  border-radius: 3px;
+  padding: .15rem .45rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-top: .05rem;
+}
+.swatches {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  height: 100px;
+}
+.sw {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sw.dk { background: var(--sw-dk); }
+.sw.lt { background: var(--sw-lt); border-left: 1px solid var(--sw-lt-border); }
+.sizes {
+  padding: .875rem 1.125rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+}
+.sz-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+.sz-label { font-size: .6rem; color: var(--muted); }
+.sz-spacer { flex: 1; }
+.sz-tag { font-size: .6875rem; color: var(--muted); align-self: center; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="page-hd">
+  <h1>debate.report — Logo Options</h1>
+  <p>Four all-blue concepts. Each shown on dark and light grounds, then at favicon sizes (32 · 24 · 16 px).</p>
+</div>
+<div class="grid" id="grid"></div>
+<script>
+const LOGOS = [
+  {
+    name: 'Duo',
+    desc: 'Current diagonal arrangement with two blue shades in place of blue and gold. Familiar — minimal change from today.',
+    rec: false,
+    vb: '0 0 40 44',
+    inner: `<rect x="1" y="1" width="24" height="17" rx="4" fill="#3b82f6"/><polygon points="5,18 5,26 14,18" fill="#3b82f6"/><rect x="15" y="19" width="24" height="17" rx="4" fill="#1d4ed8"/><polygon points="35,36 35,43 26,36" fill="#1d4ed8"/>`
+  },
+  {
+    name: 'Echo',
+    desc: 'One filled, one outlined — the assertion and its counter. Conceptually the strongest: claim vs. challenge.',
+    rec: false,
+    vb: '0 0 40 44',
+    inner: `<rect x="1" y="1" width="24" height="17" rx="4" fill="#3b82f6"/><polygon points="5,18 5,26 14,18" fill="#3b82f6"/><path d="M19,19 H35 Q39,19 39,23 V32 Q39,36 35,36 H28 L26,43 L24,36 H19 Q15,36 15,32 V23 Q15,19 19,19 Z" fill="none" stroke="#3b82f6" stroke-width="2.5" stroke-linejoin="round"/>`
+  },
+  {
+    name: 'Face',
+    desc: 'Two bubbles at the same height, tails pointing outward — two speakers at their podiums, facing out to the audience.',
+    rec: true,
+    vb: '0 0 44 26',
+    inner: `<rect x="1" y="1" width="19" height="15" rx="4" fill="#3b82f6"/><polygon points="4,16 4,24 12,16" fill="#3b82f6"/><rect x="24" y="1" width="19" height="15" rx="4" fill="#3b82f6" opacity="0.62"/><polygon points="39,16 39,24 31,16" fill="#3b82f6" opacity="0.62"/>`
+  },
+  {
+    name: 'Mark',
+    desc: 'Single bubble, two white text lines inside. The clearest favicon — works at 16 px without confusion.',
+    rec: false,
+    vb: '0 0 32 34',
+    inner: `<rect x="1" y="1" width="30" height="22" rx="5" fill="#3b82f6"/><polygon points="5,23 5,32 15,23" fill="#3b82f6"/><rect x="7" y="8" width="18" height="2.5" rx="1.25" fill="white" opacity="0.9"/><rect x="7" y="13" width="12" height="2.5" rx="1.25" fill="white" opacity="0.9"/>`
+  }
+];
+
+function makeSVG(logo, size) {
+  return `<svg width="${size}" height="${size}" viewBox="${logo.vb}" fill="none" xmlns="http://www.w3.org/2000/svg">${logo.inner}</svg>`;
+}
+
+const grid = document.getElementById('grid');
+LOGOS.forEach(logo => {
+  const card = document.createElement('div');
+  card.className = 'card' + (logo.rec ? ' is-rec' : '');
+  card.innerHTML = `
+    <div class="card-head">
+      <div class="card-row">
+        <div>
+          <div class="card-name">${logo.name}</div>
+          <div class="card-desc">${logo.desc}</div>
+        </div>
+        ${logo.rec ? '<span class="rec-badge">Recommended</span>' : ''}
+      </div>
+    </div>
+    <div class="swatches">
+      <div class="sw dk">${makeSVG(logo, 54)}</div>
+      <div class="sw lt">${makeSVG(logo, 54)}</div>
+    </div>
+    <div class="sizes">
+      ${[32, 24, 16].map(s => `<div class="sz-item">${makeSVG(logo, s)}<span class="sz-label">${s}</span></div>`).join('')}
+      <div class="sz-spacer"></div>
+      <span class="sz-tag">favicon sizes</span>
+    </div>`;
+  grid.appendChild(card);
+});
+</script>
+</body>
+</html>

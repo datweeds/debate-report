@@ -12,6 +12,8 @@ export async function GET() {
       popularDebates,
       staleDebates,
       debatesByMonth,
+      scienceCount,
+      scienceByMonth,
     ] = await Promise.all([
       pool.query('SELECT COUNT(*)::int AS n FROM users'),
       pool.query("SELECT COUNT(*)::int AS n FROM statements WHERE stat_type = 'resolution'"),
@@ -50,7 +52,37 @@ export async function GET() {
         GROUP BY DATE_TRUNC('month', created_at)
         ORDER BY DATE_TRUNC('month', created_at)
       `),
+
+      pool.query('SELECT COUNT(*)::int AS n FROM science_analyses'),
+
+      pool.query(`
+        SELECT TO_CHAR(DATE_TRUNC('month', created_at), 'Mon YY') AS month,
+               COUNT(*)::int AS count
+        FROM science_analyses
+        WHERE created_at > NOW() - INTERVAL '12 months'
+        GROUP BY DATE_TRUNC('month', created_at)
+        ORDER BY DATE_TRUNC('month', created_at)
+      `),
     ]);
+
+    // ai_arg_usage table may not exist in all envs — wrap gracefully
+    let aiArgTotal = 0;
+    let aiArgByMonth: { month: string; count: number }[] = [];
+    try {
+      const [argCount, argByMonth] = await Promise.all([
+        pool.query('SELECT COUNT(*)::int AS n FROM ai_arg_usage'),
+        pool.query(`
+          SELECT TO_CHAR(DATE_TRUNC('month', created_at), 'Mon YY') AS month,
+                 COUNT(*)::int AS count
+          FROM ai_arg_usage
+          WHERE created_at > NOW() - INTERVAL '12 months'
+          GROUP BY DATE_TRUNC('month', created_at)
+          ORDER BY DATE_TRUNC('month', created_at)
+        `),
+      ]);
+      aiArgTotal   = argCount.rows[0].n;
+      aiArgByMonth = argByMonth.rows;
+    } catch { /* table may not exist yet */ }
 
     return NextResponse.json({
       totals: {
@@ -62,6 +94,10 @@ export async function GET() {
       popularDebates:  popularDebates.rows,
       staleDebates:    staleDebates.rows,
       debatesByMonth:  debatesByMonth.rows,
+      scienceTotal:    scienceCount.rows[0].n,
+      scienceByMonth:  scienceByMonth.rows,
+      aiArgTotal,
+      aiArgByMonth,
       server: {
         uptimeSeconds: Math.floor(process.uptime()),
         memoryMB:      Math.round(process.memoryUsage().rss / 1024 / 1024),

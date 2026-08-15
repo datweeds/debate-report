@@ -22,7 +22,7 @@ export default function UpdateModal({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimTitle = hasChildren ? initialTitle : title.trim();
-    if (!trimTitle) { setError('Statement text is required.'); return; }
+    if (!trimTitle) { setError('Statement title is required.'); return; }
     setError('');
     setSaving(true);
     try {
@@ -50,8 +50,8 @@ export default function UpdateModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-lg rounded-2xl border border-slate-700 bg-[#0c1322] shadow-2xl">
+      <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-2xl rounded-2xl border border-slate-700 bg-[#0c1322] shadow-2xl">
         <form onSubmit={handleSubmit}>
 
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
@@ -78,7 +78,7 @@ export default function UpdateModal({
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="text-xs font-bold uppercase tracking-widest text-slate-500">
-                  Statement text
+                  Statement title
                 </label>
                 {hasChildren && (
                   <span className="flex items-center gap-1 text-xs text-amber-400/80">
@@ -95,12 +95,12 @@ export default function UpdateModal({
                 </div>
               ) : (
                 <>
-                  <textarea
+                  <input
+                    type="text"
                     value={title}
                     onChange={e => setTitle(e.target.value)}
-                    rows={3}
                     maxLength={510}
-                    className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                    className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
                   <p className="mt-1 text-right text-xs text-slate-600">{title.length}/510</p>
                 </>
@@ -116,7 +116,7 @@ export default function UpdateModal({
               <textarea
                 value={description}
                 onChange={e => setDescription(e.target.value)}
-                rows={4}
+                rows={7}
                 maxLength={2010}
                 placeholder="Background context, caveats, sources…"
                 className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none placeholder-slate-600"

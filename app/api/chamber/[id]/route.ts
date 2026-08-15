@@ -7,26 +7,49 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(_req: NextRequest, { params }: Params) {
   const { id } = await params;
 
-  // Fetch the resolution
   const { rows: resRows } = await pool.query(
     `SELECT s.id, s.stat_title, s.stat_description, s.subject_area,
-            s.forum_visibility, s.image_path, s.created_at, s.created_by,
-            u.user_handle AS creator_handle
+            s.forum_id, s.forum_visibility, s.image_path, s.created_at, s.created_by,
+            s.stat_status, s.resolution_decision, s.closing_statement,
+            s.vote_total_for, s.vote_total_against,
+            u.user_handle AS creator_handle,
+            f.forum_type, f.forum_visibility AS forum_vis
      FROM   statements s
      LEFT   JOIN users u ON u.id = s.created_by
+     LEFT   JOIN debate_forums f ON f.id = s.forum_id
      WHERE  s.id = $1 AND s.stat_type = 'resolution'`,
     [id]
   );
   const resolution = resRows[0] ?? null;
   if (!resolution) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  // Private debates require auth
-  if (resolution.forum_visibility !== 'public') {
+  // Determine effective visibility
+  const effectiveVisibility: string = resolution.forum_vis ?? resolution.forum_visibility ?? 'public';
+  const isPublic = !resolution.forum_id
+    ? resolution.forum_visibility === 'public'
+    : resolution.forum_type === 'public';
+
+  if (!isPublic) {
     const session = await getSession();
     if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+
+    // For private forums, check active membership
+    if (resolution.forum_id) {
+      const { rows: [membership] } = await pool.query(
+        `SELECT 1 FROM forum_members
+         WHERE forum_id = $1 AND user_id = $2 AND member_status = 'active'`,
+        [resolution.forum_id, session.sub]
+      );
+      if (!membership) {
+        return NextResponse.json({
+          error: 'Access denied',
+          forumVisibility: effectiveVisibility,
+          forumId: resolution.forum_id,
+        }, { status: 403 });
+      }
+    }
   }
 
-  // All child statements
   const { rows: statements } = await pool.query(
     `SELECT s.id, s.stat_type, s.stat_title, s.stat_direction,
             s.stat_description, s.created_at, s.created_by,
@@ -47,7 +70,6 @@ export async function GET(_req: NextRequest, { params }: Params) {
     [id]
   );
 
-  // All relationships touching this debate's statements
   const { rows: relationships } = await pool.query(
     `SELECT sr.stat_id_supported, sr.stat_id_supported_by
      FROM   stat_relationships sr

@@ -297,13 +297,19 @@ export default function BillList({
                 )}
                 {b.latest_stage_date && <span className="text-xs text-slate-600">{fmt(b.latest_stage_date)}</span>}
                 {b.resolution_id && b.debate_status === 'active' && (
-                  <span className="inline-flex items-center rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-300 border border-blue-500/20">
+                  <span className="inline-flex items-center gap-1 rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-300 border border-blue-500/20">
                     Open Debate
+                    {(b.debate_votes_for > 0 || b.debate_votes_against > 0) && (
+                      <span className="font-normal text-blue-300/70">· {b.debate_votes_for}/{b.debate_votes_against}</span>
+                    )}
                   </span>
                 )}
                 {b.resolution_id && b.debate_status !== 'active' && (
-                  <span className="inline-flex items-center rounded bg-slate-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 border border-slate-600/30">
-                    Closed Debate
+                  <span className="inline-flex items-center gap-1 rounded bg-slate-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 border border-slate-600/30">
+                    Debate
+                    {(b.debate_votes_for > 0 || b.debate_votes_against > 0) && (
+                      <span className="font-normal">· {b.debate_votes_for}/{b.debate_votes_against}</span>
+                    )}
                   </span>
                 )}
                 {!b.resolution_id && b.debate_request_count > 0 && (

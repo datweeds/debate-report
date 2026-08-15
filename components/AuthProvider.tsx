@@ -6,7 +6,9 @@ interface User {
   sub: string;
   handle: string;
   isSysAdmin: boolean;
+  isScotparlMod: boolean;
   tier: string;
+  plan: string; // 'free' | 'paid'
 }
 
 interface AuthCtx {

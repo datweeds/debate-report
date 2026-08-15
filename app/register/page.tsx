@@ -6,20 +6,6 @@ import Link from 'next/link';
 import { startRegistration, browserSupportsWebAuthn } from '@simplewebauthn/browser';
 import { useAuth } from '@/components/AuthProvider';
 
-const TIER_LABELS: Record<string, string> = {
-  follower:  'Follower (Free)',
-  voter:     'Voter — £2/mo',
-  debater:   'Debater — £4/mo',
-  moderator: 'Moderator — £9/mo',
-};
-
-const TIER_LABELS_ANNUAL: Record<string, string> = {
-  follower:  'Follower (Free)',
-  voter:     'Voter — £1.50/mo',
-  debater:   'Debater — £3/mo',
-  moderator: 'Moderator — £6.75/mo',
-};
-
 const BIO_MAX = 200;
 
 function AccessCodeScreen({ code, onDone }: { code: string; onDone: () => void }) {
@@ -96,13 +82,17 @@ function AccessCodeScreen({ code, onDone }: { code: string; onDone: () => void }
 }
 
 function RegisterForm() {
-  const params   = useSearchParams();
-  const router   = useRouter();
+  const params     = useSearchParams();
+  const router     = useRouter();
   const { refresh } = useAuth();
 
-  const billingParam = params.get('billing') === 'annual';
-  const [tier,        setTier]        = useState(params.get('tier') || 'follower');
-  const [annual]                      = useState(billingParam);
+  // Invite context from landing page
+  const inviteToken = params.get('invite') ?? undefined;
+  const inviteForumName = params.get('forum') ?? undefined;
+
+  // Plan selection — for invite flow: free (forum only) vs paid (all public)
+  const [plan, setPlan] = useState<'free' | 'paid'>(inviteToken ? 'free' : 'free');
+
   const [userHandle,  setUserHandle]  = useState('');
   const [email,       setEmail]       = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -142,22 +132,22 @@ function RegisterForm() {
 
     setLoading(true);
     try {
-      // Step 1 — get options from server
       const optRes = await fetch('/api/auth/passkey/register-options', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
           userHandle:  userHandle.trim(),
           email:       email.trim() || undefined,
-          tier,
+          tier:        'debater',
+          plan,
           displayName: displayName.trim() || undefined,
           bio:         bio.trim() || undefined,
+          inviteToken,
         }),
       });
       const optData = await optRes.json();
       if (!optRes.ok) { setError(optData.error || 'Failed to start registration'); return; }
 
-      // Step 2 — browser biometric ceremony
       let credential;
       try {
         credential = await startRegistration({ optionsJSON: optData });
@@ -170,7 +160,6 @@ function RegisterForm() {
         return;
       }
 
-      // Step 3 — verify on server
       const verRes = await fetch('/api/auth/passkey/register-verify', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -187,27 +176,67 @@ function RegisterForm() {
     }
   }
 
-  const tierLabels = annual ? TIER_LABELS_ANNUAL : TIER_LABELS;
-
   return (
     <div className="min-h-screen bg-dr-base flex items-center justify-center px-4 py-16">
-      <div className="card-dr w-full max-w-md p-8">
+      <div className="card-dr w-full max-w-lg p-8">
 
-        <div className="mb-6">
-          <h1 className="text-xl font-bold text-slate-100 mb-1">Create your account</h1>
-          <p className="text-sm text-slate-500">
-            Signing up as{' '}
-            <span className="text-blue-400">
-              {tierLabels[tier] || tier}
-              {annual && tier !== 'follower' && ' (annual)'}
-            </span>.{' '}
-            <Link href="/pricing" className="text-slate-500 underline underline-offset-2 hover:text-slate-400">
-              Change
-            </Link>
-          </p>
+        <div className="mb-4">
+          <h1 className="text-xl font-bold text-slate-100 mb-1">
+            {inviteToken ? 'Accept invitation' : 'Create your account'}
+          </h1>
+          {inviteToken && inviteForumName ? (
+            <p className="text-sm text-slate-300">
+              You&apos;ve been invited to join{' '}
+              <span className="text-blue-300 font-medium">{inviteForumName}</span>.
+              Choose your membership level below.
+            </p>
+          ) : (
+            <p className="text-sm text-slate-400">Create a free debater account.</p>
+          )}
         </div>
 
         <div className="space-y-4">
+
+          {/* Plan selector — shown for invite flow */}
+          {inviteToken && (
+            <div>
+              <label className="block text-xs font-medium text-slate-400 mb-2">Membership level</label>
+              <div className="grid grid-cols-1 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPlan('free')}
+                  className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+                    plan === 'free'
+                      ? 'border-blue-500 bg-blue-500/10'
+                      : 'border-slate-700 hover:border-slate-600'
+                  }`}
+                >
+                  <p className={`text-sm font-semibold ${plan === 'free' ? 'text-blue-300' : 'text-slate-300'}`}>
+                    Join this forum — Free
+                  </p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Full participation in this private forum. You also get your own private forum (invite up to 6 people).
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPlan('paid')}
+                  className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+                    plan === 'paid'
+                      ? 'border-amber-500 bg-amber-500/10'
+                      : 'border-slate-700 hover:border-slate-600'
+                  }`}
+                >
+                  <p className={`text-sm font-semibold ${plan === 'paid' ? 'text-amber-300' : 'text-slate-300'}`}>
+                    Join all public debates — Paid
+                  </p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Everything in Free, plus access to the Public House and unlimited private forums.
+                  </p>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Username */}
           <div>
@@ -222,13 +251,13 @@ function RegisterForm() {
               autoComplete="username"
               className="w-full rounded-lg border border-slate-700 bg-dr-surface px-3 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
-            <p className="mt-1 text-xs text-slate-600">Letters, numbers, _ and - only. Shown publicly.</p>
+            <p className="mt-1 text-xs text-slate-500">Letters, numbers, _ and - only. Shown publicly.</p>
           </div>
 
           {/* Display name */}
           <div>
             <label className="block text-xs font-medium text-slate-400 mb-1">
-              Display name <span className="text-slate-600">(optional)</span>
+              Display name <span className="text-slate-500">(optional)</span>
             </label>
             <input
               type="text"
@@ -243,7 +272,7 @@ function RegisterForm() {
           {/* Bio */}
           <div>
             <label className="block text-xs font-medium text-slate-400 mb-1">
-              Short bio <span className="text-slate-600">(optional)</span>
+              Short bio <span className="text-slate-500">(optional)</span>
             </label>
             <textarea
               value={bio}
@@ -253,7 +282,7 @@ function RegisterForm() {
               maxLength={BIO_MAX + 10}
               className="w-full rounded-lg border border-slate-700 bg-dr-surface px-3 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
             />
-            <p className={`mt-0.5 text-right text-xs ${bio.length > BIO_MAX ? 'text-red-400' : 'text-slate-600'}`}>
+            <p className={`mt-0.5 text-right text-xs ${bio.length > BIO_MAX ? 'text-red-400' : 'text-slate-500'}`}>
               {bio.length}/{BIO_MAX}
             </p>
           </div>
@@ -261,7 +290,7 @@ function RegisterForm() {
           {/* Email */}
           <div>
             <label className="block text-xs font-medium text-slate-400 mb-1">
-              Email <span className="text-slate-600">(optional — for newsletter only)</span>
+              Email <span className="text-slate-500">(optional — for newsletter only)</span>
             </label>
             <input
               type="email"
@@ -273,27 +302,6 @@ function RegisterForm() {
             />
           </div>
 
-          {/* Tier selector */}
-          <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">Tier</label>
-            <div className="grid grid-cols-2 gap-2">
-              {(['follower', 'voter', 'debater', 'moderator'] as const).map(t => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setTier(t)}
-                  className={`rounded-lg border px-2 py-2 text-xs font-medium transition-colors ${
-                    tier === t
-                      ? 'border-blue-500 bg-blue-500/10 text-blue-300'
-                      : 'border-slate-700 text-slate-500 hover:border-slate-600'
-                  }`}
-                >
-                  {tierLabels[t]}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* Passkey info */}
           <div className="rounded-lg border border-slate-700 bg-dr-surface px-4 py-3 flex items-start gap-3">
             <svg className="mt-0.5 h-4 w-4 shrink-0 text-blue-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
@@ -301,7 +309,7 @@ function RegisterForm() {
             </svg>
             <p className="text-xs text-slate-400">
               We use <strong className="text-slate-300">passkeys</strong> — your device&apos;s biometrics (Face ID, fingerprint, Windows Hello).
-              No password to remember. A recovery code is shown once after signup.
+              Easier and safer — no password to remember, and no passwords stored on the server. A recovery code is shown once after signup.
             </p>
           </div>
 
@@ -323,13 +331,13 @@ function RegisterForm() {
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 0 1 21.75 8.25Z" />
                 </svg>
-                Create account with passkey
+                {inviteToken ? 'Accept & create account' : 'Create account with passkey'}
               </>
             )}
           </button>
         </div>
 
-        <p className="mt-4 text-center text-xs text-slate-600">
+        <p className="mt-4 text-center text-xs text-slate-500">
           Already have an account?{' '}
           <Link href="/login" className="text-blue-400 hover:text-blue-300">Log in</Link>
         </p>

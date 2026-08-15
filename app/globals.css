@@ -35,6 +35,7 @@
 @layer base {
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
+  button, [role="button"] { cursor: pointer; }
 
   body {
     background-color: #080d1a;

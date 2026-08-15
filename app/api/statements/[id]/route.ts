@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { scanContent } from '@/lib/scanner';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -11,7 +12,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const { id } = await params;
 
   const { rows: [stmt] } = await pool.query(
-    'SELECT id, stat_title, created_by FROM statements WHERE id = $1',
+    'SELECT id, stat_title, stat_description, created_by, resolution_id FROM statements WHERE id = $1',
     [id],
   );
   if (!stmt) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -43,6 +44,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     'UPDATE statements SET stat_title = $2, stat_description = $3 WHERE id = $1',
     [id, newTitle, newDescription || null],
   );
+
+  const resolutionId: string = stmt.resolution_id ?? id;
+  void scanContent(newTitle, 'statement_title', id, resolutionId, session.sub);
+  if (newDescription) void scanContent(newDescription, 'statement_description', id, resolutionId, session.sub);
 
   return NextResponse.json({ ok: true });
 }

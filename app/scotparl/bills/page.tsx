@@ -1,5 +1,6 @@
+import Link from 'next/link';
 import type { Metadata } from 'next';
-import pool from '@/lib/db';
+import pool, { tq } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import BillList, { type Bill } from '@/components/scotparl/BillList';
 
@@ -14,7 +15,7 @@ export default async function BillsPage() {
 
   try {
     const [billsRes, favsRes] = await Promise.all([
-      pool.query<Bill>(
+      tq<Bill>(
         `SELECT
            b.id, b.reference, b.short_name, b.full_name,
            bt.name                  AS bill_type,
@@ -80,9 +81,14 @@ export default async function BillsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-100">Bills &amp; Legislation</h1>
-        <p className="text-slate-400 mt-1 text-sm">All bills introduced to the Scottish Parliament (Sessions 1–6).</p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-100">Bills &amp; Legislation</h1>
+          <p className="text-slate-400 mt-1 text-sm">All bills introduced to the Scottish Parliament (Sessions 1–6).</p>
+        </div>
+        <Link href="/scotparl/bills/msps" className="flex-shrink-0 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200 hover:border-slate-600 transition-colors">
+          MSPs →
+        </Link>
       </div>
       {bills.length === 0 ? (
         <div className="card-dr py-16 text-center space-y-2">

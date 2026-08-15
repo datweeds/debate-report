@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import pool from '@/lib/db';
+import pool, { tq } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import type { Metadata } from 'next';
 import DebateRequestSection, { type DebateRequest, type DebateLink } from '@/components/scotparl/DebateRequestSection';
@@ -17,7 +17,7 @@ type Bill = {
   synopsis: string | null; session_slug: string | null;
 };
 
-async function getData(id: number, userId: string | null, isSysAdmin: boolean) {
+async function getData(id: number, userId: string | null, isSysAdmin: boolean, canManage: boolean) {
   try {
     const queries: Promise<{ rows: unknown[] }>[] = [
       pool.query(
@@ -56,7 +56,7 @@ async function getData(id: number, userId: string | null, isSysAdmin: boolean) {
          ORDER BY bs.stage_date ASC NULLS LAST`,
         [id]
       ),
-      pool.query(
+      tq(
         `SELECT sbd.resolution_id, s.stat_title, s.stat_status,
                 s.vote_total_for, s.vote_total_against,
                 (SELECT COUNT(*) FROM comments c WHERE c.statement_id = s.id
@@ -69,9 +69,9 @@ async function getData(id: number, userId: string | null, isSysAdmin: boolean) {
       ),
     ];
 
-    // Fetch debate requests (sysadmin sees all, user sees own)
-    if (isSysAdmin) {
-      queries.push(pool.query(
+    // Fetch debate requests (managers see all, users see own)
+    if (canManage) {
+      queries.push(tq(
         `SELECT r.id, r.requester_id, r.requester_handle, r.reason, r.status, r.created_at,
                 json_agg(json_build_object('action', a.action, 'actor_handle', a.actor_handle,
                   'note', a.note, 'resolution_id', a.resolution_id, 'created_at', a.created_at)
@@ -83,7 +83,7 @@ async function getData(id: number, userId: string | null, isSysAdmin: boolean) {
         [id]
       ));
     } else if (userId) {
-      queries.push(pool.query(
+      queries.push(tq(
         `SELECT id, reason, status, created_at
          FROM sp_debate_requests
          WHERE entity_type = 'bill' AND entity_id = $1 AND requester_id = $2
@@ -93,7 +93,7 @@ async function getData(id: number, userId: string | null, isSysAdmin: boolean) {
     }
 
     // Fetch pvc_poll_id
-    queries.push(pool.query(
+    queries.push(tq(
       `SELECT pvc_poll_id FROM sp_bill_pvc_polls WHERE sp_bill_id = $1`,
       [id]
     ));
@@ -157,17 +157,21 @@ function stageCls(name: string) {
   return 'bg-slate-500/10 text-slate-400 border-slate-500/20';
 }
 
+const TENANT_ID = parseInt(process.env.TENANT_ID ?? '1', 10);
+
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const session = await getSession().catch(() => null);
-  const data = await getData(parseInt(id, 10), session?.sub ?? null, session?.isSysAdmin ?? false);
+  const data = await getData(parseInt(id, 10), session?.sub ?? null, session?.isSysAdmin ?? false, false);
   return { title: data?.bill?.short_name ?? 'Bill' };
 }
 
 export default async function BillDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await getSession().catch(() => null);
-  const data = await getData(parseInt(id, 10), session?.sub ?? null, session?.isSysAdmin ?? false);
+  const { canManageDebates } = await import('@/lib/roles');
+  const canManage = session ? (session.isSysAdmin || await canManageDebates(session, TENANT_ID)) : false;
+  const data = await getData(parseInt(id, 10), session?.sub ?? null, session?.isSysAdmin ?? false, canManage);
   if (!data || !data.bill) notFound();
   const { bill, stages, debates, requests, poll } = data;
 
@@ -228,7 +232,7 @@ export default async function BillDetailPage({ params }: { params: Promise<{ id:
               <img src={bill.sponsor_photo} alt="" className="h-9 w-9 rounded-full object-cover bg-slate-700" />
             )}
             <div>
-              <Link href={`/scotparl/msps/${bill.sponsor_id}`} className="text-sm font-medium text-blue-400 hover:text-blue-300 transition-colors">
+              <Link href={`/scotparl/bills/msps/${bill.sponsor_id}`} className="text-sm font-medium text-blue-400 hover:text-blue-300 transition-colors">
                 {bill.sponsor_preferred ?? bill.sponsor_name?.split(',').reverse().join(' ').trim()}
               </Link>
               {bill.sponsor_party && (
@@ -278,7 +282,7 @@ export default async function BillDetailPage({ params }: { params: Promise<{ id:
             entityTitle={bill.short_name}
             entityDescription={bill.synopsis ?? ''}
             userId={session?.sub ?? null}
-            isSysAdmin={session?.isSysAdmin ?? false}
+            canManage={canManage}
             initialRequests={requests}
             debates={debates}
           />
@@ -291,12 +295,12 @@ export default async function BillDetailPage({ params }: { params: Promise<{ id:
       </div>
 
       {/* Vote section */}
-      {(poll || session?.isSysAdmin) && (
+      {(poll || canManage) && (
         <VoteSection
           poll={poll}
           entityType="bill"
           entityId={bill.id}
-          isSysAdmin={session?.isSysAdmin ?? false}
+          canManage={canManage}
         />
       )}
 

@@ -34,8 +34,9 @@ export default function PrivacyPage() {
 
           <Section title="1. Who We Are">
             <p>
-              debate.report is a structured online debate platform. When we refer to &quot;we&quot;, &quot;us&quot; or &quot;our&quot;
-              in this policy, we mean the operators of debate.report.
+              debate.report is operated by <span className="text-slate-200 font-medium">Debate Report Limited</span>,
+              a private limited company registered in Scotland. When we refer to &quot;we&quot;, &quot;us&quot; or &quot;our&quot;
+              in this policy, we mean Debate Report Limited.
             </p>
             <p>
               For questions about your personal data, please use our{' '}

@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   await pool.query('UPDATE users SET user_tier = $1 WHERE id = $2', [tier, session.sub]);
 
   // Re-issue token with updated tier
-  const token = await createToken({ ...session, tier });
+  const token = await createToken({ ...session, tier, plan: session.plan ?? 'free' });
   const res = NextResponse.json({ ok: true });
   res.cookies.set(sessionCookie(token));
   return res;

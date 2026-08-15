@@ -19,6 +19,8 @@ type Proposal = {
   updated_at: Date;
   resolution_id: string | null;
   debate_status: string | null;
+  debate_votes_for: number;
+  debate_votes_against: number;
   debate_request_count: number;
   pvc_poll_id: string | null;
 };
@@ -50,13 +52,19 @@ function ProposalRow({ p, mine }: { p: Proposal; mine: boolean }) {
             {!mine && <span>·</span>}
             <span>{new Date(p.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
             {p.resolution_id && p.debate_status === 'active' && (
-              <span className="inline-flex items-center rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-300 border border-blue-500/20">
+              <span className="inline-flex items-center gap-1 rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-300 border border-blue-500/20">
                 Open Debate
+                {(p.debate_votes_for > 0 || p.debate_votes_against > 0) && (
+                  <span className="font-normal text-blue-300/70">· {p.debate_votes_for}/{p.debate_votes_against}</span>
+                )}
               </span>
             )}
             {p.resolution_id && p.debate_status !== 'active' && (
-              <span className="inline-flex items-center rounded bg-slate-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 border border-slate-600/30">
-                Closed Debate
+              <span className="inline-flex items-center gap-1 rounded bg-slate-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 border border-slate-600/30">
+                Debate
+                {(p.debate_votes_for > 0 || p.debate_votes_against > 0) && (
+                  <span className="font-normal">· {p.debate_votes_for}/{p.debate_votes_against}</span>
+                )}
               </span>
             )}
             {!p.resolution_id && p.debate_request_count > 0 && (
@@ -127,13 +135,14 @@ export default async function ProposalsPage({ searchParams }: Props) {
            p.rejection_reason, p.topic_id, p.created_at, p.updated_at,
            p.pvc_poll_id,
            nt.name AS topic_name,
-           pd.resolution_id, pd.debate_status,
+           pd.resolution_id, pd.debate_status, pd.debate_votes_for, pd.debate_votes_against,
            (SELECT COUNT(*)::int FROM sp_debate_requests sdr
             WHERE sdr.entity_type = 'proposal' AND sdr.entity_id = p.id) AS debate_request_count
     FROM proposals p
     LEFT JOIN nsp_topics nt ON nt.id = p.topic_id
     LEFT JOIN LATERAL (
-      SELECT spd.resolution_id, s.stat_status AS debate_status
+      SELECT spd.resolution_id, s.stat_status AS debate_status,
+             s.vote_total_for AS debate_votes_for, s.vote_total_against AS debate_votes_against
       FROM sp_proposal_debates spd
       JOIN statements s ON s.id = spd.resolution_id
       WHERE spd.proposal_id = p.id

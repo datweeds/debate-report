@@ -5,106 +5,298 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 
-const TIERS = [
-  {
-    id: 'follower',
-    name: 'Follower',
-    monthly: 0,
-    annual: 0,
-    color: 'slate',
-    gradient: 'text-slate-300',
-    border: 'border-slate-700',
-    badge: 'bg-slate-700/50 text-slate-400 border-slate-600',
-    btn: 'border border-slate-600 text-slate-300 hover:border-slate-500 hover:bg-white/5',
-    btnStyle: 'outline' as const,
-    features: [
-      'Browse all public debates',
-      'Read statements and evidence',
-      'Follow debate outcomes',
-      'No participation',
-    ],
-    note: 'Always free — no card required',
-  },
-  {
-    id: 'voter',
-    name: 'Voter',
-    monthly: 2,
-    annual: 1.50,
-    color: 'emerald',
-    gradient: 'text-gradient-emerald',
-    border: 'border-emerald-500/30',
-    badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    btn: 'bg-emerald-600 hover:bg-emerald-500 text-white',
-    btnStyle: 'solid' as const,
-    features: [
-      'Everything in Follower',
-      'Vote on any public debate',
-      'Rate statement impact',
-      'Chat on debate statements',
-    ],
-    note: 'Great for following issues you care about',
-  },
-  {
-    id: 'debater',
-    name: 'Debater',
-    monthly: 4,
-    annual: 3,
-    color: 'blue',
-    gradient: 'text-gradient-blue',
-    border: 'border-blue-500/40',
-    badge: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-    btn: 'bg-blue-600 hover:bg-blue-500 text-white',
-    btnStyle: 'solid' as const,
-    features: [
-      'Everything in Voter',
-      'Submit claims and evidence',
-      'Write rebuttals',
-      'Participate in unlimited debates',
-    ],
-    note: 'For those who want to argue a case',
-    highlight: true,
-  },
-  {
-    id: 'moderator',
-    name: 'Moderator',
-    monthly: 9,
-    annual: 6.75,
-    color: 'amber',
-    gradient: 'text-gradient-gold',
-    border: 'border-amber-500/30',
-    badge: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-    btn: 'bg-amber-600 hover:bg-amber-500 text-white',
-    btnStyle: 'solid' as const,
-    features: [
-      'Everything in Debater',
-      'Create and moderate debates',
-      'Invite participants',
-      '5 family Voter seats included',
-    ],
-    note: 'For educators, journalists, organisations',
-  },
+// ── Feature data ─────────────────────────────────────────────────────────────
+
+const SHARED_FEATURES = [
+  'Learn to debate with the Guide',
+  'View all public debates',
+  'Private debates with up to 6 people in a private forum',
+  'Visual graph of the debate',
+  'Running live metrics on which side is winning',
+  'Anonymous or Public Persona',
+  'Automated moderation for profanity, hate, personal data',
+  'Chat with other debaters',
+  'Vote on debates',
 ];
+
+const FREE_ONLY = [
+  'Unlimited debates in a single private forum',
+];
+
+const PAID_ONLY = [
+  'Participate in public debates',
+  'Unlimited private forums',
+  'Unlimited debaters in private forums',
+  'AI Assistant — structured argument generation and debate analysis',
+];
+
+// ── Small icon helpers ────────────────────────────────────────────────────────
+
+function Check({ className = 'text-emerald-400' }: { className?: string }) {
+  return (
+    <svg className={`h-4 w-4 flex-shrink-0 ${className}`} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+    </svg>
+  );
+}
+
+function Dash() {
+  return (
+    <svg className="h-4 w-4 flex-shrink-0 text-slate-700" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14" />
+    </svg>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+
+export default function PricingPage() {
+  const { user } = useAuth();
+  const router   = useRouter();
+  const [annual,      setAnnual]      = useState(false);
+  const [loading,     setLoading]     = useState(false);
+  const [error,       setError]       = useState('');
+  const [showPasskey, setShowPasskey] = useState(false);
+
+  const isPaid = user?.plan === 'paid';
+
+  async function handleUpgrade() {
+    if (!user) {
+      router.push('/register?tier=debater');
+      return;
+    }
+    if (isPaid) {
+      router.push('/dashboard/billing');
+      return;
+    }
+    setLoading(true); setError('');
+    try {
+      const res = await fetch('/api/stripe/checkout', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ billing: annual ? 'annual' : 'monthly' }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error ?? 'Could not start checkout'); return; }
+      window.location.href = data.url;
+    } catch {
+      setError('Network error — please try again');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const monthlyPrice = annual ? 3.00 : 4.00;
+
+  return (
+    <div className="min-h-screen bg-dr-base py-16 px-4">
+      {showPasskey && <PasskeyModal onClose={() => setShowPasskey(false)} />}
+
+      <div className="mx-auto max-w-5xl">
+
+        {/* Page header */}
+        <div className="text-center mb-12">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-blue-700/30 bg-blue-500/10 px-4 py-1.5 text-xs font-semibold text-blue-300 tracking-widest uppercase">
+            Pricing
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-50 mb-4">
+            Structured debate, for everyone
+          </h1>
+          <p className="text-slate-400 max-w-lg mx-auto">
+            Start free and upgrade only when you need more. No credit card required to get started.
+          </p>
+        </div>
+
+        {/* Billing toggle */}
+        <div className="flex justify-center mb-10">
+          <div className="inline-flex items-center gap-1 rounded-xl border border-slate-700 bg-[#0c1322] p-1">
+            <button
+              onClick={() => setAnnual(false)}
+              className={`rounded-lg px-5 py-2 text-sm font-semibold transition-colors ${
+                !annual ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Monthly
+            </button>
+            <button
+              onClick={() => setAnnual(true)}
+              className={`flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-semibold transition-colors ${
+                annual ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Annual
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                annual ? 'bg-white/20 text-white' : 'bg-emerald-500/20 text-emerald-400'
+              }`}>
+                −25%
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Plan cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-12">
+
+          {/* Free card */}
+          <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-7 flex flex-col">
+            <div className="mb-5">
+              <span className="text-xs font-bold uppercase tracking-widest text-slate-500">Free</span>
+              <div className="mt-2 flex items-end gap-1">
+                <span className="text-4xl font-extrabold text-slate-100">£0</span>
+                <span className="text-slate-500 mb-1 text-sm">/month</span>
+              </div>
+              <p className="text-xs text-slate-600 mt-1">Always free — no card required</p>
+            </div>
+
+            {user && !isPaid ? (
+              <div className="w-full rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-center text-sm font-semibold text-emerald-400 mb-6">
+                Your current plan
+              </div>
+            ) : (
+              <Link
+                href={user ? '/dashboard' : '/register?tier=debater'}
+                className="w-full rounded-xl border border-slate-600 bg-slate-700/60 px-4 py-2.5 text-sm font-semibold text-slate-100 text-center hover:bg-slate-600/70 hover:border-slate-500 transition-colors mb-6"
+              >
+                {user ? 'Go to dashboard' : 'Get started free'}
+              </Link>
+            )}
+
+            <div className="space-y-3 flex-1">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">What&apos;s included</p>
+              {SHARED_FEATURES.map(f => (
+                <div key={f} className="flex items-start gap-2.5">
+                  <Check />
+                  <span className="text-sm text-slate-400">{f}</span>
+                </div>
+              ))}
+              <div className="pt-2 border-t border-slate-800/80">
+                {FREE_ONLY.map(f => (
+                  <div key={f} className="flex items-start gap-2.5 mt-3">
+                    <Check />
+                    <span className="text-sm text-slate-400">{f}</span>
+                  </div>
+                ))}
+                {PAID_ONLY.map(f => (
+                  <div key={f} className="flex items-start gap-2.5 mt-3 opacity-60">
+                    <Dash />
+                    <span className="text-sm text-slate-400 line-through decoration-slate-500">{f}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Paid card */}
+          <div className="rounded-2xl border border-blue-500/40 bg-[#0c1322] p-7 flex flex-col relative shadow-xl shadow-blue-500/5">
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+              <span className="rounded-full bg-blue-600 px-3 py-1 text-[11px] font-bold text-white tracking-wide">
+                Paid
+              </span>
+            </div>
+
+            <div className="mb-5">
+              <span className="text-xs font-bold uppercase tracking-widest text-blue-400">Debater</span>
+              <div className="mt-2 flex items-end gap-1">
+                <span className="text-4xl font-extrabold text-slate-100">
+                  £{monthlyPrice.toFixed(2)}
+                </span>
+                <span className="text-slate-500 mb-1 text-sm">/month</span>
+              </div>
+              {annual ? (
+                <p className="text-xs text-emerald-400 mt-1">£36 billed annually — save £12</p>
+              ) : (
+                <p className="text-xs text-slate-600 mt-1">or £36/year (save 25%)</p>
+              )}
+            </div>
+
+            {error && (
+              <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2 mb-3">
+                {error}
+              </p>
+            )}
+
+            {isPaid ? (
+              <Link
+                href="/dashboard/billing"
+                className="w-full rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-sm font-semibold text-emerald-400 text-center hover:bg-emerald-500/15 transition-colors mb-6"
+              >
+                Manage subscription
+              </Link>
+            ) : (
+              <button
+                onClick={handleUpgrade}
+                disabled={loading}
+                className="w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50 transition-colors mb-6"
+              >
+                {loading ? 'Redirecting to checkout…' : user ? 'Upgrade now' : 'Start with Paid'}
+              </button>
+            )}
+
+            <div className="space-y-3 flex-1">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Everything in Free, plus</p>
+              {PAID_ONLY.map(f => (
+                <div key={f} className="flex items-start gap-2.5">
+                  <Check className="text-blue-400" />
+                  <span className="text-sm text-slate-300 font-medium">{f}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Privacy + trust section */}
+        <div className="card-dr p-6">
+          <div className="grid sm:grid-cols-3 gap-6 text-xs text-slate-400">
+            <div>
+              <p className="font-semibold text-slate-200 mb-1.5">Privacy by design</p>
+              <p>
+                Your email is optional and only used for the newsletter. We collect as little as possible —
+                your handle is all we need.
+              </p>
+            </div>
+            <div>
+              <p className="font-semibold text-slate-200 mb-1.5">Passkeys, not passwords</p>
+              <p>
+                We use your device&apos;s biometrics (Face ID, fingerprint, Windows Hello) — no password
+                database to breach. Your private key never leaves your device.{' '}
+                <button
+                  onClick={() => setShowPasskey(true)}
+                  className="text-blue-400 hover:text-blue-300 underline underline-offset-2"
+                >
+                  Learn more
+                </button>
+              </p>
+            </div>
+            <div>
+              <p className="font-semibold text-slate-200 mb-1.5">Secure payments</p>
+              <p>
+                Payments are handled by <strong className="text-slate-300">Stripe</strong> — your card details
+                never touch our servers. Cancel any time from your{' '}
+                <Link href="/dashboard/billing" className="text-blue-400 hover:text-blue-300">
+                  billing dashboard
+                </Link>
+                .
+              </p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+// ── Passkey info modal ────────────────────────────────────────────────────────
 
 function PasskeyModal({ onClose }: { onClose: () => void }) {
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="card-dr w-full max-w-lg p-7 relative"
-        onClick={e => e.stopPropagation()}
-      >
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-slate-500 hover:text-slate-300 transition-colors"
-          aria-label="Close"
-        >
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="card-dr w-full max-w-lg p-7 relative" onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-4 right-4 text-slate-500 hover:text-slate-300 transition-colors">
           <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
           </svg>
         </button>
-
         <div className="flex items-center gap-3 mb-5">
           <div className="rounded-full bg-blue-500/10 p-2">
             <svg className="h-5 w-5 text-blue-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
@@ -113,235 +305,31 @@ function PasskeyModal({ onClose }: { onClose: () => void }) {
           </div>
           <h2 className="text-base font-semibold text-slate-100">About passkeys</h2>
         </div>
-
-        <div className="space-y-5 text-sm text-slate-400">
+        <div className="space-y-4 text-sm text-slate-400">
           <div>
             <p className="font-medium text-slate-200 mb-1">What is a passkey?</p>
-            <p>
-              A passkey uses your device&apos;s built-in security chip — the same technology behind
-              Face ID, Touch ID, and Windows Hello — to prove it&apos;s you. Your private key is
-              created on your device and never sent anywhere. We only store the corresponding
-              public key, which is useless on its own.
-            </p>
+            <p>A passkey uses your device&apos;s built-in security chip — the same technology behind Face ID, Touch ID, and Windows Hello — to prove it&apos;s you. Your private key is created on your device and never sent anywhere.</p>
           </div>
-
           <div>
             <p className="font-medium text-slate-200 mb-1">Why passkeys are stronger than passwords</p>
-            <ul className="space-y-1.5 list-none">
-              <li className="flex items-start gap-2">
-                <span className="mt-1 h-1.5 w-1.5 rounded-full bg-blue-400 shrink-0" />
-                <span><strong className="text-slate-300">Phishing-proof.</strong> A passkey is cryptographically bound to this exact domain. Even a perfect fake login page cannot capture it — there is nothing to steal.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-1 h-1.5 w-1.5 rounded-full bg-blue-400 shrink-0" />
-                <span><strong className="text-slate-300">No password database.</strong> If our servers were ever compromised, there are no password hashes to crack. Attackers get nothing useful.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-1 h-1.5 w-1.5 rounded-full bg-blue-400 shrink-0" />
-                <span><strong className="text-slate-300">No reuse risk.</strong> Passkeys are unique per site by design, so a breach elsewhere cannot affect your account here.</span>
-              </li>
+            <ul className="space-y-1.5">
+              {[
+                ['Phishing-proof.', 'A passkey is cryptographically bound to this exact domain. Even a perfect fake login page cannot capture it.'],
+                ['No password database.', 'If our servers were ever compromised, there are no password hashes to crack.'],
+                ['No reuse risk.', 'Passkeys are unique per site by design, so a breach elsewhere cannot affect your account here.'],
+              ].map(([b, t]) => (
+                <li key={b} className="flex items-start gap-2">
+                  <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-blue-400 flex-shrink-0" />
+                  <span><strong className="text-slate-300">{b}</strong> {t}</span>
+                </li>
+              ))}
             </ul>
           </div>
-
           <div>
-            <p className="font-medium text-slate-200 mb-1">What about the recovery code?</p>
-            <p>
-              When you sign up, we generate a one-time recovery code and show it to you immediately.
-              This is your backup if you lose your device. Treat it like a spare house key kept somewhere
-              safe — not in your everyday wallet, but accessible if you ever need it. Recovery code
-              logins are rate-limited to prevent guessing attacks.
-            </p>
+            <p className="font-medium text-slate-200 mb-1">Recovery code</p>
+            <p>We generate a one-time recovery code at signup shown only once. Store it somewhere safe — it&apos;s your backup if you lose your passkey device.</p>
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-export default function PricingPage() {
-  const { user, refresh } = useAuth();
-  const router = useRouter();
-  const [annual, setAnnual] = useState(false);
-  const [loading, setLoading] = useState<string | null>(null);
-  const [showPasskeyModal, setShowPasskeyModal] = useState(false);
-
-  async function subscribe(tierId: string) {
-    if (!user) {
-      router.push(`/register?tier=${tierId}${annual ? '&billing=annual' : ''}`);
-      return;
-    }
-    setLoading(tierId);
-    try {
-      await fetch('/api/user/tier', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tier: tierId }),
-      });
-      await refresh();
-      router.push('/');
-    } finally {
-      setLoading(null);
-    }
-  }
-
-  return (
-    <div className="min-h-screen bg-dr-base py-16 px-4 sm:px-6">
-      {showPasskeyModal && <PasskeyModal onClose={() => setShowPasskeyModal(false)} />}
-      <div className="mx-auto max-w-5xl">
-
-        {/* Header */}
-        <div className="text-center mb-10">
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-blue-700/30 bg-blue-500/10 px-4 py-1.5 text-xs font-medium text-blue-300 tracking-wide uppercase">
-            Simple, transparent pricing
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-50 mb-4">
-            Choose how you engage
-          </h1>
-          <p className="text-slate-400 max-w-xl mx-auto mb-6">
-            Follow debates for free. Pay only when you want to participate.
-            No payment required right now — select your tier and we&apos;ll collect details when billing goes live.
-          </p>
-
-          {/* Monthly / Annual toggle */}
-          <div className="inline-flex items-center gap-3 rounded-xl border border-slate-700 bg-dr-card p-1">
-            <button
-              onClick={() => setAnnual(false)}
-              className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${!annual ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
-            >
-              Monthly
-            </button>
-            <button
-              onClick={() => setAnnual(true)}
-              className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${annual ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
-            >
-              Annual
-              <span className="ml-1.5 rounded-full bg-emerald-500/20 px-1.5 py-0.5 text-xs text-emerald-400">
-                −25%
-              </span>
-            </button>
-          </div>
-        </div>
-
-        {/* Tier cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
-          {TIERS.map(tier => {
-            const price = annual ? tier.annual : tier.monthly;
-            const isCurrent = user?.tier === tier.id;
-
-            return (
-              <div
-                key={tier.id}
-                className={`card-dr relative flex flex-col p-5 ${tier.highlight ? 'border-blue-500/40 shadow-lg shadow-blue-500/10' : tier.border}`}
-              >
-                {tier.highlight && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <span className="rounded-full bg-blue-600 px-3 py-0.5 text-xs font-semibold text-white">
-                      Most popular
-                    </span>
-                  </div>
-                )}
-
-                <div className={`inline-flex self-start items-center rounded-full border px-2.5 py-0.5 text-xs font-medium mb-3 ${tier.badge}`}>
-                  {tier.name}
-                </div>
-
-                <div className="mb-1">
-                  {price === 0 ? (
-                    <span className={`text-3xl font-extrabold ${tier.gradient}`}>Free</span>
-                  ) : (
-                    <>
-                      <span className={`text-3xl font-extrabold ${tier.gradient}`}>
-                        £{price.toFixed(2)}
-                      </span>
-                      <span className="text-slate-500 text-xs ml-1">/mo</span>
-                    </>
-                  )}
-                </div>
-                {annual && price > 0 && (
-                  <p className="text-xs text-emerald-400 mb-1">
-                    £{(price * 12).toFixed(2)} billed annually
-                  </p>
-                )}
-                <p className="text-xs text-slate-600 mb-4">{tier.note}</p>
-
-                <ul className="space-y-2 mb-5 flex-1">
-                  {tier.features.map(f => (
-                    <li key={f} className="flex items-start gap-2 text-xs text-slate-400">
-                      <svg className="h-3.5 w-3.5 mt-0.5 shrink-0 text-emerald-400" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                      </svg>
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-
-                {isCurrent ? (
-                  <div className="w-full rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-center text-sm font-medium text-emerald-400">
-                    Current plan
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => subscribe(tier.id)}
-                    disabled={loading === tier.id}
-                    className={`w-full rounded-xl px-4 py-2.5 text-sm font-semibold text-center transition-colors disabled:opacity-50 ${tier.btn}`}
-                  >
-                    {loading === tier.id ? 'Updating…' : tier.id === 'follower' ? 'Get started free' : 'Select plan'}
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Privacy note */}
-        <div className="card-dr p-6">
-          <div className="flex items-start gap-3 mb-4">
-            <svg className="mt-0.5 h-4 w-4 shrink-0 text-blue-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
-            </svg>
-            <h2 className="text-sm font-semibold text-slate-200">Your privacy matters</h2>
-          </div>
-          <div className="grid sm:grid-cols-3 gap-4 text-xs text-slate-400 mb-5">
-            <div>
-              <p className="font-medium text-slate-300 mb-1">Designed for privacy</p>
-              <p>
-                debate.report is built from the ground up to collect as little about you as possible.
-                Your email is optional and only used if you want newsletter updates — nothing else.
-              </p>
-            </div>
-            <div>
-              <p className="font-medium text-slate-300 mb-1">Passkeys, not passwords</p>
-              <p>
-                We use passkeys — your device&apos;s biometrics (Face ID, fingerprint, Windows Hello) — so
-                there is no password database for anyone to breach. Your private key never leaves your device.
-                A recovery code is shown once at signup in case you lose your device.
-              </p>
-              <button
-                onClick={() => setShowPasskeyModal(true)}
-                className="mt-2 text-blue-400 hover:text-blue-300 transition-colors underline underline-offset-2"
-              >
-                More about passkeys
-              </button>
-            </div>
-            <div>
-              <p className="font-medium text-slate-300 mb-1">Payment options</p>
-              <p>
-                We will accept credit and debit cards via Stripe, and Bitcoin/Lightning. All
-                payments are handled by third-party processors — they collect and store your
-                payment data according to their own privacy policies.
-              </p>
-            </div>
-          </div>
-          <p className="text-xs text-slate-500">
-            You can optionally add a display name and short bio to give yourself a personality on the platform —
-            or leave them blank and participate entirely under your username.
-          </p>
-        </div>
-
-        <p className="mt-6 text-center text-xs text-slate-600">
-          Payment is not collected yet — select your plan now and billing activates when Stripe is live.
-        </p>
-
       </div>
     </div>
   );

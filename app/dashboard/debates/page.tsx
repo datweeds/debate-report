@@ -21,6 +21,12 @@ const SUBJECT_COLOURS: Record<string, string> = {
   politics: 'bg-blue-500/10 text-blue-300', science: 'bg-teal-500/10 text-teal-300',
 };
 
+const DECISION_LABEL: Record<string, string> = {
+  for:     'For wins',
+  against: 'Against wins',
+  draw:    'Draw',
+};
+
 type Debate = {
   id: string;
   stat_title: string;
@@ -29,7 +35,18 @@ type Debate = {
   image_path: string | null;
   created_at: string;
   creator_handle: string | null;
+  created_by: string | null;
+  stat_status: string;
+  resolution_decision: string | null;
+  vote_total_for: number;
+  vote_total_against: number;
   child_count: number;
+};
+
+type CloseForm = {
+  decision: 'for' | 'against' | 'draw' | '';
+  rationale: string;
+  hidden: boolean;
 };
 
 export default function ListDebatesPage() {
@@ -41,6 +58,12 @@ export default function ListDebatesPage() {
   const [error, setError]         = useState('');
   const [deleting, setDeleting]   = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Close form state
+  const [closingId,    setClosingId]    = useState<string | null>(null);
+  const [closeForm,    setCloseForm]    = useState<CloseForm>({ decision: '', rationale: '', hidden: false });
+  const [closeSubmitting, setCloseSubmitting] = useState(false);
+  const [closeError,   setCloseError]   = useState('');
 
   useEffect(() => {
     if (!loading && !user) router.push('/login?next=/dashboard/debates');
@@ -81,10 +104,51 @@ export default function ListDebatesPage() {
     }
   }
 
+  function openCloseForm(debate: Debate) {
+    setClosingId(debate.id);
+    setCloseForm({ decision: '', rationale: '', hidden: false });
+    setCloseError('');
+  }
+
+  function cancelClose() {
+    setClosingId(null);
+    setCloseError('');
+  }
+
+  async function submitClose(debate: Debate) {
+    if (!closeForm.decision) { setCloseError('Please select a decision'); return; }
+    if (!closeForm.rationale.trim()) { setCloseError('Rationale is required'); return; }
+    setCloseSubmitting(true); setCloseError('');
+    try {
+      const res = await fetch(`/api/debates/${debate.id}/close`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          decision:  closeForm.decision,
+          rationale: closeForm.rationale,
+          hidden:    closeForm.hidden,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setCloseError(data.error ?? 'Close failed'); return; }
+      // Update local state
+      setDebates(prev => prev.map(d =>
+        d.id === debate.id
+          ? { ...d, stat_status: 'closed', resolution_decision: closeForm.decision }
+          : d
+      ));
+      setClosingId(null);
+    } catch {
+      setCloseError('Network error');
+    } finally {
+      setCloseSubmitting(false);
+    }
+  }
+
   if (loading || !user) return null;
 
   return (
-    <div className="min-h-screen bg-dr-base px-4 py-10 sm:px-6">
+    <div className="px-8 py-10">
       <div className="mx-auto max-w-4xl">
 
         {/* Header */}
@@ -129,90 +193,272 @@ export default function ListDebatesPage() {
         ) : (
           <div className="space-y-3">
             {debates.map(debate => (
-              <div key={debate.id} className="card-dr flex items-start gap-4 p-4">
+              <div key={debate.id}>
+                <div className={`card-dr flex items-start gap-4 p-4 ${closingId === debate.id ? 'rounded-b-none border-b-0' : ''}`}>
 
-                {/* Thumbnail */}
-                {debate.image_path ? (
-                  <img
-                    src={debate.image_path}
-                    alt=""
-                    className="h-16 w-24 flex-shrink-0 rounded-lg object-cover border border-slate-700"
-                  />
-                ) : (
-                  <div className="h-16 w-24 flex-shrink-0 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center">
-                    <svg className="h-6 w-6 text-slate-600" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
-                    </svg>
-                  </div>
-                )}
+                  {/* Thumbnail */}
+                  {debate.image_path ? (
+                    <img
+                      src={debate.image_path}
+                      alt=""
+                      className="h-16 w-24 flex-shrink-0 rounded-lg object-cover border border-slate-700"
+                    />
+                  ) : (
+                    <div className="h-16 w-24 flex-shrink-0 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center">
+                      <svg className="h-6 w-6 text-slate-600" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+                      </svg>
+                    </div>
+                  )}
 
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-100 line-clamp-2 leading-snug">
-                    {debate.stat_title}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${SUBJECT_COLOURS[debate.subject_area] ?? 'bg-slate-700 text-slate-400'}`}>
-                      {SUBJECT_LABELS[debate.subject_area] ?? debate.subject_area}
-                    </span>
-                    <span className="text-xs text-slate-500">
-                      {new Date(debate.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </span>
-                    {debate.creator_handle && (
-                      <span className="text-xs text-slate-600">@{debate.creator_handle}</span>
-                    )}
-                    {debate.child_count > 0 && (
-                      <span className="text-xs text-amber-400/80">
-                        {debate.child_count} statement{debate.child_count !== 1 ? 's' : ''}
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                      <p className="text-sm font-semibold text-slate-100 line-clamp-2 leading-snug">
+                        {debate.stat_title}
+                      </p>
+                      {debate.stat_status === 'closed' && (
+                        <span className="flex-shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-orange-500/15 text-orange-400 border border-orange-500/30">
+                          Closed
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 mt-1">
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${SUBJECT_COLOURS[debate.subject_area] ?? 'bg-slate-700 text-slate-400'}`}>
+                        {SUBJECT_LABELS[debate.subject_area] ?? debate.subject_area}
                       </span>
+                      <span className="text-xs text-slate-500">
+                        {new Date(debate.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </span>
+                      {debate.creator_handle && (
+                        <span className="text-xs text-slate-600">@{debate.creator_handle}</span>
+                      )}
+                      {debate.child_count > 0 && (
+                        <span className="text-xs text-amber-400/80">
+                          {debate.child_count} statement{debate.child_count !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                      {debate.stat_status === 'closed' && debate.resolution_decision && (
+                        <span className="text-xs text-slate-500">
+                          · {DECISION_LABEL[debate.resolution_decision] ?? debate.resolution_decision}
+                          <span className="ml-2 text-emerald-400">✓ {debate.vote_total_for}</span>
+                          <span className="ml-1 text-rose-400">✗ {debate.vote_total_against}</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Link
+                      href={`/debates/${debate.id}`}
+                      target="_blank"
+                      className="rounded-lg p-2 text-slate-500 hover:text-slate-300 hover:bg-slate-700/50 transition-colors"
+                      title="View"
+                    >
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                      </svg>
+                    </Link>
+                    {debate.stat_status === 'active' && (debate.created_by === user.sub || user.isSysAdmin) && (
+                      <button
+                        onClick={() => closingId === debate.id ? cancelClose() : openCloseForm(debate)}
+                        title="Close debate"
+                        className={`rounded-lg p-2 transition-colors ${
+                          closingId === debate.id
+                            ? 'text-orange-400 bg-orange-500/10'
+                            : 'text-slate-500 hover:text-orange-400 hover:bg-orange-500/10'
+                        }`}
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                        </svg>
+                      </button>
                     )}
+                    {debate.stat_status !== 'closed' && (
+                      <Link
+                        href={`/dashboard/debates/${debate.id}/edit`}
+                        className="rounded-lg p-2 text-slate-500 hover:text-blue-400 hover:bg-blue-500/10 transition-colors"
+                        title="Edit"
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
+                        </svg>
+                      </Link>
+                    )}
+                    <button
+                      onClick={() => handleDelete(debate)}
+                      disabled={debate.child_count > 0 || deleting === debate.id || debate.stat_status === 'closed'}
+                      title={
+                        debate.stat_status === 'closed'
+                          ? 'Cannot delete a closed debate'
+                          : debate.child_count > 0
+                          ? `Cannot delete: ${debate.child_count} statement${debate.child_count !== 1 ? 's' : ''} attached`
+                          : 'Delete'
+                      }
+                      className="rounded-lg p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-slate-500 disabled:hover:bg-transparent"
+                    >
+                      {deleting === debate.id ? (
+                        <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                      ) : (
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                        </svg>
+                      )}
+                    </button>
                   </div>
                 </div>
 
-                {/* Actions */}
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <Link
-                    href={`/debates/${debate.id}`}
-                    target="_blank"
-                    className="rounded-lg p-2 text-slate-500 hover:text-slate-300 hover:bg-slate-700/50 transition-colors"
-                    title="View"
-                  >
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                    </svg>
-                  </Link>
-                  <Link
-                    href={`/dashboard/debates/${debate.id}/edit`}
-                    className="rounded-lg p-2 text-slate-500 hover:text-blue-400 hover:bg-blue-500/10 transition-colors"
-                    title="Edit"
-                  >
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
-                    </svg>
-                  </Link>
-                  <button
-                    onClick={() => handleDelete(debate)}
-                    disabled={debate.child_count > 0 || deleting === debate.id}
-                    title={debate.child_count > 0 ? `Cannot delete: ${debate.child_count} statement${debate.child_count !== 1 ? 's' : ''} attached` : 'Delete'}
-                    className="rounded-lg p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-slate-500 disabled:hover:bg-transparent"
-                  >
-                    {deleting === debate.id ? (
-                      <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
-                    ) : (
-                      <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                      </svg>
-                    )}
-                  </button>
-                </div>
+                {/* Inline close form */}
+                {closingId === debate.id && (
+                  <ClosePanel
+                    debate={debate}
+                    form={closeForm}
+                    onFormChange={setCloseForm}
+                    onSubmit={() => submitClose(debate)}
+                    onCancel={cancelClose}
+                    submitting={closeSubmitting}
+                    error={closeError}
+                  />
+                )}
               </div>
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function ClosePanel({
+  debate, form, onFormChange, onSubmit, onCancel, submitting, error,
+}: {
+  debate: Debate;
+  form: CloseForm;
+  onFormChange: (f: CloseForm) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+  submitting: boolean;
+  error: string;
+}) {
+  const totalVotes = debate.vote_total_for + debate.vote_total_against;
+  const forPct = totalVotes > 0 ? Math.round((debate.vote_total_for / totalVotes) * 100) : 50;
+
+  return (
+    <div className="card-dr rounded-t-none border-t border-orange-500/20 bg-orange-500/5 p-5">
+      <p className="text-sm font-semibold text-slate-200 mb-4">Close this debate</p>
+
+      {/* Current metrics */}
+      <div className="mb-5 rounded-xl border border-slate-700 bg-slate-800/60 p-4">
+        <p className="text-xs font-semibold text-slate-400 mb-3 uppercase tracking-wider">Current vote totals</p>
+        <div className="flex items-center gap-6 mb-3">
+          <div className="text-center">
+            <p className="text-2xl font-bold text-emerald-400">{debate.vote_total_for}</p>
+            <p className="text-xs text-slate-500 mt-0.5">Total For</p>
+          </div>
+          <div className="flex-1">
+            <div className="h-3 rounded-full overflow-hidden bg-rose-500/30">
+              <div
+                className="h-full bg-emerald-500 rounded-full transition-all"
+                style={{ width: `${forPct}%` }}
+              />
+            </div>
+            <div className="flex justify-between mt-1">
+              <span className="text-[10px] text-slate-600">For {forPct}%</span>
+              <span className="text-[10px] text-slate-600">{100 - forPct}% Against</span>
+            </div>
+          </div>
+          <div className="text-center">
+            <p className="text-2xl font-bold text-rose-400">{debate.vote_total_against}</p>
+            <p className="text-xs text-slate-500 mt-0.5">Total Against</p>
+          </div>
+        </div>
+        <p className="text-xs text-slate-600">
+          These totals will be published alongside your decision.
+        </p>
+      </div>
+
+      {/* Decision picker */}
+      <div className="mb-4">
+        <label className="block text-xs font-semibold text-slate-400 mb-2">Your decision</label>
+        <div className="flex gap-2">
+          {(['for', 'against', 'draw'] as const).map(d => (
+            <button
+              key={d}
+              onClick={() => onFormChange({ ...form, decision: d })}
+              className={`flex-1 rounded-xl border px-3 py-2.5 text-sm font-semibold transition-colors ${
+                form.decision === d
+                  ? d === 'for'
+                    ? 'border-emerald-500 bg-emerald-500/10 text-emerald-300'
+                    : d === 'against'
+                    ? 'border-rose-500 bg-rose-500/10 text-rose-300'
+                    : 'border-slate-500 bg-slate-700 text-slate-300'
+                  : 'border-slate-700 text-slate-500 hover:border-slate-600 hover:text-slate-400'
+              }`}
+            >
+              {d === 'for' ? '✓ For wins' : d === 'against' ? '✗ Against wins' : '≈ Draw'}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-slate-600 mt-1.5">
+          Consider the vote totals above. Your decision is final and published publicly.
+        </p>
+      </div>
+
+      {/* Rationale */}
+      <div className="mb-4">
+        <label className="block text-xs font-semibold text-slate-400 mb-1.5">
+          Rationale <span className="text-red-400">*</span>
+        </label>
+        <textarea
+          value={form.rationale}
+          onChange={e => onFormChange({ ...form, rationale: e.target.value })}
+          placeholder="Explain your decision, referring to the arguments made and the vote totals…"
+          rows={4}
+          className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-sm text-slate-100 placeholder-slate-600 focus:border-orange-500/50 focus:outline-none resize-none"
+        />
+      </div>
+
+      {/* Visibility option */}
+      <label className="flex items-start gap-3 mb-4 cursor-pointer group">
+        <div className="relative mt-0.5">
+          <input
+            type="checkbox"
+            checked={form.hidden}
+            onChange={e => onFormChange({ ...form, hidden: e.target.checked })}
+            className="h-4 w-4 rounded border-slate-600 bg-slate-800 accent-orange-500"
+          />
+        </div>
+        <div>
+          <p className="text-sm font-medium text-slate-300 group-hover:text-slate-200 transition-colors">
+            Remove from Chamber and Switch
+          </p>
+          <p className="text-xs text-slate-600 mt-0.5">
+            By default, closed debates remain visible. Check this to hide the debate from public view.
+          </p>
+        </div>
+      </label>
+
+      {error && <p className="text-xs text-red-400 mb-3">{error}</p>}
+
+      <div className="flex gap-2">
+        <button
+          onClick={onSubmit}
+          disabled={submitting}
+          className="rounded-xl bg-orange-600 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-500 disabled:opacity-50 transition-colors"
+        >
+          {submitting ? 'Closing…' : 'Close debate'}
+        </button>
+        <button
+          onClick={onCancel}
+          className="rounded-xl border border-slate-700 px-5 py-2 text-sm text-slate-400 hover:text-slate-200 hover:border-slate-600 transition-colors"
+        >
+          Cancel
+        </button>
       </div>
     </div>
   );

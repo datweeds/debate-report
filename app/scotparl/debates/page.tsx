@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import pool from '@/lib/db';
+import { tq } from '@/lib/db';
 import DebateVoteList, { type DebateVoteItem } from '@/components/scotparl/DebateVoteList';
 
 export const metadata: Metadata = { title: 'Debates & Votes' };
@@ -9,7 +9,7 @@ export default async function DebatesPage() {
   let items: DebateVoteItem[] = [];
 
   try {
-    const { rows } = await pool.query<DebateVoteItem>(`
+    const { rows } = await tq<DebateVoteItem>(`
       -- Bill debates
       SELECT
         s.id::text                                              AS id,

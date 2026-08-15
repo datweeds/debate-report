@@ -1,0 +1,1 @@
+ALTER TABLE sp_bills ADD COLUMN IF NOT EXISTS synopsis TEXT;

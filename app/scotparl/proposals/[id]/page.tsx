@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import pool from '@/lib/db';
+import { tq } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import ProposalActions from '@/components/proposals/ProposalActions';
 import DebateRequestSection, { type DebateRequest as DR, type DebateLink } from '@/components/scotparl/DebateRequestSection';
@@ -54,19 +54,23 @@ function canView(session: { sub: string; isSysAdmin: boolean } | null, p: Propos
 
 type Params = { params: Promise<{ id: string }> };
 
+const TENANT_ID = parseInt(process.env.TENANT_ID ?? '1', 10);
+
 export default async function ProposalDetailPage({ params }: Params) {
   const { id } = await params;
   const session = await getSession().catch(() => null);
+  const { canManageDebates } = await import('@/lib/roles');
+  const canManage = session ? (session.isSysAdmin || await canManageDebates(session, TENANT_ID)) : false;
 
   const [{ rows: [p] }, debatesRes, requestsRes, pollRes] = await Promise.all([
-    pool.query<Proposal>(
+    tq<Proposal>(
       `SELECT p.*, nt.name AS topic_name
        FROM proposals p
        LEFT JOIN nsp_topics nt ON nt.id = p.topic_id
        WHERE p.id = $1`,
       [id]
     ),
-    pool.query(
+    tq(
       `SELECT spd.resolution_id, s.stat_title, s.stat_status,
               s.vote_total_for, s.vote_total_against,
               (SELECT COUNT(*) FROM comments c WHERE c.statement_id = s.id
@@ -76,8 +80,8 @@ export default async function ProposalDetailPage({ params }: Params) {
        WHERE spd.proposal_id = $1 ORDER BY spd.created_at DESC`,
       [id]
     ),
-    session?.isSysAdmin
-      ? pool.query(
+    canManage
+      ? tq(
           `SELECT r.id, r.requester_id, r.requester_handle, r.reason, r.status, r.created_at,
                   json_agg(json_build_object('action', a.action, 'actor_handle', a.actor_handle,
                     'note', a.note, 'resolution_id', a.resolution_id, 'created_at', a.created_at)
@@ -89,20 +93,21 @@ export default async function ProposalDetailPage({ params }: Params) {
           [id]
         )
       : session
-        ? pool.query(
+        ? tq(
             `SELECT id, reason, status, created_at FROM sp_debate_requests
              WHERE entity_type = 'proposal' AND entity_id = $1 AND requester_id = $2
              ORDER BY created_at DESC`,
             [id, session.sub]
           )
         : Promise.resolve({ rows: [] }),
-    pool.query(`SELECT pvc_poll_id FROM proposals WHERE id = $1`, [id]),
+    tq(`SELECT pvc_poll_id FROM proposals WHERE id = $1`, [id]),
   ]);
 
   if (!p || !canView(session, p)) notFound();
 
   const isOwner    = session?.sub === p.proposer_id;
   const isSysAdmin = session?.isSysAdmin ?? false;
+  void isSysAdmin; // used by ProposalActions
   const resolution = p.next_action ? RESOLUTION_LABEL[p.next_action] : null;
   const propDebates  = debatesRes.rows as DebateLink[];
   const propRequests = requestsRes.rows as DR[];
@@ -185,13 +190,13 @@ export default async function ProposalDetailPage({ params }: Params) {
       />
 
       {/* Vote section */}
-      {p.status === 'accepted' && (poll || isSysAdmin) && (
+      {p.status === 'accepted' && (poll || canManage) && (
         <div className="mt-4">
           <VoteSection
             poll={poll}
             entityType="proposal"
             entityId={p.id}
-            isSysAdmin={isSysAdmin}
+            canManage={canManage}
           />
         </div>
       )}
@@ -207,7 +212,7 @@ export default async function ProposalDetailPage({ params }: Params) {
               entityTitle={p.title}
               entityDescription={p.description}
               userId={session?.sub ?? null}
-              isSysAdmin={isSysAdmin}
+              canManage={canManage}
               initialRequests={propRequests}
               debates={propDebates}
             />

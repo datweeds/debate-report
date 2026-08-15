@@ -105,7 +105,7 @@ export default function NewDebatePage() {
   if (loading || !user) return null;
 
   return (
-    <div className="min-h-screen bg-dr-base px-4 py-10 sm:px-6">
+    <div className="px-8 py-10">
       <div className="mx-auto max-w-2xl">
 
         {/* Breadcrumb */}
