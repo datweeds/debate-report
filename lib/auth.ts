@@ -16,7 +16,11 @@ export interface SessionPayload {
   sub: string;
   handle: string;
   isSysAdmin: boolean;
+  isScotparlMod: boolean;
   tier: string;
+  plan: string; // 'free' | 'paid'
+  customerAdminTenants: number[]; // tenant IDs where this user is CustomerAdmin
+  topicOwnerTenants: number[];    // tenant IDs where this user owns at least one topic
 }
 
 export const hashPassword  = (pw: string)   => bcrypt.hash(pw, 12);
@@ -71,6 +75,7 @@ export function sessionCookie(token: string) {
     sameSite: 'lax' as const,
     maxAge: COOKIE_MAX_AGE,
     path: '/',
+    ...(process.env.COOKIE_DOMAIN ? { domain: process.env.COOKIE_DOMAIN } : {}),
   };
 }
 
@@ -83,6 +88,7 @@ export function clearCookie() {
     sameSite: 'lax' as const,
     maxAge: 0,
     path: '/',
+    ...(process.env.COOKIE_DOMAIN ? { domain: process.env.COOKIE_DOMAIN } : {}),
   };
 }
 
@@ -96,8 +102,10 @@ export interface ChallengePayload {
   userHandle?: string;
   email?: string;
   tier?: string;
+  plan?: string;
   displayName?: string;
   bio?: string;
+  inviteToken?: string;
 }
 
 export async function signChallengeToken(payload: ChallengePayload): Promise<string> {

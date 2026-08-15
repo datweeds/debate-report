@@ -7,7 +7,7 @@ const RP_NAME = process.env.WEBAUTHN_RP_NAME || 'debate.report';
 const RP_ID   = process.env.WEBAUTHN_RP_ID   || 'debate.report';
 
 export async function POST(req: NextRequest) {
-  const { userHandle, email, tier, displayName, bio } = await req.json();
+  const { userHandle, email, tier, plan, displayName, bio, inviteToken } = await req.json();
 
   if (!userHandle?.trim() || userHandle.trim().length < 3) {
     return NextResponse.json({ error: 'Username must be at least 3 characters' }, { status: 400 });
@@ -47,9 +47,11 @@ export async function POST(req: NextRequest) {
     userId,
     userHandle:  userHandle.trim(),
     email:       email?.trim() || undefined,
-    tier:        tier || 'follower',
+    tier:        tier || 'debater',
+    plan:        plan || 'free',
     displayName: displayName?.trim() || undefined,
     bio:         bio?.trim() || undefined,
+    inviteToken: inviteToken || undefined,
   });
 
   const res = NextResponse.json(options);

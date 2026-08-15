@@ -64,8 +64,12 @@ export async function PATCH(req: NextRequest) {
     const newToken = await createToken({
       sub:        session.sub,
       handle,
-      isSysAdmin: session.isSysAdmin,
-      tier:       session.tier,
+      isSysAdmin:    session.isSysAdmin,
+      isScotparlMod: session.isScotparlMod ?? false,
+      tier:          session.tier,
+      plan:          session.plan ?? 'free',
+      customerAdminTenants: session.customerAdminTenants ?? [],
+      topicOwnerTenants:    session.topicOwnerTenants ?? [],
     });
     const res = NextResponse.json({ ok: true, userHandle: handle });
     res.cookies.set(sessionCookie(newToken));

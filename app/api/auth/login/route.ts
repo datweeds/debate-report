@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   }
 
   const result = await pool.query(
-    `SELECT id, user_handle, password_hash, access_code, is_sys_admin, user_tier, user_status
+    `SELECT id, user_handle, password_hash, access_code, is_sys_admin, is_scotparl_mod, user_tier, user_plan, user_status
      FROM users
      WHERE user_handle = $1 OR (email IS NOT NULL AND email = $1)`,
     [identifier.trim()]
@@ -36,11 +36,20 @@ export async function POST(req: NextRequest) {
 
   if (!ok) return NextResponse.json(GENERIC_ERR, { status: 401 });
 
+  const [{ rows: roleRows }, { rows: toRows }] = await Promise.all([
+    pool.query(`SELECT DISTINCT tenant_id FROM customer_roles WHERE user_id = $1 AND role = 'customer_admin'`, [user.id]),
+    pool.query(`SELECT DISTINCT tenant_id FROM topic_owners WHERE user_id = $1`, [user.id]),
+  ]);
+
   const token = await createToken({
     sub: user.id,
     handle: user.user_handle,
     isSysAdmin: user.is_sys_admin,
+    isScotparlMod: user.is_scotparl_mod ?? false,
     tier: user.user_tier,
+    plan: user.user_plan ?? 'free',
+    customerAdminTenants: roleRows.map(r => r.tenant_id as number),
+    topicOwnerTenants:    toRows.map(r => r.tenant_id as number),
   });
 
   const res = NextResponse.json({ ok: true });

@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   const pkRes = chal.userId
     ? await pool.query(
         `SELECT p.id, p.credential_id, p.public_key, p.counter, p.transports,
-                u.id AS user_id, u.user_handle, u.is_sys_admin, u.user_tier
+                u.id AS user_id, u.user_handle, u.is_sys_admin, u.is_scotparl_mod, u.user_tier, u.user_plan
          FROM passkeys p
          JOIN users u ON u.id = p.user_id
          WHERE p.user_id = $1 AND p.credential_id = $2`,
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
       )
     : await pool.query(
         `SELECT p.id, p.credential_id, p.public_key, p.counter, p.transports,
-                u.id AS user_id, u.user_handle, u.is_sys_admin, u.user_tier
+                u.id AS user_id, u.user_handle, u.is_sys_admin, u.is_scotparl_mod, u.user_tier, u.user_plan
          FROM passkeys p
          JOIN users u ON u.id = p.user_id
          WHERE p.credential_id = $1`,
@@ -75,11 +75,20 @@ export async function POST(req: NextRequest) {
     [verification.authenticationInfo.newCounter, pk.id]
   );
 
+  const [{ rows: roleRows }, { rows: toRows }] = await Promise.all([
+    pool.query(`SELECT DISTINCT tenant_id FROM customer_roles WHERE user_id = $1 AND role = 'customer_admin'`, [pk.user_id]),
+    pool.query(`SELECT DISTINCT tenant_id FROM topic_owners   WHERE user_id = $1`, [pk.user_id]),
+  ]);
+
   const token = await createToken({
     sub:        pk.user_id,
     handle:     pk.user_handle,
-    isSysAdmin: pk.is_sys_admin ?? false,
-    tier:       pk.user_tier,
+    isSysAdmin:    pk.is_sys_admin ?? false,
+    isScotparlMod: pk.is_scotparl_mod ?? false,
+    tier:          pk.user_tier,
+    plan:          pk.user_plan ?? 'free',
+    customerAdminTenants: roleRows.map(r => r.tenant_id as number),
+    topicOwnerTenants:    toRows.map(r => r.tenant_id as number),
   });
 
   const res = NextResponse.json({ ok: true });
