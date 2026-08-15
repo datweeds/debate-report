@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import pool from '@/lib/db';
+import { tq } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 
 export const metadata: Metadata = { title: 'Proposals' };
@@ -94,10 +94,34 @@ function Section({ title, proposals, mine = false }: { title: string; proposals:
   );
 }
 
-export default async function ProposalsPage() {
-  const session = await getSession().catch(() => null);
+type Props = { searchParams?: Promise<{ topic_id?: string }> };
 
-  let rows: Proposal[] = [];
+export default async function ProposalsPage({ searchParams }: Props) {
+  const [session, sp] = await Promise.all([
+    getSession().catch(() => null),
+    searchParams,
+  ]);
+
+  const topicIdRaw = sp?.topic_id;
+  const topicId = topicIdRaw ? parseInt(topicIdRaw, 10) : null;
+
+  // Load topics for filter bar
+  const { rows: topicRows } = await tq<{ id: number; name: string }>(
+    `SELECT id, name FROM nsp_topics ORDER BY sort_order, name`
+  );
+
+  // Load strapline for selected topic (first non-null across owners)
+  let strapline: string | null = null;
+  if (topicId) {
+    const { rows: [sl] } = await tq<{ strapline: string }>(
+      `SELECT strapline FROM topic_owners
+       WHERE topic_id = $1 AND strapline IS NOT NULL AND strapline <> ''
+       ORDER BY created_at LIMIT 1`,
+      [topicId]
+    );
+    strapline = sl?.strapline ?? null;
+  }
+
   const baseSelect = `
     SELECT p.id, p.title, p.status, p.proposer_id, p.proposer_handle,
            p.rejection_reason, p.topic_id, p.created_at, p.updated_at,
@@ -116,9 +140,13 @@ export default async function ProposalsPage() {
       ORDER BY spd.created_at DESC LIMIT 1
     ) pd ON true`;
 
+  const topicFilter = topicId ? ` AND p.topic_id = ${topicId}` : '';
+
+  let rows: Proposal[] = [];
   if (session?.isSysAdmin) {
-    const { rows: r } = await pool.query<Proposal>(
+    const { rows: r } = await tq<Proposal>(
       `${baseSelect}
+       WHERE true${topicFilter}
        ORDER BY
          CASE p.status WHEN 'amended' THEN 1 WHEN 'proposed' THEN 2
            WHEN 'accepted' THEN 3 WHEN 'rejected' THEN 4 END,
@@ -126,17 +154,17 @@ export default async function ProposalsPage() {
     );
     rows = r;
   } else if (session) {
-    const { rows: r } = await pool.query<Proposal>(
+    const { rows: r } = await tq<Proposal>(
       `${baseSelect}
-       WHERE p.status = 'accepted' OR p.proposer_id = $1
+       WHERE (p.status = 'accepted' OR p.proposer_id = $1)${topicFilter}
        ORDER BY p.updated_at DESC`,
       [session.sub]
     );
     rows = r;
   } else {
-    const { rows: r } = await pool.query<Proposal>(
+    const { rows: r } = await tq<Proposal>(
       `${baseSelect}
-       WHERE p.status = 'accepted'
+       WHERE p.status = 'accepted'${topicFilter}
        ORDER BY p.created_at DESC`
     );
     rows = r;
@@ -173,9 +201,37 @@ export default async function ProposalsPage() {
         )}
       </div>
 
+      {/* Topic filter */}
+      {topicRows.length > 0 && (
+        <div className="mb-5 flex flex-wrap gap-2">
+          <Link
+            href="/scotparl/proposals"
+            className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${!topicId ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-700 text-slate-400 hover:text-slate-200'}`}
+          >
+            All
+          </Link>
+          {topicRows.map(t => (
+            <Link
+              key={t.id}
+              href={`/scotparl/proposals?topic_id=${t.id}`}
+              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${topicId === t.id ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-700 text-slate-400 hover:text-slate-200'}`}
+            >
+              {t.name}
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {/* Strapline */}
+      {strapline && (
+        <div className="mb-5 rounded-xl border border-blue-800/30 bg-blue-500/5 px-4 py-3 text-sm text-blue-200/80 italic">
+          {strapline}
+        </div>
+      )}
+
       {rows.length === 0 ? (
         <div className="card-dr px-6 py-10 text-center text-slate-500">
-          <p>No proposals yet.</p>
+          <p>No proposals yet{topicId ? ' in this topic' : ''}.</p>
           {session && (
             <p className="mt-2 text-sm">
               <Link href="/scotparl/proposals/new" className="text-blue-400 hover:underline">Be the first to submit one.</Link>
