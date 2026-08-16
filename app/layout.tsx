@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import Header from '@/components/Header';
+import SubNav from '@/components/SubNav';
 import Footer from '@/components/Footer';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { AuthProvider } from '@/components/AuthProvider';
@@ -42,7 +43,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider>
           <AuthProvider>
             <Header />
-            <main className="flex-1 pt-16">{children}</main>
+            <SubNav />
+            <main className="flex-1 pt-[108px]">{children}</main>
             <Footer />
           </AuthProvider>
         </ThemeProvider>
