@@ -91,15 +91,28 @@ function ExternalIcon() {
   );
 }
 
-function LightScoreBadge({ score }: { score: number }) {
-  const cls =
-    score >= 7 ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' :
-    score >= 4 ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'       :
-                 'bg-slate-500/10 text-slate-400 border-slate-500/20';
+type TopicChip = { slug: string; score: number };
+
+function TopicChips({ chips }: { chips: TopicChip[] }) {
+  if (!chips || chips.length === 0) return null;
   return (
-    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold border ${cls}`} title="AI relevance score (1–10)">
-      AI {score}
-    </span>
+    <>
+      {chips.map(c => {
+        const cls =
+          c.score >= 7 ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' :
+                         'bg-amber-500/10  text-amber-300  border-amber-500/20';
+        const label = c.slug.charAt(0).toUpperCase() + c.slug.slice(1);
+        return (
+          <span
+            key={c.slug}
+            title={`AI relevance to ${label}: ${c.score}/10`}
+            className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold border ${cls}`}
+          >
+            {label} {c.score}
+          </span>
+        );
+      })}
+    </>
   );
 }
 
@@ -145,7 +158,7 @@ export default function BillList({
   years,
   userId,
   initialFavIds,
-  lightScores = {},
+  lightTopics = {},
   initialFlaggedKeys = [],
   isManager = false,
 }: {
@@ -157,7 +170,7 @@ export default function BillList({
   years: number[];
   userId: string | null;
   initialFavIds: number[];
-  lightScores?: Record<string, number>;
+  lightTopics?: Record<string, TopicChip[]>;
   initialFlaggedKeys?: string[];
   isManager?: boolean;
 }) {
@@ -465,218 +478,153 @@ export default function BillList({
         ) : filtered.map(item =>
           item.item_type === 'act' ? (
             /* ── Act row ── */
-            <div key={`act-${item.id}`} className="flex items-start gap-4 px-5 py-4 hover:bg-slate-800/40 transition-colors">
-              <a href={item.url} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-100 leading-snug">{item.title}</p>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <span className="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 border border-amber-500/20">
-                    Act
-                  </span>
-                  <span className="font-mono text-[11px] text-slate-500">ASP {item.year}/{item.number}</span>
-                  {item.enacted_at && (
-                    <span className="text-xs text-slate-600">{fmt(item.enacted_at)}</span>
+            <div key={`act-${item.id}`} className="px-5 py-3 hover:bg-slate-800/40 transition-colors">
+              <div className="flex items-baseline justify-between gap-3">
+                <a href={item.url} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0">
+                  <span className="text-sm font-medium text-slate-100 leading-snug hover:text-amber-200 transition-colors">{item.title}</span>
+                </a>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <a href={item.url} target="_blank" rel="noopener noreferrer"
+                     className="inline-flex items-center gap-0.5 rounded border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-300 hover:bg-amber-500/20 transition-colors">
+                    Read <ExternalIcon />
+                  </a>
+                  {item.pdf_url && (
+                    <a href={item.pdf_url} target="_blank" rel="noopener noreferrer"
+                       className="inline-flex items-center gap-0.5 rounded border border-slate-600/30 px-2 py-0.5 text-[10px] font-medium text-slate-500 hover:text-slate-300 transition-colors">
+                      PDF <ExternalIcon />
+                    </a>
                   )}
-                  {lightScores[`act:${item.id}`] != null && (
-                    <LightScoreBadge score={lightScores[`act:${item.id}`]} />
+                  {isManager && (
+                    <button onClick={e => toggleFlag(e, 'act', item.id)}
+                      title={flagged.has(`act:${item.id}`) ? 'Flagged for deep analysis' : 'Flag for deep analysis'}
+                      className={`p-0.5 rounded hover:bg-slate-700/50 transition-colors ${flagged.has(`act:${item.id}`) ? 'text-amber-400' : 'text-slate-600 hover:text-amber-300'}`}>
+                      <FlagIcon filled={flagged.has(`act:${item.id}`)} />
+                    </button>
                   )}
                 </div>
-              </a>
-              <div className="flex flex-col items-end gap-2 flex-shrink-0 pt-0.5">
-                <a
-                  href={item.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-0.5 rounded border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-300 hover:bg-amber-500/20 transition-colors"
-                >
-                  Read
-                  <ExternalIcon />
-                </a>
-                {item.pdf_url && (
-                  <a
-                    href={item.pdf_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-0.5 rounded border border-slate-600/30 px-2 py-0.5 text-[10px] font-medium text-slate-500 hover:text-slate-300 transition-colors"
-                  >
-                    PDF
-                    <ExternalIcon />
-                  </a>
-                )}
-                {isManager && (
-                  <button
-                    onClick={e => toggleFlag(e, 'act', item.id)}
-                    title={flagged.has(`act:${item.id}`) ? 'Flagged for deep analysis' : 'Flag for deep analysis'}
-                    className={`p-0.5 rounded hover:bg-slate-700/50 transition-colors ${flagged.has(`act:${item.id}`) ? 'text-amber-400' : 'text-slate-600 hover:text-amber-300'}`}
-                  >
-                    <FlagIcon filled={flagged.has(`act:${item.id}`)} />
-                  </button>
-                )}
+              </div>
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                <span className="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 border border-amber-500/20">Act</span>
+                <span className="font-mono text-[11px] text-slate-500">ASP {item.year}/{item.number}</span>
+                {item.enacted_at && <span className="text-xs text-slate-600">{fmt(item.enacted_at)}</span>}
+                {lightTopics[`act:${item.id}`] && <TopicChips chips={lightTopics[`act:${item.id}`]} />}
               </div>
             </div>
           ) : item.item_type === 'ssi' ? (
             /* ── SSI row ── */
-            <div key={`ssi-${item.id}`} className="flex items-start gap-4 px-5 py-4 hover:bg-slate-800/40 transition-colors">
-              <a
-                href={item.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 min-w-0"
-              >
-                <p className="text-sm font-medium text-slate-100 leading-snug">{item.title}</p>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <span className="inline-flex items-center rounded bg-teal-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-teal-300 border border-teal-500/20">
-                    SSI
-                  </span>
-                  <span className="font-mono text-[11px] text-slate-500">SSI {item.year}/{item.number}</span>
-                  {item.procedure === 'affirmative' && (
-                    <span className="inline-flex items-center rounded bg-orange-500/10 px-1.5 py-0.5 text-[10px] font-medium text-orange-300 border border-orange-500/20">
-                      Affirmative
-                    </span>
+            <div key={`ssi-${item.id}`} className="px-5 py-3 hover:bg-slate-800/40 transition-colors">
+              <div className="flex items-baseline justify-between gap-3">
+                <a href={item.url} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0">
+                  <span className="text-sm font-medium text-slate-100 leading-snug hover:text-teal-200 transition-colors">{item.title}</span>
+                </a>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <a href={item.url} target="_blank" rel="noopener noreferrer"
+                     className="inline-flex items-center gap-0.5 rounded border border-teal-500/20 bg-teal-500/10 px-2 py-0.5 text-[10px] font-medium text-teal-300 hover:bg-teal-500/20 transition-colors">
+                    Read <ExternalIcon />
+                  </a>
+                  {item.pdf_url && (
+                    <a href={item.pdf_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                       className="inline-flex items-center gap-0.5 rounded border border-slate-600/30 px-2 py-0.5 text-[10px] font-medium text-slate-500 hover:text-slate-300 transition-colors">
+                      PDF <ExternalIcon />
+                    </a>
                   )}
-                  {item.procedure === 'negative' && (
-                    <span className="inline-flex items-center rounded bg-slate-700/40 px-1.5 py-0.5 text-[10px] font-medium text-slate-500 border border-slate-600/30">
-                      Negative
-                    </span>
-                  )}
-                  {item.enacted_at && (
-                    <span className="text-xs text-slate-600">{fmt(item.enacted_at)}</span>
-                  )}
-                  {lightScores[`ssi:${item.id}`] != null && (
-                    <LightScoreBadge score={lightScores[`ssi:${item.id}`]} />
+                  {isManager && (
+                    <button onClick={e => toggleFlag(e, 'ssi', item.id)}
+                      title={flagged.has(`ssi:${item.id}`) ? 'Flagged for deep analysis' : 'Flag for deep analysis'}
+                      className={`p-0.5 rounded hover:bg-slate-700/50 transition-colors ${flagged.has(`ssi:${item.id}`) ? 'text-amber-400' : 'text-slate-600 hover:text-amber-300'}`}>
+                      <FlagIcon filled={flagged.has(`ssi:${item.id}`)} />
+                    </button>
                   )}
                 </div>
-              </a>
-              <div className="flex flex-col items-end gap-2 flex-shrink-0 pt-0.5">
-                <a
-                  href={item.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-0.5 rounded border border-teal-500/20 bg-teal-500/10 px-2 py-0.5 text-[10px] font-medium text-teal-300 hover:bg-teal-500/20 transition-colors"
-                >
-                  Read
-                  <ExternalIcon />
-                </a>
-                {item.pdf_url && (
-                  <a
-                    href={item.pdf_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={e => e.stopPropagation()}
-                    className="inline-flex items-center gap-0.5 rounded border border-slate-600/30 px-2 py-0.5 text-[10px] font-medium text-slate-500 hover:text-slate-300 transition-colors"
-                  >
-                    PDF
-                    <ExternalIcon />
-                  </a>
+              </div>
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                <span className="inline-flex items-center rounded bg-teal-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-teal-300 border border-teal-500/20">SSI</span>
+                <span className="font-mono text-[11px] text-slate-500">SSI {item.year}/{item.number}</span>
+                {item.procedure === 'affirmative' && (
+                  <span className="inline-flex items-center rounded bg-orange-500/10 px-1.5 py-0.5 text-[10px] font-medium text-orange-300 border border-orange-500/20">Affirmative</span>
                 )}
-                {isManager && (
-                  <button
-                    onClick={e => toggleFlag(e, 'ssi', item.id)}
-                    title={flagged.has(`ssi:${item.id}`) ? 'Flagged for deep analysis' : 'Flag for deep analysis'}
-                    className={`p-0.5 rounded hover:bg-slate-700/50 transition-colors ${flagged.has(`ssi:${item.id}`) ? 'text-amber-400' : 'text-slate-600 hover:text-amber-300'}`}
-                  >
-                    <FlagIcon filled={flagged.has(`ssi:${item.id}`)} />
-                  </button>
+                {item.procedure === 'negative' && (
+                  <span className="inline-flex items-center rounded bg-slate-700/40 px-1.5 py-0.5 text-[10px] font-medium text-slate-500 border border-slate-600/30">Negative</span>
                 )}
+                {item.enacted_at && <span className="text-xs text-slate-600">{fmt(item.enacted_at)}</span>}
+                {lightTopics[`ssi:${item.id}`] && <TopicChips chips={lightTopics[`ssi:${item.id}`]} />}
               </div>
             </div>
           ) : (
             /* ── Bill row ── */
-            <div key={`bill-${item.id}`} className="flex items-start gap-4 px-5 py-4 hover:bg-slate-800/40 transition-colors">
-              <Link href={`/scotparl/bills/${item.id}`} className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-100 leading-snug">{item.short_name}</p>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <span className="inline-flex items-center rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-300 border border-blue-500/20">
-                    Bill
-                  </span>
-                  {item.bill_type && <span className="text-xs text-slate-500">{item.bill_type}</span>}
-                  {item.reference  && <span className="text-xs text-slate-600">{item.reference}</span>}
-                  {(item.sponsor_preferred || item.sponsor_name) && (
-                    <span className="text-xs text-slate-500">
-                      {item.sponsor_preferred ?? item.sponsor_name?.split(',').reverse().join(' ').trim()}
-                    </span>
+            <div key={`bill-${item.id}`} className="px-5 py-3 hover:bg-slate-800/40 transition-colors">
+              <div className="flex items-baseline justify-between gap-3">
+                <Link href={`/scotparl/bills/${item.id}`} className="flex-1 min-w-0">
+                  <span className="text-sm font-medium text-slate-100 leading-snug hover:text-blue-300 transition-colors">{item.short_name}</span>
+                </Link>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {parliamentUrl(item.short_name, item.session_slug) && (
+                    <a href={parliamentUrl(item.short_name, item.session_slug)!} target="_blank" rel="noopener noreferrer"
+                       onClick={e => e.stopPropagation()}
+                       className="inline-flex items-center gap-0.5 rounded border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-300 hover:bg-blue-500/20 transition-colors">
+                      Full Bill <ExternalIcon />
+                    </a>
                   )}
-                  {item.third_party_organisation && (
-                    <span className="text-xs text-slate-500">{item.third_party_organisation}</span>
+                  {userId && (
+                    <button onClick={e => toggleFav(e, item.id)} aria-label={favIds.has(item.id) ? 'Remove from favourites' : 'Add to favourites'}
+                      className="p-0.5 rounded hover:bg-slate-700/50 transition-colors">
+                      <HeartIcon filled={favIds.has(item.id)} />
+                    </button>
                   )}
-                  {item.latest_stage_date && <span className="text-xs text-slate-600">{fmt(item.latest_stage_date)}</span>}
-                  {item.resolution_id && item.debate_status === 'active' && (
-                    <span className="inline-flex items-center gap-1 rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-300 border border-blue-500/20">
-                      Open Debate
-                      {(item.debate_votes_for > 0 || item.debate_votes_against > 0) && (
-                        <span className="font-normal text-blue-300/70">· {item.debate_votes_for}/{item.debate_votes_against}</span>
-                      )}
-                    </span>
-                  )}
-                  {item.resolution_id && item.debate_status !== 'active' && (
-                    <span className="inline-flex items-center gap-1 rounded bg-slate-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 border border-slate-600/30">
-                      Debate
-                      {(item.debate_votes_for > 0 || item.debate_votes_against > 0) && (
-                        <span className="font-normal">· {item.debate_votes_for}/{item.debate_votes_against}</span>
-                      )}
-                    </span>
-                  )}
-                  {!item.resolution_id && item.debate_request_count > 0 && (
-                    <span className="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400/80 border border-amber-500/20">
-                      {item.debate_request_count} {item.debate_request_count === 1 ? 'request' : 'requests'}
-                    </span>
-                  )}
-                  {item.pvc_poll_id && (
-                    <span className="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 border border-amber-500/20">
-                      Vote
-                    </span>
-                  )}
-                  {item.impact_count > 0 && item.impact_score !== null && (
-                    <span className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-semibold border ${
-                      item.impact_score >= 7 ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' :
-                      item.impact_score >= 5 ? 'bg-amber-500/10 text-amber-300 border-amber-500/20' :
-                      'bg-rose-500/10 text-rose-300 border-rose-500/20'
-                    }`}>
-                      Impact {item.impact_score.toFixed(1)}
-                    </span>
-                  )}
-                  {lightScores[`bill:${item.id}`] != null && (
-                    <LightScoreBadge score={lightScores[`bill:${item.id}`]} />
+                  {isManager && (
+                    <button onClick={e => toggleFlag(e, 'bill', item.id)}
+                      title={flagged.has(`bill:${item.id}`) ? 'Flagged for deep analysis' : 'Flag for deep analysis'}
+                      className={`p-0.5 rounded hover:bg-slate-700/50 transition-colors ${flagged.has(`bill:${item.id}`) ? 'text-amber-400' : 'text-slate-600 hover:text-amber-300'}`}>
+                      <FlagIcon filled={flagged.has(`bill:${item.id}`)} />
+                    </button>
                   )}
                 </div>
-                {item.synopsis && (
-                  <p className="text-xs text-slate-500 mt-1.5 leading-relaxed line-clamp-2">{item.synopsis}</p>
+              </div>
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                <span className="inline-flex items-center rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-300 border border-blue-500/20">Bill</span>
+                {item.bill_type && <span className="text-xs text-slate-500">{item.bill_type}</span>}
+                {item.reference  && <span className="text-xs text-slate-600">{item.reference}</span>}
+                {(item.sponsor_preferred || item.sponsor_name) && (
+                  <span className="text-xs text-slate-500">{item.sponsor_preferred ?? item.sponsor_name?.split(',').reverse().join(' ').trim()}</span>
                 )}
-              </Link>
-              <div className="flex flex-col items-end gap-2 flex-shrink-0 pt-0.5">
-                {parliamentUrl(item.short_name, item.session_slug) && (
-                  <a
-                    href={parliamentUrl(item.short_name, item.session_slug)!}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={e => e.stopPropagation()}
-                    className="inline-flex items-center gap-0.5 rounded border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-300 hover:bg-blue-500/20 transition-colors"
-                  >
-                    Full Bill
-                    <ExternalIcon />
-                  </a>
+                {item.third_party_organisation && <span className="text-xs text-slate-500">{item.third_party_organisation}</span>}
+                {item.latest_stage_date && <span className="text-xs text-slate-600">{fmt(item.latest_stage_date)}</span>}
+                {item.resolution_id && item.debate_status === 'active' && (
+                  <span className="inline-flex items-center gap-1 rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-300 border border-blue-500/20">
+                    Open Debate
+                    {(item.debate_votes_for > 0 || item.debate_votes_against > 0) && (
+                      <span className="font-normal text-blue-300/70">· {item.debate_votes_for}/{item.debate_votes_against}</span>
+                    )}
+                  </span>
                 )}
+                {item.resolution_id && item.debate_status !== 'active' && (
+                  <span className="inline-flex items-center gap-1 rounded bg-slate-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 border border-slate-600/30">
+                    Debate
+                    {(item.debate_votes_for > 0 || item.debate_votes_against > 0) && (
+                      <span className="font-normal">· {item.debate_votes_for}/{item.debate_votes_against}</span>
+                    )}
+                  </span>
+                )}
+                {!item.resolution_id && item.debate_request_count > 0 && (
+                  <span className="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400/80 border border-amber-500/20">
+                    {item.debate_request_count} {item.debate_request_count === 1 ? 'request' : 'requests'}
+                  </span>
+                )}
+                {item.pvc_poll_id && (
+                  <span className="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 border border-amber-500/20">Vote</span>
+                )}
+                {item.impact_count > 0 && item.impact_score !== null && (
+                  <span className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-semibold border ${
+                    item.impact_score >= 7 ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' :
+                    item.impact_score >= 5 ? 'bg-amber-500/10 text-amber-300 border-amber-500/20' :
+                    'bg-rose-500/10 text-rose-300 border-rose-500/20'
+                  }`}>Impact {item.impact_score.toFixed(1)}</span>
+                )}
+                {lightTopics[`bill:${item.id}`] && <TopicChips chips={lightTopics[`bill:${item.id}`]} />}
                 {item.current_stage && (
                   <span className={`rounded-full px-2 py-0.5 text-xs font-medium border ${stageBadge(item.current_stage)}`}>
                     {item.current_stage}
                   </span>
-                )}
-                {isManager && (
-                  <button
-                    onClick={e => toggleFlag(e, 'bill', item.id)}
-                    title={flagged.has(`bill:${item.id}`) ? 'Flagged for deep analysis' : 'Flag for deep analysis'}
-                    className={`p-0.5 rounded hover:bg-slate-700/50 transition-colors ${flagged.has(`bill:${item.id}`) ? 'text-amber-400' : 'text-slate-600 hover:text-amber-300'}`}
-                  >
-                    <FlagIcon filled={flagged.has(`bill:${item.id}`)} />
-                  </button>
-                )}
-                {userId && (
-                  <button
-                    onClick={e => toggleFav(e, item.id)}
-                    aria-label={favIds.has(item.id) ? 'Remove from favourites' : 'Add to favourites'}
-                    className="p-0.5 rounded hover:bg-slate-700/50 transition-colors"
-                  >
-                    <HeartIcon filled={favIds.has(item.id)} />
-                  </button>
                 )}
               </div>
             </div>

@@ -18,7 +18,8 @@ export default async function BillsPage() {
   let ssis:  Ssi[]  = [];
   let acts:  Act[]  = [];
   let favIds: number[] = [];
-  let lightScores: Record<string, number> = {};
+  type TopicChip = { slug: string; score: number };
+  let lightTopics: Record<string, TopicChip[]> = {};
   let initialFlaggedKeys: string[] = [];
 
   try {
@@ -98,13 +99,28 @@ export default async function BillsPage() {
     ssis   = ssiRes.rows;
     acts   = actRes.rows;
 
-    // Light AI scores (table may not exist yet)
+    // Top topic scores per entity (score ≥ 5, max 4 per entity)
     try {
-      const lsRes = await tq<{ entity_type: string; entity_id: number; light_score: number }>(
-        `SELECT entity_type, entity_id, MAX(score)::int AS light_score
-         FROM society_light_analyses GROUP BY entity_type, entity_id`
+      const lsRes = await tq<{ entity_type: string; entity_id: number; slug: string; score: number }>(
+        `SELECT entity_type, entity_id, slug, score
+         FROM (
+           SELECT la.entity_type, la.entity_id, nt.slug, la.score,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY la.entity_type, la.entity_id
+                    ORDER BY la.score DESC
+                  ) AS rn
+           FROM society_light_analyses la
+           JOIN nsp_topics nt ON nt.id = la.topic_id AND nt.tenant_id = ${TENANT_ID}
+           WHERE la.score >= 5
+         ) t
+         WHERE rn <= 4
+         ORDER BY entity_type, entity_id, score DESC`
       );
-      for (const r of lsRes.rows) lightScores[`${r.entity_type}:${r.entity_id}`] = r.light_score;
+      for (const r of lsRes.rows) {
+        const key = `${r.entity_type}:${r.entity_id}`;
+        if (!lightTopics[key]) lightTopics[key] = [];
+        lightTopics[key].push({ slug: r.slug, score: r.score });
+      }
     } catch {}
 
     // Flags (table may not exist yet, only needed for managers)
@@ -154,7 +170,7 @@ export default async function BillsPage() {
           years={years}
           userId={session?.sub ?? null}
           initialFavIds={favIds}
-          lightScores={lightScores}
+          lightTopics={lightTopics}
           initialFlaggedKeys={initialFlaggedKeys}
           isManager={isManager}
         />
