@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 
 const NAV = [
   { href: '/scotparl',             label: 'Overview',   exact: true },
-  { href: '/scotparl/bills',       label: 'Bills',       exact: false },
+  { href: '/scotparl/bills',       label: 'Laws',        exact: false },
   { href: '/scotparl/principles',  label: 'Principles',  exact: false },
   { href: '/scotparl/proposals',   label: 'Proposals',      exact: false },
   { href: '/scotparl/debates',     label: 'Debates & Votes', exact: false },

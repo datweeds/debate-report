@@ -3,6 +3,7 @@ import pool from '@/lib/db';
 import {
   fetchSessions, fetchParties, fetchBillTypes, fetchBillStageTypes,
   fetchCommittees, fetchMembers, fetchMemberParties, fetchBills, fetchBillStages,
+  fetchSSIsForYear,
 } from './api';
 import { fetchMspConstituencies } from './wikidata';
 
@@ -147,7 +148,52 @@ export async function syncAll(): Promise<SyncResult[]> {
   // Wikidata constituency sync — runs after SP data is current
   results.push(await syncWikidata());
 
+  // SSI sync — last 5 years by default
+  results.push(await syncSSIs());
+
   return results;
+}
+
+export async function syncSSIs(years?: number[]): Promise<SyncResult> {
+  const currentYear = new Date().getFullYear();
+  const targetYears = years ?? Array.from({ length: 5 }, (_, i) => currentYear - i);
+  let totalCount = 0;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const year of targetYears) {
+      const rows = await fetchSSIsForYear(year);
+      for (const r of rows) {
+        await client.query(
+          `INSERT INTO sp_ssis (year, number, title, url, pdf_url, enacted_at)
+           VALUES ($1,$2,$3,$4,$5,$6)
+           ON CONFLICT (year, number) DO UPDATE SET
+             title      = EXCLUDED.title,
+             url        = EXCLUDED.url,
+             pdf_url    = EXCLUDED.pdf_url,
+             enacted_at = EXCLUDED.enacted_at`,
+          [r.year, r.number, r.title, r.url, r.pdf_url, r.enacted_at]
+        );
+        totalCount++;
+      }
+    }
+    await client.query(
+      `INSERT INTO sp_sync_log (collection, record_count) VALUES ('ssis', $1)`,
+      [totalCount]
+    );
+    await client.query('COMMIT');
+    return { collection: 'ssis', count: totalCount };
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    const error = String(err);
+    await pool.query(
+      `INSERT INTO sp_sync_log (collection, record_count, error) VALUES ('ssis', 0, $1)`,
+      [error]
+    ).catch(() => {});
+    return { collection: 'ssis', count: 0, error };
+  } finally {
+    client.release();
+  }
 }
 
 export async function syncWikidata(): Promise<SyncResult> {

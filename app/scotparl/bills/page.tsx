@@ -2,19 +2,20 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import pool, { tq } from '@/lib/db';
 import { getSession } from '@/lib/auth';
-import BillList, { type Bill } from '@/components/scotparl/BillList';
+import BillList, { type Bill, type Ssi } from '@/components/scotparl/BillList';
 
-export const metadata: Metadata = { title: 'Bills' };
+export const metadata: Metadata = { title: 'Laws' };
 export const dynamic = 'force-dynamic';
 
 export default async function BillsPage() {
   const session = await getSession().catch(() => null);
 
   let bills: Bill[] = [];
+  let ssis: Ssi[] = [];
   let favIds: number[] = [];
 
   try {
-    const [billsRes, favsRes] = await Promise.all([
+    const [billsRes, favsRes, ssiRes] = await Promise.all([
       tq<Bill>(
         `SELECT
            b.id, b.reference, b.short_name, b.full_name,
@@ -76,29 +77,37 @@ export default async function BillsPage() {
       session
         ? pool.query<{ bill_id: number }>(`SELECT bill_id FROM sp_bill_favs WHERE user_id = $1`, [session.sub])
         : Promise.resolve({ rows: [] }),
+      pool.query<Ssi>(
+        `SELECT id, year, number, title, url, pdf_url, enacted_at
+         FROM sp_ssis ORDER BY year DESC, number DESC`
+      ).catch(() => ({ rows: [] as Ssi[] })),
     ]);
     bills = billsRes.rows;
     favIds = favsRes.rows.map(r => r.bill_id);
+    ssis = ssiRes.rows;
   } catch {
     // table not yet populated
   }
 
   const types  = [...new Set(bills.map(b => b.bill_type).filter((t): t is string => !!t))].sort();
   const stages = [...new Set(bills.map(b => b.current_stage).filter((s): s is string => !!s))].sort();
-  const years  = [...new Set(bills.map(b => b.latest_stage_date ? new Date(b.latest_stage_date).getFullYear() : null).filter((y): y is number => y !== null))].sort((a, b) => b - a);
+
+  const billYears = bills.map(b => b.latest_stage_date ? new Date(b.latest_stage_date).getFullYear() : null).filter((y): y is number => y !== null);
+  const ssiYears  = ssis.map(s => s.year);
+  const years = [...new Set([...billYears, ...ssiYears])].sort((a, b) => b - a);
 
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-slate-100">Bills &amp; Legislation</h1>
-          <p className="text-slate-400 mt-1 text-sm">All bills introduced to the Scottish Parliament (Sessions 1–6).</p>
+          <h1 className="text-2xl font-bold text-slate-100">Laws</h1>
+          <p className="text-slate-400 mt-1 text-sm">Bills and Scottish Statutory Instruments.</p>
         </div>
         <Link href="/scotparl/bills/msps" className="flex-shrink-0 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200 hover:border-slate-600 transition-colors">
           MSPs →
         </Link>
       </div>
-      {bills.length === 0 ? (
+      {bills.length === 0 && ssis.length === 0 ? (
         <div className="card-dr py-16 text-center space-y-2">
           <p className="text-slate-400">No data loaded yet.</p>
           <p className="text-sm text-slate-500">A ScotParl moderator needs to run the data sync first.</p>
@@ -106,6 +115,7 @@ export default async function BillsPage() {
       ) : (
         <BillList
           bills={bills}
+          ssis={ssis}
           types={types}
           stages={stages}
           years={years}

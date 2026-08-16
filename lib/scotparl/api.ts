@@ -1,4 +1,5 @@
-const BASE = 'https://data.parliament.scot/api';
+const BASE    = 'https://data.parliament.scot/api';
+const LEG_BASE = 'https://www.legislation.gov.uk';
 
 async function fetchCollection<T>(path: string): Promise<T[]> {
   const res = await fetch(`${BASE}/${path}`, {
@@ -28,3 +29,69 @@ export const fetchMembers        = () => fetchCollection<SpMember>('Members');
 export const fetchMemberParties  = () => fetchCollection<SpMemberParty>('MemberParties');
 export const fetchBills          = () => fetchCollection<SpBill>('Bills');
 export const fetchBillStages     = () => fetchCollection<SpBillStage>('BillStages');
+
+// ── Scottish Statutory Instruments (legislation.gov.uk) ───────────────────────
+
+export type SpSsi = {
+  year:      number;
+  number:    number;
+  title:     string;
+  url:       string;
+  pdf_url:   string | null;
+  enacted_at: string | null; // YYYY-MM-DD
+};
+
+function decodeXml(s: string): string {
+  return s
+    .replace(/&amp;/g,  '&')
+    .replace(/&lt;/g,   '<')
+    .replace(/&gt;/g,   '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#(\d+);/g, (_: string, n: string) => String.fromCharCode(parseInt(n, 10)));
+}
+
+function parseAtomEntries(xml: string): SpSsi[] {
+  const results: SpSsi[] = [];
+  const entryRe = /<entry>([\s\S]*?)<\/entry>/g;
+  let m: RegExpExecArray | null;
+  while ((m = entryRe.exec(xml)) !== null) {
+    const block = m[1];
+    const title  = /<title[^>]*>([^<]*)<\/title>/.exec(block)?.[1];
+    const yearV  = /<ukm:Year Value="(\d+)"/.exec(block)?.[1];
+    const numV   = /<ukm:Number Value="(\d+)"/.exec(block)?.[1];
+    const upd    = /<updated>([^<T]+)/.exec(block)?.[1];
+    const url    = /<link href="([^"]+\/ssi\/[^"]+\/made)"/.exec(block)?.[1]
+                ?? /<link href="([^"]+\/ssi\/[^"]+)"/.exec(block)?.[1];
+    const pdf    = /<link [^>]*type="application\/pdf"[^>]*href="([^"]+)"/.exec(block)?.[1];
+    if (!title || !yearV || !numV) continue;
+    const year = parseInt(yearV, 10);
+    const number = parseInt(numV, 10);
+    results.push({
+      year,
+      number,
+      title: decodeXml(title),
+      url: url ?? `${LEG_BASE}/ssi/${year}/${number}/made`,
+      pdf_url: pdf ?? null,
+      enacted_at: upd ? upd.trim() : null,
+    });
+  }
+  return results;
+}
+
+export async function fetchSSIsForYear(year: number): Promise<SpSsi[]> {
+  const all: SpSsi[] = [];
+  let page = 1;
+  while (true) {
+    const url = `${LEG_BASE}/ssi/${year}/data.feed?results-count=500${page > 1 ? `&page=${page}` : ''}`;
+    const res = await fetch(url, { next: { revalidate: 0 } });
+    if (!res.ok) break;
+    const xml = await res.text();
+    const entries = parseAtomEntries(xml);
+    all.push(...entries);
+    const hasNext = /<link[^>]+rel="next"/.test(xml);
+    if (!hasNext) break;
+    page++;
+    if (page > 10) break; // safety
+  }
+  return all;
+}

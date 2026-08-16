@@ -10,7 +10,7 @@ type Counts = {
   proposals: number;
   debates: number;
   votes: number;
-  bills: number;
+  laws: number;
   principles: number;
 };
 
@@ -22,14 +22,15 @@ async function getTotals(): Promise<Counts> {
         (SELECT COUNT(*)::int FROM sp_bill_debates) +
           (SELECT COUNT(*)::int FROM sp_proposal_debates)                                           AS debates,
         (SELECT COUNT(*)::int FROM sp_bill_pvc_polls)                                              AS votes,
-        (SELECT COUNT(*)::int FROM sp_bills)                                                       AS bills,
+        (SELECT COUNT(*)::int FROM sp_bills) +
+          (SELECT COUNT(*)::int FROM sp_ssis)                                                      AS laws,
         (SELECT COUNT(np.*)::int FROM nsp_principles np
          JOIN nsp_principle_sets nps ON nps.id = np.set_id
          JOIN nsp_topics nt          ON nt.id  = nps.topic_id)                                     AS principles
     `);
     return r as Counts;
   } catch {
-    return { proposals: 0, debates: 0, votes: 0, bills: 0, principles: 0 };
+    return { proposals: 0, debates: 0, votes: 0, laws: 0, principles: 0 };
   }
 }
 
@@ -41,7 +42,8 @@ async function getSinceCounts(since: string): Promise<Counts> {
         (SELECT COUNT(*)::int FROM sp_bill_debates WHERE created_at  >= $1) +
           (SELECT COUNT(*)::int FROM sp_proposal_debates WHERE created_at >= $1)                   AS debates,
         (SELECT COUNT(*)::int FROM sp_bill_pvc_polls WHERE created_at >= $1)                       AS votes,
-        (SELECT COUNT(*)::int FROM sp_bills         WHERE created_at >= $1)                        AS bills,
+        (SELECT COUNT(*)::int FROM sp_bills         WHERE created_at >= $1) +
+          (SELECT COUNT(*)::int FROM sp_ssis         WHERE created_at >= $1)                       AS laws,
         (SELECT COUNT(np.*)::int FROM nsp_principles np
          JOIN nsp_principle_sets nps ON nps.id = np.set_id
          JOIN nsp_topics nt          ON nt.id  = nps.topic_id
@@ -49,7 +51,7 @@ async function getSinceCounts(since: string): Promise<Counts> {
     `, [since]);
     return r as Counts;
   } catch {
-    return { proposals: 0, debates: 0, votes: 0, bills: 0, principles: 0 };
+    return { proposals: 0, debates: 0, votes: 0, laws: 0, principles: 0 };
   }
 }
 
@@ -95,6 +97,11 @@ async function getRecentUpdates(since: string | null, limit: number): Promise<Up
                b.created_at, b.created_at
         FROM sp_bills b
         UNION ALL
+        SELECT 'SSI', s.title,
+               s.url,
+               s.created_at, s.created_at
+        FROM sp_ssis s
+        UNION ALL
         SELECT 'Principle', np.title,
                '/scotparl/principles',
                np.created_at, np.created_at
@@ -128,6 +135,7 @@ const TYPE_COLOURS: Record<string, string> = {
   Debate:    'bg-blue-500/10   text-blue-300   border-blue-500/20',
   Vote:      'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
   Bill:      'bg-amber-500/10  text-amber-300   border-amber-500/20',
+  SSI:       'bg-teal-500/10   text-teal-300    border-teal-500/20',
   Principle: 'bg-rose-500/10   text-rose-300    border-rose-500/20',
 };
 
@@ -135,7 +143,7 @@ const METRIC_CONFIG = [
   { key: 'proposals' as keyof Counts,  label: 'Proposals',  href: '/scotparl/proposals', colour: 'text-violet-400',  bg: 'border-violet-800/30 bg-violet-500/5' },
   { key: 'debates'   as keyof Counts,  label: 'Debates',    href: '/scotparl/debates',   colour: 'text-blue-400',    bg: 'border-blue-800/30   bg-blue-500/5'   },
   { key: 'votes'     as keyof Counts,  label: 'Votes',      href: '/scotparl/bills',     colour: 'text-emerald-400', bg: 'border-emerald-800/30 bg-emerald-500/5' },
-  { key: 'bills'     as keyof Counts,  label: 'Bills',      href: '/scotparl/bills',     colour: 'text-amber-400',   bg: 'border-amber-800/30  bg-amber-500/5'  },
+  { key: 'laws'      as keyof Counts,  label: 'Laws',       href: '/scotparl/bills',     colour: 'text-amber-400',   bg: 'border-amber-800/30  bg-amber-500/5'  },
   { key: 'principles'as keyof Counts,  label: 'Principles', href: '/scotparl/principles',colour: 'text-rose-400',    bg: 'border-rose-800/30   bg-rose-500/5'   },
 ];
 
@@ -165,7 +173,7 @@ export default async function ScotparlPage({
         <div>
           <h1 className="text-2xl font-bold text-slate-100">Overview</h1>
           <p className="text-slate-400 mt-1 text-sm">
-            Activity across bills, debates, proposals, and principles.
+            Activity across laws, debates, proposals, and principles.
           </p>
         </div>
         <DateFilter since={since ?? undefined} pathname="/scotparl" />
@@ -219,12 +227,10 @@ export default async function ScotparlPage({
             {!since && <span className="text-xs text-slate-600">15 most recent</span>}
           </div>
           <ul className="divide-y divide-slate-800/60">
-            {updates.map((u, i) => (
-              <li key={i}>
-                <Link
-                  href={u.url}
-                  className="flex items-center gap-3 px-5 py-3 hover:bg-slate-800/40 transition-colors"
-                >
+            {updates.map((u, i) => {
+              const isExternal = u.url.startsWith('http');
+              const inner = (
+                <>
                   <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-xs font-medium border ${TYPE_COLOURS[u.item_type] ?? 'bg-slate-500/10 text-slate-400 border-slate-500/20'}`}>
                     {u.item_type}
                   </span>
@@ -237,9 +243,23 @@ export default async function ScotparlPage({
                       <p className="text-xs text-slate-500">Updated {fmt(u.changed_at)}</p>
                     )}
                   </div>
-                </Link>
-              </li>
-            ))}
+                </>
+              );
+              return (
+                <li key={i}>
+                  {isExternal ? (
+                    <a href={u.url} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-3 px-5 py-3 hover:bg-slate-800/40 transition-colors">
+                      {inner}
+                    </a>
+                  ) : (
+                    <Link href={u.url} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-800/40 transition-colors">
+                      {inner}
+                    </Link>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
