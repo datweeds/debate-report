@@ -89,6 +89,27 @@ function ExternalIcon() {
   );
 }
 
+function LightScoreBadge({ score }: { score: number }) {
+  const cls =
+    score >= 7 ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' :
+    score >= 4 ? 'bg-amber-500/10 text-amber-300 border-amber-500/20'       :
+                 'bg-slate-500/10 text-slate-400 border-slate-500/20';
+  return (
+    <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold border ${cls}`} title="AI relevance score (1–10)">
+      AI {score}
+    </span>
+  );
+}
+
+function FlagIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={1.8} xmlns="http://www.w3.org/2000/svg">
+      <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" strokeLinecap="round" strokeLinejoin="round"/>
+      <line x1="4" y1="22" x2="4" y2="15" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
 function HeartIcon({ filled }: { filled: boolean }) {
   return filled ? (
     <svg viewBox="0 0 24 24" className="h-4 w-4 fill-rose-400 text-rose-400" xmlns="http://www.w3.org/2000/svg">
@@ -122,6 +143,9 @@ export default function BillList({
   years,
   userId,
   initialFavIds,
+  lightScores = {},
+  initialFlaggedKeys = [],
+  isManager = false,
 }: {
   bills: Bill[];
   ssis?:  Ssi[];
@@ -131,6 +155,9 @@ export default function BillList({
   years: number[];
   userId: string | null;
   initialFavIds: number[];
+  lightScores?: Record<string, number>;
+  initialFlaggedKeys?: string[];
+  isManager?: boolean;
 }) {
   const [search,      setSearch]    = useState('');
   const [typeFilter,  setType]      = useState('');
@@ -165,7 +192,25 @@ export default function BillList({
   });
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().split('T')[0]);
 
-  const [favIds, setFavIds] = useState<Set<number>>(() => new Set(initialFavIds));
+  const [favIds, setFavIds]     = useState<Set<number>>(() => new Set(initialFavIds));
+  const [flagged, setFlagged]   = useState<Set<string>>(() => new Set(initialFlaggedKeys));
+
+  async function toggleFlag(e: React.MouseEvent, entityType: string, entityId: number) {
+    e.preventDefault(); e.stopPropagation();
+    if (!isManager) return;
+    const key = `${entityType}:${entityId}`;
+    const willFlag = !flagged.has(key);
+    setFlagged(prev => { const n = new Set(prev); willFlag ? n.add(key) : n.delete(key); return n; });
+    try {
+      await fetch('/api/scotparl/nsp/flags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entity_type: entityType, entity_id: entityId }),
+      });
+    } catch {
+      setFlagged(prev => { const n = new Set(prev); willFlag ? n.delete(key) : n.add(key); return n; });
+    }
+  }
 
   async function toggleFav(e: React.MouseEvent, billId: number) {
     e.preventDefault();
@@ -398,6 +443,9 @@ export default function BillList({
                   {item.enacted_at && (
                     <span className="text-xs text-slate-600">{fmt(item.enacted_at)}</span>
                   )}
+                  {lightScores[`act:${item.id}`] != null && (
+                    <LightScoreBadge score={lightScores[`act:${item.id}`]} />
+                  )}
                 </div>
               </a>
               <div className="flex flex-col items-end gap-2 flex-shrink-0 pt-0.5">
@@ -421,6 +469,15 @@ export default function BillList({
                     <ExternalIcon />
                   </a>
                 )}
+                {isManager && (
+                  <button
+                    onClick={e => toggleFlag(e, 'act', item.id)}
+                    title={flagged.has(`act:${item.id}`) ? 'Flagged for deep analysis' : 'Flag for deep analysis'}
+                    className={`p-0.5 rounded hover:bg-slate-700/50 transition-colors ${flagged.has(`act:${item.id}`) ? 'text-amber-400' : 'text-slate-600 hover:text-amber-300'}`}
+                  >
+                    <FlagIcon filled={flagged.has(`act:${item.id}`)} />
+                  </button>
+                )}
               </div>
             </div>
           ) : item.item_type === 'ssi' ? (
@@ -440,6 +497,9 @@ export default function BillList({
                   <span className="font-mono text-[11px] text-slate-500">SSI {item.year}/{item.number}</span>
                   {item.enacted_at && (
                     <span className="text-xs text-slate-600">{fmt(item.enacted_at)}</span>
+                  )}
+                  {lightScores[`ssi:${item.id}`] != null && (
+                    <LightScoreBadge score={lightScores[`ssi:${item.id}`]} />
                   )}
                 </div>
               </a>
@@ -464,6 +524,15 @@ export default function BillList({
                     PDF
                     <ExternalIcon />
                   </a>
+                )}
+                {isManager && (
+                  <button
+                    onClick={e => toggleFlag(e, 'ssi', item.id)}
+                    title={flagged.has(`ssi:${item.id}`) ? 'Flagged for deep analysis' : 'Flag for deep analysis'}
+                    className={`p-0.5 rounded hover:bg-slate-700/50 transition-colors ${flagged.has(`ssi:${item.id}`) ? 'text-amber-400' : 'text-slate-600 hover:text-amber-300'}`}
+                  >
+                    <FlagIcon filled={flagged.has(`ssi:${item.id}`)} />
+                  </button>
                 )}
               </div>
             </div>
@@ -522,6 +591,9 @@ export default function BillList({
                       Impact {item.impact_score.toFixed(1)}
                     </span>
                   )}
+                  {lightScores[`bill:${item.id}`] != null && (
+                    <LightScoreBadge score={lightScores[`bill:${item.id}`]} />
+                  )}
                 </div>
                 {item.synopsis && (
                   <p className="text-xs text-slate-500 mt-1.5 leading-relaxed line-clamp-2">{item.synopsis}</p>
@@ -544,6 +616,15 @@ export default function BillList({
                   <span className={`rounded-full px-2 py-0.5 text-xs font-medium border ${stageBadge(item.current_stage)}`}>
                     {item.current_stage}
                   </span>
+                )}
+                {isManager && (
+                  <button
+                    onClick={e => toggleFlag(e, 'bill', item.id)}
+                    title={flagged.has(`bill:${item.id}`) ? 'Flagged for deep analysis' : 'Flag for deep analysis'}
+                    className={`p-0.5 rounded hover:bg-slate-700/50 transition-colors ${flagged.has(`bill:${item.id}`) ? 'text-amber-400' : 'text-slate-600 hover:text-amber-300'}`}
+                  >
+                    <FlagIcon filled={flagged.has(`bill:${item.id}`)} />
+                  </button>
                 )}
                 {userId && (
                   <button

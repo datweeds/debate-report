@@ -164,6 +164,7 @@ Return ONLY valid JSON in this exact structure (no preamble, no markdown fences)
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   let report: object;
+  let msgUsage: { input_tokens: number; output_tokens: number } | null = null;
 
   try {
     const message = await client.messages.create({
@@ -171,6 +172,7 @@ Return ONLY valid JSON in this exact structure (no preamble, no markdown fences)
       max_tokens: 8000,
       messages:   [{ role: 'user', content: prompt }],
     });
+    msgUsage = message.usage;
     const textBlock = message.content.find(b => b.type === 'text');
     const text = textBlock?.type === 'text' ? textBlock.text : '';
     const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -196,6 +198,18 @@ Return ONLY valid JSON in this exact structure (no preamble, no markdown fences)
      WHERE id=$3`,
     [JSON.stringify(report), overall, analysisId]
   );
+
+  // Log token usage — Sonnet 5: $3/1M input (3 µ$/tok), $15/1M output (15 µ$/tok)
+  if (msgUsage) {
+    const cost = msgUsage.input_tokens * 3 + msgUsage.output_tokens * 15;
+    pool.query(
+      `INSERT INTO ai_usage_log
+         (tenant_id, analysis_type, entity_type, entity_id, topic_id, model, input_tokens, output_tokens, cost_micro)
+       VALUES ($1,'heavy',$2,$3,$4,'claude-sonnet-5',$5,$6,$7)`,
+      [TENANT_ID, entity_type, entity_id, topic_id,
+       msgUsage.input_tokens, msgUsage.output_tokens, cost]
+    ).catch(() => {}); // non-blocking; don't fail the analysis if logging fails
+  }
 
   return NextResponse.json({ id: analysisId, overall_score: overall, report }, { status: 201 });
 }

@@ -631,9 +631,194 @@ function GroupsManager() {
   );
 }
 
+// ── Analysis tab (CustomerAdmin only) ─────────────────────────────────────────
+
+interface TopicStatus {
+  id: number; name: string;
+  last_run_at: string | null; scored_count: number;
+  principles_changed_at: string | null;
+  total_entities: number; pending_count: number; principles_stale: boolean;
+}
+interface UsageStat {
+  month: string; analysis_type: string;
+  calls: number; input_tokens: number; output_tokens: number; cost_micro: number;
+}
+interface RunResult { processed: number; remaining: number; done: boolean; cost_cents: string; }
+
+function LightAnalysisManager() {
+  const [data, setData] = useState<{
+    topics: TopicStatus[]; stats: UsageStat[]; budget: number | null;
+  } | null>(null);
+  const [loading, setLoading]     = useState(true);
+  const [runningId, setRunningId] = useState<number | 'all' | null>(null);
+  const [result, setResult]       = useState<RunResult | null>(null);
+  const [err, setErr]             = useState('');
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch('/api/scotparl/nsp/light-impact');
+      if (r.ok) setData(await r.json());
+      else { const d = await r.json(); setErr(d.error ?? 'Failed to load'); }
+    } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  async function runAnalysis(topicId: number | undefined, fullRerun: boolean) {
+    setRunningId(topicId ?? 'all');
+    setResult(null); setErr('');
+    try {
+      const r = await fetch('/api/scotparl/nsp/light-impact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...(topicId ? { topic_id: topicId } : {}), full_rerun: fullRerun }),
+      });
+      if (!r.ok) { const d = await r.json(); setErr(d.error ?? 'Analysis failed'); return; }
+      setResult(await r.json());
+    } finally {
+      setRunningId(null);
+      loadData();
+    }
+  }
+
+  function microToDisplay(micro: number) {
+    const cents = micro / 10_000;
+    return cents >= 100 ? `$${(cents / 100).toFixed(2)}` : `${cents.toFixed(2)}¢`;
+  }
+
+  if (loading) return <Spinner />;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-base font-semibold text-slate-100">Light AI Analysis</h2>
+        <p className="text-sm text-slate-400 mt-0.5">
+          Scores all laws and proposals 1–10 for relevance to each topic using a lightweight AI model (~$0.001/item).
+          {data?.budget != null && (
+            <> Monthly budget: <span className="text-slate-300">${((data.budget) / 100).toFixed(2)}</span>.</>
+          )}
+        </p>
+      </div>
+
+      {err && (
+        <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">{err}</p>
+      )}
+
+      {result && (
+        <div className="rounded-xl border border-emerald-800/30 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-300">
+          ✓ Processed {result.processed} items · cost {parseFloat(result.cost_cents).toFixed(4)}¢
+          {!result.done && (
+            <span className="text-slate-400"> · {result.remaining} remaining — run again to continue</span>
+          )}
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {(data?.topics ?? []).map(t => (
+          <div key={t.id} className="card-dr px-4 py-4 space-y-3">
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-100">{t.name}</p>
+                <div className="flex items-center gap-3 mt-1 flex-wrap text-xs text-slate-500">
+                  <span>{t.last_run_at ? `Last run ${fmt(t.last_run_at)}` : 'Never run'}</span>
+                  <span>{t.scored_count} scored</span>
+                  <span className={t.pending_count > 0 ? 'text-amber-400' : ''}>{t.pending_count} pending</span>
+                </div>
+                {t.principles_stale && (
+                  <p className="mt-1.5 text-xs text-amber-400">
+                    ⚠ Principles changed since last run — consider a full re-run
+                  </p>
+                )}
+              </div>
+              <div className="flex gap-2 flex-shrink-0">
+                <button
+                  onClick={() => runAnalysis(t.id, false)}
+                  disabled={runningId !== null}
+                  className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-slate-100 disabled:opacity-40 transition-colors"
+                >
+                  {runningId === t.id ? (
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-3 w-3 animate-spin rounded-full border border-blue-500 border-t-transparent inline-block" />
+                      Running…
+                    </span>
+                  ) : 'Run Incremental'}
+                </button>
+                <button
+                  onClick={() => runAnalysis(t.id, true)}
+                  disabled={runningId !== null}
+                  className="rounded-lg border border-rose-800/40 px-3 py-1.5 text-xs font-medium text-rose-400 hover:bg-rose-500/10 disabled:opacity-40 transition-colors"
+                >
+                  Full Re-run
+                </button>
+              </div>
+            </div>
+            {t.total_entities > 0 && (
+              <div className="space-y-1">
+                <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-blue-500/60 transition-all"
+                    style={{ width: `${Math.min(100, Math.round((t.scored_count / t.total_entities) * 100))}%` }}
+                  />
+                </div>
+                <p className="text-[10px] text-slate-600">
+                  {t.scored_count} / {t.total_entities} entities scored ({Math.round((t.scored_count / t.total_entities) * 100)}%)
+                </p>
+              </div>
+            )}
+          </div>
+        ))}
+        {(data?.topics ?? []).length === 0 && (
+          <p className="text-sm text-slate-500">No topics found. Create topics first.</p>
+        )}
+      </div>
+
+      {(data?.stats ?? []).length > 0 && (
+        <div className="card-dr">
+          <div className="px-5 py-3 border-b border-slate-800">
+            <h3 className="text-sm font-semibold text-slate-100">AI Usage (Last 6 Months)</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-slate-800 text-left text-slate-500">
+                  <th className="px-4 py-2.5 font-medium">Month</th>
+                  <th className="px-4 py-2.5 font-medium">Type</th>
+                  <th className="px-4 py-2.5 font-medium text-right">Calls</th>
+                  <th className="px-4 py-2.5 font-medium text-right hidden sm:table-cell">Tokens In</th>
+                  <th className="px-4 py-2.5 font-medium text-right hidden sm:table-cell">Tokens Out</th>
+                  <th className="px-4 py-2.5 font-medium text-right">Cost</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60">
+                {data!.stats.map((s, i) => (
+                  <tr key={i} className="text-slate-300">
+                    <td className="px-4 py-2.5 font-mono text-slate-400">{s.month}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold border ${
+                        s.analysis_type === 'heavy'
+                          ? 'bg-violet-500/10 text-violet-300 border-violet-500/20'
+                          : 'bg-blue-500/10 text-blue-300 border-blue-500/20'
+                      }`}>{s.analysis_type}</span>
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-mono tabular-nums">{s.calls.toLocaleString()}</td>
+                    <td className="px-4 py-2.5 text-right font-mono tabular-nums hidden sm:table-cell">{s.input_tokens.toLocaleString()}</td>
+                    <td className="px-4 py-2.5 text-right font-mono tabular-nums hidden sm:table-cell">{s.output_tokens.toLocaleString()}</td>
+                    <td className="px-4 py-2.5 text-right font-mono tabular-nums text-amber-300">{microToDisplay(s.cost_micro)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-type Tab = 'overview' | 'straplines' | 'topics' | 'groups' | 'settings';
+type Tab = 'overview' | 'straplines' | 'topics' | 'groups' | 'settings' | 'analysis';
 
 export default function CustomerAdminPage() {
   const [me, setMe]               = useState<MeData | null>(null);
@@ -656,6 +841,7 @@ export default function CustomerAdminPage() {
     { id: 'straplines', label: 'My Straplines',   show: !me.isCustomerAdmin && me.isTopicOwner },
     { id: 'topics',     label: 'Topics & Owners', show: me.isCustomerAdmin },
     { id: 'groups',     label: 'User Groups',     show: me.isCustomerAdmin },
+    { id: 'analysis',   label: 'Analysis',        show: me.isCustomerAdmin },
     { id: 'settings',   label: 'Site Settings',   show: me.isCustomerAdmin },
   ] : [];
 
@@ -707,6 +893,7 @@ export default function CustomerAdminPage() {
           </div>
         )}
         {tab === 'groups'     && me.isCustomerAdmin && <GroupsManager />}
+        {tab === 'analysis'   && me.isCustomerAdmin && <LightAnalysisManager />}
         {tab === 'settings'   && me.isCustomerAdmin && <SiteSettingsTab />}
 
       </div>

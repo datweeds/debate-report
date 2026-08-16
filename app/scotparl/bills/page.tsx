@@ -2,18 +2,24 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import pool, { tq } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { canManageDebates } from '@/lib/roles';
 import BillList, { type Bill, type Ssi, type Act } from '@/components/scotparl/BillList';
 
 export const metadata: Metadata = { title: 'Laws' };
 export const dynamic = 'force-dynamic';
 
+const TENANT_ID = parseInt(process.env.TENANT_ID ?? '1', 10);
+
 export default async function BillsPage() {
   const session = await getSession().catch(() => null);
+  const isManager = session ? await canManageDebates(session, TENANT_ID) : false;
 
   let bills: Bill[] = [];
   let ssis:  Ssi[]  = [];
   let acts:  Act[]  = [];
   let favIds: number[] = [];
+  let lightScores: Record<string, number> = {};
+  let initialFlaggedKeys: string[] = [];
 
   try {
     const [billsRes, favsRes, ssiRes, actRes] = await Promise.all([
@@ -91,6 +97,25 @@ export default async function BillsPage() {
     favIds = favsRes.rows.map(r => r.bill_id);
     ssis   = ssiRes.rows;
     acts   = actRes.rows;
+
+    // Light AI scores (table may not exist yet)
+    try {
+      const lsRes = await tq<{ entity_type: string; entity_id: number; light_score: number }>(
+        `SELECT entity_type, entity_id, MAX(score)::int AS light_score
+         FROM society_light_analyses GROUP BY entity_type, entity_id`
+      );
+      for (const r of lsRes.rows) lightScores[`${r.entity_type}:${r.entity_id}`] = r.light_score;
+    } catch {}
+
+    // Flags (table may not exist yet, only needed for managers)
+    if (isManager) {
+      try {
+        const flRes = await pool.query<{ entity_type: string; entity_id: number }>(
+          `SELECT entity_type, entity_id FROM society_interest_flags WHERE tenant_id = $1`, [TENANT_ID]
+        );
+        initialFlaggedKeys = flRes.rows.map(r => `${r.entity_type}:${r.entity_id}`);
+      } catch {}
+    }
   } catch {
     // tables not yet populated
   }
@@ -129,6 +154,9 @@ export default async function BillsPage() {
           years={years}
           userId={session?.sub ?? null}
           initialFavIds={favIds}
+          lightScores={lightScores}
+          initialFlaggedKeys={initialFlaggedKeys}
+          isManager={isManager}
         />
       )}
     </div>

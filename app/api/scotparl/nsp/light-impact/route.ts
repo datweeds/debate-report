@@ -1,0 +1,376 @@
+import { NextResponse } from 'next/server';
+import Anthropic from '@anthropic-ai/sdk';
+import pool, { tq } from '@/lib/db';
+import { getSession } from '@/lib/auth';
+import { canManageDebates } from '@/lib/roles';
+
+const TENANT_ID = parseInt(process.env.TENANT_ID ?? '1', 10);
+
+export const maxDuration = 300;
+
+const MODEL        = 'claude-haiku-4-5';
+const BATCH_SIZE   = 200;
+const CONCURRENCY  = 20;
+
+// Haiku 4.5 pricing in microdollars per token
+// $1.00/1M input, $5.00/1M output → 1 microdollar/token, 5 microdollar/token
+const INPUT_MICRO_PER_TOKEN  = 1;
+const OUTPUT_MICRO_PER_TOKEN = 5;
+
+function costMicro(inputTok: number, outputTok: number) {
+  return inputTok * INPUT_MICRO_PER_TOKEN + outputTok * OUTPUT_MICRO_PER_TOKEN;
+}
+
+type TopicRow = { id: number; name: string };
+type PrincipleRow = { title: string };
+type EntityRow = { entity_type: string; entity_id: number; synopsis: string };
+
+// ── GET — status for the admin dashboard ─────────────────────────────────────
+
+export async function GET(req: Request) {
+  const session = await getSession();
+  if (!session || !await canManageDebates(session, TENANT_ID)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const [topicsRes, statsRes, budgetRes] = await Promise.all([
+    // Topics with last-run info and pending count
+    tq<{
+      id: number; name: string;
+      last_run_at: string | null;
+      scored_count: number;
+      principles_changed_at: string | null;
+    }>(`
+      SELECT
+        nt.id, nt.name,
+        MAX(la.created_at)::text                                                AS last_run_at,
+        COUNT(la.id)::int                                                       AS scored_count,
+        MAX(np.updated_at)::text                                                AS principles_changed_at
+      FROM nsp_topics nt
+      LEFT JOIN nsp_principle_sets nps ON nps.topic_id = nt.id AND nps.is_current = true
+      LEFT JOIN nsp_principles np      ON np.set_id = nps.id
+      LEFT JOIN society_light_analyses la ON la.topic_id = nt.id
+        AND la.tenant_id = current_setting('app.tenant_id')::int
+      WHERE nt.tenant_id = current_setting('app.tenant_id')::int
+      GROUP BY nt.id, nt.name
+      ORDER BY nt.name
+    `),
+
+    // Monthly usage stats — last 6 months
+    tq<{
+      month: string;
+      analysis_type: string;
+      calls: number;
+      input_tokens: number;
+      output_tokens: number;
+      cost_micro: number;
+    }>(`
+      SELECT
+        to_char(date_trunc('month', created_at), 'YYYY-MM') AS month,
+        analysis_type,
+        COUNT(*)::int                                         AS calls,
+        SUM(input_tokens)::int                               AS input_tokens,
+        SUM(output_tokens)::int                              AS output_tokens,
+        SUM(cost_micro)::int                                 AS cost_micro
+      FROM ai_usage_log
+      WHERE tenant_id = current_setting('app.tenant_id')::int
+        AND created_at >= date_trunc('month', now()) - interval '5 months'
+      GROUP BY 1, 2
+      ORDER BY 1 DESC, 2
+    `),
+
+    // Budget
+    pool.query<{ ai_budget_cents: number | null }>(
+      `SELECT ai_budget_cents FROM customers WHERE id = $1`, [TENANT_ID]
+    ),
+  ]);
+
+  // Total entity counts for "pending" calculation
+  const [billCount, actCount, ssiCount, proposalCount] = await Promise.all([
+    pool.query<{ c: number }>(`SELECT COUNT(*)::int AS c FROM sp_bills`),
+    pool.query<{ c: number }>(`SELECT COUNT(*)::int AS c FROM sp_acts`),
+    pool.query<{ c: number }>(`SELECT COUNT(*)::int AS c FROM sp_ssis`),
+    tq<{ c: number }>(`SELECT COUNT(*)::int AS c FROM proposals`),
+  ]);
+  const totalEntities =
+    (billCount.rows[0]?.c ?? 0) +
+    (actCount.rows[0]?.c ?? 0) +
+    (ssiCount.rows[0]?.c ?? 0) +
+    (proposalCount.rows[0]?.c ?? 0);
+
+  const topics = topicsRes.rows.map(t => ({
+    ...t,
+    total_entities: totalEntities,
+    pending_count:  totalEntities - t.scored_count,
+    principles_stale:
+      t.last_run_at !== null &&
+      t.principles_changed_at !== null &&
+      t.principles_changed_at > t.last_run_at,
+  }));
+
+  return NextResponse.json({
+    topics,
+    stats:  statsRes.rows,
+    budget: budgetRes.rows[0]?.ai_budget_cents ?? null,
+  });
+}
+
+// ── POST — trigger a light analysis run ──────────────────────────────────────
+
+export async function POST(req: Request) {
+  const session = await getSession();
+  if (!session || !await canManageDebates(session, TENANT_ID)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const body = await req.json().catch(() => ({})) as {
+    topic_id?:    number;
+    full_rerun?:  boolean;
+  };
+
+  const { topic_id, full_rerun = false } = body;
+
+  // Get topics to analyse
+  const topicsRes = await tq<TopicRow>(
+    topic_id
+      ? `SELECT id, name FROM nsp_topics WHERE id = $1 AND tenant_id = current_setting('app.tenant_id')::int`
+      : `SELECT id, name FROM nsp_topics WHERE tenant_id = current_setting('app.tenant_id')::int ORDER BY name`,
+    topic_id ? [topic_id] : []
+  );
+  const topics = topicsRes.rows;
+  if (topics.length === 0) {
+    return NextResponse.json({ error: 'No topics found' }, { status: 404 });
+  }
+
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  let totalProcessed = 0;
+  let totalRemaining = 0;
+  let totalCostMicro = 0;
+
+  for (const topic of topics) {
+    // Get principles for this topic's current set
+    const princRes = await tq<PrincipleRow>(
+      `SELECT np.title
+       FROM nsp_principles np
+       JOIN nsp_principle_sets nps ON nps.id = np.set_id
+       WHERE nps.topic_id = $1 AND nps.is_current = true
+       ORDER BY np.sort_order NULLS LAST, np.id`,
+      [topic.id]
+    );
+    const principles = princRes.rows;
+    if (principles.length === 0) continue; // no principles to analyse against
+
+    // Full re-run: wipe existing scores for this topic first
+    if (full_rerun) {
+      await pool.query(
+        `DELETE FROM society_light_analyses
+         WHERE tenant_id = $1 AND topic_id = $2`,
+        [TENANT_ID, topic.id]
+      );
+    }
+
+    // Collect pending entities
+    const entities = await getPendingEntities(topic.id);
+    totalRemaining += Math.max(0, entities.length - BATCH_SIZE);
+    const batch = entities.slice(0, BATCH_SIZE);
+
+    // Process batch with concurrency
+    const results = await processBatch(anthropic, topic, principles, batch);
+
+    // Persist results
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      for (const r of results) {
+        if (!r) continue;
+        await client.query(
+          `INSERT INTO society_light_analyses
+             (tenant_id, entity_type, entity_id, topic_id, score, rationale, synopsis_used, model, input_tokens, output_tokens)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+           ON CONFLICT (tenant_id, entity_type, entity_id, topic_id) DO UPDATE SET
+             score         = EXCLUDED.score,
+             rationale     = EXCLUDED.rationale,
+             synopsis_used = EXCLUDED.synopsis_used,
+             model         = EXCLUDED.model,
+             input_tokens  = EXCLUDED.input_tokens,
+             output_tokens = EXCLUDED.output_tokens,
+             created_at    = now()`,
+          [TENANT_ID, r.entity_type, r.entity_id, topic.id,
+           r.score, r.rationale, r.synopsis_used,
+           MODEL, r.input_tokens, r.output_tokens]
+        );
+        await client.query(
+          `INSERT INTO ai_usage_log
+             (tenant_id, analysis_type, entity_type, entity_id, topic_id, model, input_tokens, output_tokens, cost_micro)
+           VALUES ($1,'light',$2,$3,$4,$5,$6,$7,$8)`,
+          [TENANT_ID, r.entity_type, r.entity_id, topic.id,
+           MODEL, r.input_tokens, r.output_tokens,
+           costMicro(r.input_tokens, r.output_tokens)]
+        );
+        totalCostMicro += costMicro(r.input_tokens, r.output_tokens);
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
+    totalProcessed += results.filter(Boolean).length;
+  }
+
+  return NextResponse.json({
+    processed:      totalProcessed,
+    remaining:      totalRemaining,
+    done:           totalRemaining === 0,
+    cost_cents:     (totalCostMicro / 10_000).toFixed(4),
+  });
+}
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+async function getPendingEntities(topicId: number): Promise<EntityRow[]> {
+  const [billsRes, actsRes, ssisRes, propsRes] = await Promise.all([
+    pool.query<EntityRow>(`
+      SELECT 'bill' AS entity_type, id AS entity_id,
+             COALESCE(
+               NULLIF(TRIM(COALESCE(short_name,'') || ' ' || COALESCE(synopsis,'')), ''),
+               short_name
+             ) AS synopsis
+      FROM sp_bills b
+      WHERE NOT EXISTS (
+        SELECT 1 FROM society_light_analyses la
+        WHERE la.entity_type = 'bill' AND la.entity_id = b.id
+          AND la.topic_id = ${topicId} AND la.tenant_id = ${TENANT_ID}
+      )
+      ORDER BY id DESC
+    `),
+    pool.query<EntityRow>(`
+      SELECT 'act' AS entity_type, id AS entity_id, title AS synopsis
+      FROM sp_acts a
+      WHERE NOT EXISTS (
+        SELECT 1 FROM society_light_analyses la
+        WHERE la.entity_type = 'act' AND la.entity_id = a.id
+          AND la.topic_id = ${topicId} AND la.tenant_id = ${TENANT_ID}
+      )
+      ORDER BY year DESC, number DESC
+    `),
+    pool.query<EntityRow>(`
+      SELECT 'ssi' AS entity_type, id AS entity_id, title AS synopsis
+      FROM sp_ssis s
+      WHERE NOT EXISTS (
+        SELECT 1 FROM society_light_analyses la
+        WHERE la.entity_type = 'ssi' AND la.entity_id = s.id
+          AND la.topic_id = ${topicId} AND la.tenant_id = ${TENANT_ID}
+      )
+      ORDER BY year DESC, number DESC
+    `),
+    tq<EntityRow>(`
+      SELECT 'proposal' AS entity_type, id AS entity_id,
+             SUBSTRING(COALESCE(title,'') || ' ' || COALESCE(description,''), 1, 500) AS synopsis
+      FROM proposals p
+      WHERE NOT EXISTS (
+        SELECT 1 FROM society_light_analyses la
+        WHERE la.entity_type = 'proposal' AND la.entity_id = p.id
+          AND la.topic_id = ${topicId} AND la.tenant_id = ${TENANT_ID}
+      )
+      ORDER BY id DESC
+    `),
+  ]);
+
+  // Interleave: bills, acts, ssis, proposals (so partial batches have a mix)
+  const all: EntityRow[] = [];
+  const lists = [billsRes.rows, actsRes.rows, ssisRes.rows, propsRes.rows];
+  const maxLen = Math.max(...lists.map(l => l.length));
+  for (let i = 0; i < maxLen; i++) {
+    for (const list of lists) {
+      if (i < list.length) all.push(list[i]);
+    }
+  }
+  return all;
+}
+
+async function processBatch(
+  anthropic: Anthropic,
+  topic: TopicRow,
+  principles: PrincipleRow[],
+  entities: EntityRow[]
+): Promise<(AnalysisResult | null)[]> {
+  const principleList = principles.map(p => `• ${p.title}`).join('\n');
+
+  const results: (AnalysisResult | null)[] = new Array(entities.length).fill(null);
+  const chunks: EntityRow[][] = [];
+  for (let i = 0; i < entities.length; i += CONCURRENCY) {
+    chunks.push(entities.slice(i, i + CONCURRENCY));
+  }
+
+  let idx = 0;
+  for (const chunk of chunks) {
+    const settled = await Promise.allSettled(
+      chunk.map(async (entity) => {
+        const synopsis = entity.synopsis.slice(0, 800);
+        const prompt =
+`You are assessing Scottish legislation for relevance to a policy topic.
+
+Topic: ${topic.name}
+Key principles:
+${principleList}
+
+Item: ${synopsis}
+
+Rate relevance 1–10:
+1–3 = minimal or no relevance
+4–6 = moderate or indirect relevance
+7–8 = significant relevance
+9–10 = directly addresses core principles
+
+Reply ONLY with valid JSON: {"score": N, "rationale": "one sentence, max 100 chars"}`;
+
+        const msg = await anthropic.messages.create({
+          model: MODEL,
+          max_tokens: 120,
+          messages: [{ role: 'user', content: prompt }],
+        });
+
+        const text = (msg.content[0] as { type: string; text: string }).text.trim();
+        let score = 5;
+        let rationale = '';
+        try {
+          const jsonPart = text.match(/\{[\s\S]*?\}/)?.[0] ?? text;
+          const parsed = JSON.parse(jsonPart);
+          score    = Math.max(1, Math.min(10, Math.round(Number(parsed.score) || 5)));
+          rationale = String(parsed.rationale ?? '').slice(0, 120);
+        } catch {
+          const m = text.match(/\d+/);
+          score = m ? Math.max(1, Math.min(10, parseInt(m[0], 10))) : 5;
+          rationale = text.slice(0, 120);
+        }
+
+        return {
+          entity_type:   entity.entity_type,
+          entity_id:     entity.entity_id,
+          score,
+          rationale,
+          synopsis_used: synopsis,
+          input_tokens:  msg.usage.input_tokens,
+          output_tokens: msg.usage.output_tokens,
+        };
+      })
+    );
+
+    for (const res of settled) {
+      results[idx++] = res.status === 'fulfilled' ? res.value : null;
+    }
+  }
+  return results;
+}
+
+type AnalysisResult = {
+  entity_type:   string;
+  entity_id:     number;
+  score:         number;
+  rationale:     string;
+  synopsis_used: string;
+  input_tokens:  number;
+  output_tokens: number;
+};
