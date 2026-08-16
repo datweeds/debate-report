@@ -25,20 +25,11 @@ const NAV_ITEMS = [
     ),
   },
   {
-    label: 'Debate',
+    label: 'Debate & Vote',
     href: '/scotparl/debates',
     icon: (
       <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" d="M8 9h8M8 13h5m-9 7 4-4H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-3l-4 4Z" />
-      </svg>
-    ),
-  },
-  {
-    label: 'Vote',
-    href: '/chamber',
-    icon: (
-      <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
       </svg>
     ),
   },
