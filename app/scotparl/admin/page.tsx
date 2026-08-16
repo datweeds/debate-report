@@ -482,9 +482,158 @@ function TopicOwnersManager({ topics }: { topics: Topic[] }) {
   );
 }
 
+// ── Groups tab (CustomerAdmin only) ──────────────────────────────────────────
+
+interface Group { id: number; name: string; description: string | null; member_count: number }
+interface GroupMember { user_id: string; handle: string; added_at: string }
+
+function GroupsManager() {
+  const [groups, setGroups]       = useState<Group[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [newName, setNewName]     = useState('');
+  const [newDesc, setNewDesc]     = useState('');
+  const [saving, setSaving]       = useState(false);
+  const [err, setErr]             = useState('');
+  const [expanded, setExpanded]   = useState<number | null>(null);
+  const [members, setMembers]     = useState<Record<number, GroupMember[]>>({});
+  const [addHandle, setAddHandle] = useState('');
+  const [adding, setAdding]       = useState(false);
+  const [addErr, setAddErr]       = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch('/api/scotparl/admin/groups');
+      const d = await r.json();
+      setGroups(d.groups ?? []);
+    } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function loadMembers(gid: number) {
+    const r = await fetch(`/api/scotparl/admin/groups/${gid}`);
+    const d = await r.json();
+    setMembers(m => ({ ...m, [gid]: d.members ?? [] }));
+  }
+
+  function toggleExpand(gid: number) {
+    if (expanded === gid) { setExpanded(null); return; }
+    setExpanded(gid);
+    loadMembers(gid);
+  }
+
+  async function createGroup() {
+    if (!newName.trim()) { setErr('Name is required'); return; }
+    setSaving(true); setErr('');
+    try {
+      const r = await fetch('/api/scotparl/admin/groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName, description: newDesc }),
+      });
+      if (!r.ok) { const d = await r.json(); setErr(d.error ?? 'Failed'); return; }
+      setNewName(''); setNewDesc(''); load();
+    } finally { setSaving(false); }
+  }
+
+  async function deleteGroup(gid: number) {
+    if (!confirm('Delete this group?')) return;
+    await fetch(`/api/scotparl/admin/groups/${gid}`, { method: 'DELETE' });
+    setExpanded(null);
+    load();
+  }
+
+  async function addMember(gid: number) {
+    if (!addHandle.trim()) { setAddErr('Enter a handle'); return; }
+    setAdding(true); setAddErr('');
+    try {
+      const r = await fetch(`/api/scotparl/admin/groups/${gid}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ handle: addHandle.trim().replace(/^@/, '') }),
+      });
+      if (!r.ok) { const d = await r.json(); setAddErr(d.error ?? 'Failed'); return; }
+      setAddHandle(''); loadMembers(gid); load();
+    } finally { setAdding(false); }
+  }
+
+  async function removeMember(gid: number, userId: string) {
+    await fetch(`/api/scotparl/admin/groups/${gid}/members/${userId}`, { method: 'DELETE' });
+    loadMembers(gid); load();
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-base font-semibold text-slate-100">User Groups</h2>
+        <p className="text-sm text-slate-400 mt-0.5">Groups let you target debates and votes at specific sets of users.</p>
+      </div>
+      {err && <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{err}</p>}
+      {loading ? <Spinner /> : groups.length === 0 ? (
+        <p className="text-sm text-slate-500">No groups yet.</p>
+      ) : (
+        <div className="space-y-2">
+          {groups.map(g => (
+            <div key={g.id} className="card-dr">
+              <div className="flex items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-slate-100">{g.name}</p>
+                  {g.description && <p className="text-xs text-slate-500 mt-0.5">{g.description}</p>}
+                  <p className="text-xs text-slate-600 mt-0.5">{g.member_count} {g.member_count === 1 ? 'member' : 'members'}</p>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <button onClick={() => toggleExpand(g.id)} className="rounded border border-slate-700 px-2.5 py-1 text-xs text-slate-400 hover:text-slate-200 transition-colors">
+                    {expanded === g.id ? 'Close' : 'Members'}
+                  </button>
+                  <button onClick={() => deleteGroup(g.id)} className="rounded border border-rose-800/50 px-2.5 py-1 text-xs text-rose-400 hover:bg-rose-500/10 transition-colors">Delete</button>
+                </div>
+              </div>
+              {expanded === g.id && (
+                <div className="border-t border-slate-800/60 px-4 py-3 space-y-3">
+                  <div className="space-y-1.5">
+                    {(members[g.id] ?? []).length === 0 ? (
+                      <p className="text-xs text-slate-600">No members yet.</p>
+                    ) : (members[g.id] ?? []).map(m => (
+                      <div key={m.user_id} className="flex items-center justify-between text-xs">
+                        <span className="text-slate-300">@{m.handle}</span>
+                        <button onClick={() => removeMember(g.id, m.user_id)} className="text-rose-500 hover:text-rose-400 transition-colors">Remove</button>
+                      </div>
+                    ))}
+                  </div>
+                  {addErr && <p className="text-xs text-rose-400">{addErr}</p>}
+                  <div className="flex gap-2">
+                    <input
+                      value={addHandle}
+                      onChange={e => setAddHandle(e.target.value)}
+                      placeholder="@handle"
+                      className="flex-1 rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+                    />
+                    <button onClick={() => addMember(g.id)} disabled={adding} className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-40 transition-colors">
+                      {adding ? '…' : 'Add'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="card-dr px-4 py-4 space-y-2 border-dashed">
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Create group</p>
+        <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Group name (e.g. Committee)" className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500" />
+        <input value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Description (optional)" className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500" />
+        <button onClick={createGroup} disabled={saving || !newName.trim()} className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 disabled:opacity-40 transition-colors">
+          {saving ? 'Creating…' : 'Create Group'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-type Tab = 'overview' | 'straplines' | 'topics' | 'settings';
+type Tab = 'overview' | 'straplines' | 'topics' | 'groups' | 'settings';
 
 export default function CustomerAdminPage() {
   const [me, setMe]               = useState<MeData | null>(null);
@@ -506,6 +655,7 @@ export default function CustomerAdminPage() {
     { id: 'overview',   label: 'Overview',        show: true },
     { id: 'straplines', label: 'My Straplines',   show: !me.isCustomerAdmin && me.isTopicOwner },
     { id: 'topics',     label: 'Topics & Owners', show: me.isCustomerAdmin },
+    { id: 'groups',     label: 'User Groups',     show: me.isCustomerAdmin },
     { id: 'settings',   label: 'Site Settings',   show: me.isCustomerAdmin },
   ] : [];
 
@@ -556,6 +706,7 @@ export default function CustomerAdminPage() {
             </div>
           </div>
         )}
+        {tab === 'groups'     && me.isCustomerAdmin && <GroupsManager />}
         {tab === 'settings'   && me.isCustomerAdmin && <SiteSettingsTab />}
 
       </div>

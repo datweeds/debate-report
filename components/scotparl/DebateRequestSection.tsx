@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -69,6 +69,8 @@ function DebateBadge({ d }: { d: DebateLink }) {
   );
 }
 
+type Group = { id: number; name: string };
+
 export default function DebateRequestSection({
   entityType, entityId, entityTitle, entityDescription,
   userId, canManage, initialRequests, debates,
@@ -86,6 +88,16 @@ export default function DebateRequestSection({
   const [showDirect,   setShowDirect]   = useState(false);
   const [directTitle,  setDirectTitle]  = useState(entityTitle);
   const [directDesc,   setDirectDesc]   = useState(entityDescription);
+  const [groups,       setGroups]       = useState<Group[]>([]);
+  const [directGroup,  setDirectGroup]  = useState<number | ''>('');
+  const [moveGroup,    setMoveGroup]    = useState<number | ''>('');
+
+  useEffect(() => {
+    if (!canManage) return;
+    fetch('/api/scotparl/admin/groups')
+      .then(r => r.ok ? r.json() : { groups: [] })
+      .then(d => setGroups(d.groups ?? []));
+  }, [canManage]);
 
   function refresh() { router.refresh(); setSaving(false); }
 
@@ -118,7 +130,7 @@ export default function DebateRequestSection({
     const res = await fetch(`/api/scotparl/debate-requests/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'move_to_debate', debate_title: debateTitle, debate_description: debateDesc }),
+      body: JSON.stringify({ action: 'move_to_debate', debate_title: debateTitle, debate_description: debateDesc, group_id: moveGroup || null }),
     });
     if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Failed'); setSaving(false); return; }
     setMovingId(null); refresh();
@@ -130,10 +142,27 @@ export default function DebateRequestSection({
     const res = await fetch('/api/scotparl/debates', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entity_type: entityType, entity_id: entityId, debate_title: directTitle, debate_description: directDesc }),
+      body: JSON.stringify({ entity_type: entityType, entity_id: entityId, debate_title: directTitle, debate_description: directDesc, group_id: directGroup || null }),
     });
     if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Failed'); setSaving(false); return; }
     setShowDirect(false); refresh();
+  }
+
+  function GroupSelect({ value, onChange }: { value: number | ''; onChange: (v: number | '') => void }) {
+    if (!groups.length) return null;
+    return (
+      <div>
+        <label className="block text-xs text-slate-500 mb-1">Visible to group <span className="text-slate-600">(optional — leave blank for all users)</span></label>
+        <select
+          value={value}
+          onChange={e => onChange(e.target.value ? parseInt(e.target.value, 10) : '')}
+          className="w-full rounded-lg border border-blue-900/30 bg-slate-800/50 px-3 py-2 text-sm text-slate-100 focus:border-blue-500/50 focus:outline-none"
+        >
+          <option value="">All users</option>
+          {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+        </select>
+      </div>
+    );
   }
 
   const hasOpenDebate = debates.some(d => d.stat_status === 'active');
@@ -203,6 +232,7 @@ export default function DebateRequestSection({
                 <label className="block text-xs text-slate-500 mb-1">Description</label>
                 <textarea value={directDesc} onChange={e => setDirectDesc(e.target.value)} rows={6} className="w-full rounded-lg border border-blue-900/30 bg-slate-800/50 px-3 py-2 text-sm text-slate-100 focus:border-blue-500/50 focus:outline-none resize-y" />
               </div>
+              <GroupSelect value={directGroup} onChange={setDirectGroup} />
               <div className="flex gap-3">
                 <button onClick={directOpen} disabled={saving || !directTitle.trim() || !directDesc.trim()} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50 transition-colors">{saving ? '…' : 'Open Debate'}</button>
                 <button onClick={() => setShowDirect(false)} className="text-sm text-slate-500 hover:text-slate-300">Cancel</button>
@@ -261,6 +291,7 @@ export default function DebateRequestSection({
                     <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Debate Details</p>
                     <input value={debateTitle} onChange={e => setDebateTitle(e.target.value)} className="w-full rounded border border-blue-900/30 bg-slate-800/50 px-2 py-1.5 text-xs text-slate-100 focus:outline-none" />
                     <textarea value={debateDesc} onChange={e => setDebateDesc(e.target.value)} rows={6} className="w-full rounded border border-blue-900/30 bg-slate-800/50 px-2 py-1.5 text-xs text-slate-100 focus:outline-none resize-y" />
+                    <GroupSelect value={moveGroup} onChange={setMoveGroup} />
                     <div className="flex gap-2">
                       <button onClick={() => moveToDebate(r.id)} disabled={saving || !debateTitle.trim() || !debateDesc.trim()} className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-500 disabled:opacity-50">{saving ? '…' : 'Open Debate'}</button>
                       <button onClick={() => setMovingId(null)} className="text-xs text-slate-500 hover:text-slate-300">Cancel</button>

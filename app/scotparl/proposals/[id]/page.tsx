@@ -6,6 +6,7 @@ import { getSession } from '@/lib/auth';
 import ProposalActions from '@/components/proposals/ProposalActions';
 import DebateRequestSection, { type DebateRequest as DR, type DebateLink } from '@/components/scotparl/DebateRequestSection';
 import VoteSection, { type PollInfo } from '@/components/scotparl/VoteSection';
+import ImpactTrigger from '@/components/scotparl/ImpactTrigger';
 
 export const metadata: Metadata = { title: 'Proposal' };
 export const dynamic = 'force-dynamic';
@@ -199,6 +200,17 @@ export default async function ProposalDetailPage({ params }: Params) {
             canManage={canManage}
           />
         </div>
+      )}
+
+      {/* Society Impact Analysis */}
+      {p.status === 'accepted' && (
+        <ImpactTrigger
+          entityType="proposal"
+          entityId={p.id}
+          impactHref={`/scotparl/proposals/${p.id}/impact`}
+          canManage={canManage}
+          isLoggedIn={!!session}
+        />
       )}
 
       {/* Debate section — visible once proposal is accepted */}

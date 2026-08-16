@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const { entity_type, entity_id, debate_title, debate_description } = await req.json();
+  const { entity_type, entity_id, debate_title, debate_description, group_id } = await req.json();
 
   if (!['bill', 'proposal', 'principle'].includes(entity_type) || !entity_id) {
     return NextResponse.json({ error: 'Invalid entity_type or entity_id' }, { status: 400 });
@@ -40,23 +40,24 @@ export async function POST(req: NextRequest) {
       [debate_title.trim(), debate_description.trim(), forum.id, session.sub]
     );
 
+    const gid = group_id ? parseInt(String(group_id), 10) : null;
     if (entity_type === 'bill') {
       await client.query(
-        `INSERT INTO sp_bill_debates (sp_bill_id, resolution_id, created_by)
-         VALUES ($1, $2, $3::uuid) ON CONFLICT DO NOTHING`,
-        [entity_id, stmt.id, session.sub]
+        `INSERT INTO sp_bill_debates (sp_bill_id, resolution_id, created_by, group_id)
+         VALUES ($1, $2, $3::uuid, $4) ON CONFLICT DO NOTHING`,
+        [entity_id, stmt.id, session.sub, gid]
       );
     } else if (entity_type === 'principle') {
       await client.query(
-        `INSERT INTO nsp_principle_debates (principle_id, resolution_id, created_by)
-         VALUES ($1, $2, $3::uuid) ON CONFLICT DO NOTHING`,
-        [entity_id, stmt.id, session.sub]
+        `INSERT INTO nsp_principle_debates (principle_id, resolution_id, created_by, group_id)
+         VALUES ($1, $2, $3::uuid, $4) ON CONFLICT DO NOTHING`,
+        [entity_id, stmt.id, session.sub, gid]
       );
     } else {
       await client.query(
-        `INSERT INTO sp_proposal_debates (proposal_id, resolution_id, created_by)
-         VALUES ($1, $2, $3::uuid) ON CONFLICT DO NOTHING`,
-        [entity_id, stmt.id, session.sub]
+        `INSERT INTO sp_proposal_debates (proposal_id, resolution_id, created_by, group_id)
+         VALUES ($1, $2, $3::uuid, $4) ON CONFLICT DO NOTHING`,
+        [entity_id, stmt.id, session.sub, gid]
       );
     }
 

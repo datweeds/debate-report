@@ -5,6 +5,7 @@ import { getSession } from '@/lib/auth';
 import type { Metadata } from 'next';
 import DebateRequestSection, { type DebateRequest, type DebateLink } from '@/components/scotparl/DebateRequestSection';
 import VoteSection, { type PollInfo } from '@/components/scotparl/VoteSection';
+import ImpactTrigger from '@/components/scotparl/ImpactTrigger';
 
 export const dynamic = 'force-dynamic';
 
@@ -303,6 +304,15 @@ export default async function BillDetailPage({ params }: { params: Promise<{ id:
           canManage={canManage}
         />
       )}
+
+      {/* Society Impact Analysis */}
+      <ImpactTrigger
+        entityType="bill"
+        entityId={bill.id}
+        impactHref={`/scotparl/bills/${bill.id}/impact`}
+        canManage={canManage}
+        isLoggedIn={!!session}
+      />
 
       {/* parliament.scot link */}
       {parliamentUrl(bill.short_name, bill.session_slug) && (

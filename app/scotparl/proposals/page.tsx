@@ -23,6 +23,8 @@ type Proposal = {
   debate_votes_against: number;
   debate_request_count: number;
   pvc_poll_id: string | null;
+  impact_score: number | null;
+  impact_count: number;
 };
 
 function statusBadge(status: string) {
@@ -75,6 +77,15 @@ function ProposalRow({ p, mine }: { p: Proposal; mine: boolean }) {
             {p.pvc_poll_id && (
               <span className="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 border border-amber-500/20">
                 Vote
+              </span>
+            )}
+            {p.impact_count > 0 && p.impact_score !== null && (
+              <span className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-semibold border ${
+                p.impact_score >= 7 ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' :
+                p.impact_score >= 5 ? 'bg-amber-500/10 text-amber-300 border-amber-500/20' :
+                'bg-rose-500/10 text-rose-300 border-rose-500/20'
+              }`}>
+                Impact {p.impact_score.toFixed(1)}
               </span>
             )}
           </div>
@@ -137,7 +148,8 @@ export default async function ProposalsPage({ searchParams }: Props) {
            nt.name AS topic_name,
            pd.resolution_id, pd.debate_status, pd.debate_votes_for, pd.debate_votes_against,
            (SELECT COUNT(*)::int FROM sp_debate_requests sdr
-            WHERE sdr.entity_type = 'proposal' AND sdr.entity_id = p.id) AS debate_request_count
+            WHERE sdr.entity_type = 'proposal' AND sdr.entity_id = p.id) AS debate_request_count,
+           ia.impact_score, ia.impact_count
     FROM proposals p
     LEFT JOIN nsp_topics nt ON nt.id = p.topic_id
     LEFT JOIN LATERAL (
@@ -147,7 +159,13 @@ export default async function ProposalsPage({ searchParams }: Props) {
       JOIN statements s ON s.id = spd.resolution_id
       WHERE spd.proposal_id = p.id
       ORDER BY spd.created_at DESC LIMIT 1
-    ) pd ON true`;
+    ) pd ON true
+    LEFT JOIN LATERAL (
+      SELECT ROUND(MAX(overall_score)::numeric, 1)::float AS impact_score, COUNT(*)::int AS impact_count
+      FROM society_impact_analyses
+      WHERE entity_type = 'proposal' AND entity_id = p.id AND status = 'done'
+        AND tenant_id = current_setting('app.tenant_id')::int
+    ) ia ON true`;
 
   const topicFilter = topicId ? ` AND p.topic_id = ${topicId}` : '';
 

@@ -19,7 +19,8 @@ async function createDebate(
   title: string,
   description: string,
   forumId: string,
-  actorId: string
+  actorId: string,
+  groupId: number | null = null
 ): Promise<string> {
   const client = await pool.connect();
   try {
@@ -36,21 +37,21 @@ async function createDebate(
 
     if (entityType === 'bill') {
       await client.query(
-        `INSERT INTO sp_bill_debates (sp_bill_id, resolution_id, created_by)
-         VALUES ($1, $2, $3::uuid) ON CONFLICT DO NOTHING`,
-        [entityId, stmt.id, actorId]
+        `INSERT INTO sp_bill_debates (sp_bill_id, resolution_id, created_by, group_id)
+         VALUES ($1, $2, $3::uuid, $4) ON CONFLICT DO NOTHING`,
+        [entityId, stmt.id, actorId, groupId]
       );
     } else if (entityType === 'principle') {
       await client.query(
-        `INSERT INTO nsp_principle_debates (principle_id, resolution_id, created_by)
-         VALUES ($1, $2, $3::uuid) ON CONFLICT DO NOTHING`,
-        [entityId, stmt.id, actorId]
+        `INSERT INTO nsp_principle_debates (principle_id, resolution_id, created_by, group_id)
+         VALUES ($1, $2, $3::uuid, $4) ON CONFLICT DO NOTHING`,
+        [entityId, stmt.id, actorId, groupId]
       );
     } else {
       await client.query(
-        `INSERT INTO sp_proposal_debates (proposal_id, resolution_id, created_by)
-         VALUES ($1, $2, $3::uuid) ON CONFLICT DO NOTHING`,
-        [entityId, stmt.id, actorId]
+        `INSERT INTO sp_proposal_debates (proposal_id, resolution_id, created_by, group_id)
+         VALUES ($1, $2, $3::uuid, $4) ON CONFLICT DO NOTHING`,
+        [entityId, stmt.id, actorId, groupId]
       );
     }
 
@@ -95,7 +96,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ ok: true });
 
     } else if (action === 'move_to_debate') {
-      const { debate_title, debate_description } = body;
+      const { debate_title, debate_description, group_id } = body;
       if (!debate_title?.trim() || !debate_description?.trim()) {
         return NextResponse.json({ error: 'debate_title and debate_description required' }, { status: 400 });
       }
@@ -106,7 +107,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       const resolutionId = await createDebate(
         r.entity_type, r.entity_id,
         debate_title.trim(), debate_description.trim(),
-        forumId, session.sub
+        forumId, session.sub, group_id ? parseInt(String(group_id), 10) : null
       );
 
       await client.query(`UPDATE sp_debate_requests SET status = 'moved' WHERE id = $1`, [id]);

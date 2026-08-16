@@ -23,6 +23,8 @@ export type Bill = {
   pvc_poll_id: string | null;
   synopsis: string | null;
   session_slug: string | null;
+  impact_score: number | null;
+  impact_count: number;
 };
 
 function fmt(date: string | null) {
@@ -320,6 +322,15 @@ export default function BillList({
                 {b.pvc_poll_id && (
                   <span className="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 border border-amber-500/20">
                     Vote
+                  </span>
+                )}
+                {b.impact_count > 0 && b.impact_score !== null && (
+                  <span className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-semibold border ${
+                    b.impact_score >= 7 ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20' :
+                    b.impact_score >= 5 ? 'bg-amber-500/10 text-amber-300 border-amber-500/20' :
+                    'bg-rose-500/10 text-rose-300 border-rose-500/20'
+                  }`}>
+                    Impact {b.impact_score.toFixed(1)}
                   </span>
                 )}
               </div>

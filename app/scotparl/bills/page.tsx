@@ -33,7 +33,9 @@ export default async function BillsPage() {
            (SELECT COUNT(*)::int FROM sp_debate_requests sdr
             WHERE sdr.entity_type = 'bill' AND sdr.entity_id = b.id) AS debate_request_count,
            sbpp.pvc_poll_id,
-           sess.session_slug
+           sess.session_slug,
+           ia.impact_score,
+           COALESCE(ia.impact_count, 0) AS impact_count
          FROM sp_bills b
          LEFT JOIN sp_bill_types bt ON bt.id = b.bill_type_id
          LEFT JOIN sp_members m     ON m.person_id = b.person_id
@@ -63,6 +65,12 @@ export default async function BillsPage() {
            ORDER BY sbd.created_at DESC LIMIT 1
          ) sbd ON true
          LEFT JOIN sp_bill_pvc_polls sbpp ON sbpp.sp_bill_id = b.id
+         LEFT JOIN LATERAL (
+           SELECT ROUND(MAX(overall_score)::numeric, 1)::float AS impact_score, COUNT(*)::int AS impact_count
+           FROM society_impact_analyses
+           WHERE entity_type = 'bill' AND entity_id = b.id AND status = 'done'
+             AND tenant_id = current_setting('app.tenant_id')::int
+         ) ia ON true
          ORDER BY b.id DESC`
       ),
       session
