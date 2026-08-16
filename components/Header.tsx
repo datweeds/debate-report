@@ -106,9 +106,12 @@ export default function Header() {
   const pathname = usePathname();
   const [menuOpen,      setMenuOpen]      = useState(false);
   const [topicsOpen,    setTopicsOpen]    = useState(false);
-  const [chamberHref,   setChamberHref]   = useState('/chamber');
+  const [chamberHref,   setChamberHref]   = useState('/scotparl/debates');
   const [adminRole,     setAdminRole]     = useState<AdminRole | null>(null);
+  const [siteName,      setSiteName]      = useState<string | null>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
+
+  const isHomePage = pathname === '/';
 
   const isMod = user?.tier === 'moderator' || user?.isSysAdmin;
 
@@ -152,6 +155,14 @@ export default function Header() {
       .catch(() => {});
   }, [user]);
 
+  // Fetch public site name for header display
+  useEffect(() => {
+    fetch('/api/site')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.name) setSiteName(d.name); })
+      .catch(() => {});
+  }, []);
+
   // Fetch scotparl admin roles for conditional menu items
   useEffect(() => {
     if (!user) { setAdminRole(null); return; }
@@ -173,7 +184,7 @@ export default function Header() {
       <header className="fixed top-0 left-0 right-0 z-40 border-b border-blue-900/20 bg-[#080d1a]/90 backdrop-blur-md">
         <div className="relative flex h-16 w-full items-center justify-between px-4 sm:px-8">
 
-          {/* Left: hamburger + mobile logo */}
+          {/* Left: hamburger + logo */}
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMenuOpen(true)}
@@ -184,7 +195,8 @@ export default function Header() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <Link href="/" className="sm:hidden flex items-center gap-2 select-none">
+            {/* On home: mobile-only logo; on inner pages: always show logo */}
+            <Link href="/" className={`${isHomePage ? 'sm:hidden' : ''} flex items-center gap-2 select-none`}>
               <NvLogo className="w-7 h-7" />
               <span className="text-base font-bold tracking-tight text-slate-100">
                 new<span className="text-blue-400">.vote</span>
@@ -192,13 +204,19 @@ export default function Header() {
             </Link>
           </div>
 
-          {/* Centre: desktop logo */}
-          <Link href="/" className="hidden sm:flex absolute left-1/2 -translate-x-1/2 items-center gap-2 select-none">
-            <NvLogo className="w-8 h-8" />
-            <span className="text-lg font-bold tracking-tight text-slate-100">
-              new<span className="text-blue-400">.vote</span>
+          {/* Centre: home page → big logo; inner pages → customer name */}
+          {isHomePage ? (
+            <Link href="/" className="hidden sm:flex absolute left-1/2 -translate-x-1/2 items-center gap-2 select-none">
+              <NvLogo className="w-8 h-8" />
+              <span className="text-lg font-bold tracking-tight text-slate-100">
+                new<span className="text-blue-400">.vote</span>
+              </span>
+            </Link>
+          ) : siteName ? (
+            <span className="hidden sm:block absolute left-1/2 -translate-x-1/2 text-base font-semibold text-slate-200 select-none pointer-events-none truncate max-w-[40%] text-center">
+              {siteName}
             </span>
-          </Link>
+          ) : null}
 
           {/* Right: theme toggle + auth */}
           <div className="flex items-center gap-2">
@@ -283,7 +301,7 @@ export default function Header() {
 
           {/* ── NEW SOCIETY ── */}
           <NavLabel>New Society</NavLabel>
-          <NavLink href={user ? chamberHref : '/chamber'} onClick={close} pathname={pathname} icon={icons.debate}>
+          <NavLink href="/scotparl/debates" onClick={close} pathname={pathname} icon={icons.debate}>
             Debate &amp; Vote
           </NavLink>
           <NavLink href="/scotparl/bills" onClick={close} pathname={pathname} icon={icons.laws}>
