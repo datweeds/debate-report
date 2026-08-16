@@ -96,8 +96,16 @@ function HeartIcon({ filled }: { filled: boolean }) {
   );
 }
 
+function toDateStr(v: string | Date | null | undefined): string | null {
+  if (!v) return null;
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  return v;
+}
+
 function itemDate(item: LawItem): string | null {
-  return item.item_type === 'bill' ? item.latest_stage_date : item.enacted_at;
+  return item.item_type === 'bill'
+    ? toDateStr(item.latest_stage_date)
+    : toDateStr(item.enacted_at);
 }
 
 export default function BillList({
