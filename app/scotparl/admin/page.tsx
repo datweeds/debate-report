@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -649,10 +649,18 @@ function LightAnalysisManager() {
   const [data, setData] = useState<{
     topics: TopicStatus[]; stats: UsageStat[]; budget: number | null;
   } | null>(null);
-  const [loading, setLoading]     = useState(true);
-  const [runningId, setRunningId] = useState<number | 'all' | null>(null);
-  const [result, setResult]       = useState<RunResult | null>(null);
-  const [err, setErr]             = useState('');
+  const [loading, setLoading]       = useState(true);
+  const [runningId, setRunningId]   = useState<number | 'all' | null>(null);
+  const [result, setResult]         = useState<RunResult | null>(null);
+  const [err, setErr]               = useState('');
+  const [batchCount, setBatchCount] = useState(0);
+  const [totalProcessed, setTotalProcessed] = useState(0);
+  const runningRef = useRef(false);
+
+  const loadDataQuiet = useCallback(async () => {
+    const r = await fetch('/api/scotparl/nsp/light-impact');
+    if (r.ok) setData(await r.json());
+  }, []);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -665,18 +673,45 @@ function LightAnalysisManager() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // Poll GET every 6s while a run is in progress so progress bars update live
+  useEffect(() => {
+    if (runningId === null) return;
+    const id = setInterval(loadDataQuiet, 6000);
+    return () => clearInterval(id);
+  }, [runningId, loadDataQuiet]);
+
   async function runAnalysis(topicId: number | undefined, fullRerun: boolean) {
+    if (runningRef.current) return;
+    runningRef.current = true;
     setRunningId(topicId ?? 'all');
     setResult(null); setErr('');
+    setBatchCount(0); setTotalProcessed(0);
+
+    let batch = 0;
+    let processed = 0;
     try {
-      const r = await fetch('/api/scotparl/nsp/light-impact', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...(topicId ? { topic_id: topicId } : {}), full_rerun: fullRerun }),
-      });
-      if (!r.ok) { const d = await r.json(); setErr(d.error ?? 'Analysis failed'); return; }
-      setResult(await r.json());
+      while (true) {
+        const r = await fetch('/api/scotparl/nsp/light-impact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...(topicId ? { topic_id: topicId } : {}),
+            // Only send full_rerun on first batch — subsequent passes are incremental
+            ...(fullRerun && batch === 0 ? { full_rerun: true } : {}),
+          }),
+        });
+        if (!r.ok) { const d = await r.json(); setErr(d.error ?? 'Analysis failed'); break; }
+        const res: RunResult = await r.json();
+        batch++;
+        processed += res.processed;
+        setBatchCount(batch);
+        setTotalProcessed(processed);
+        setResult({ ...res, processed });
+        await loadDataQuiet();
+        if (res.done || res.remaining === 0) break;
+      }
     } finally {
+      runningRef.current = false;
       setRunningId(null);
       loadData();
     }
@@ -713,7 +748,7 @@ function LightAnalysisManager() {
           {runningId === 'all' ? (
             <>
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent inline-block" />
-              Running…
+              {batchCount > 0 ? `Batch ${batchCount + 1}…` : 'Starting…'}
             </>
           ) : 'Analyse All Topics'}
         </button>
@@ -733,12 +768,24 @@ function LightAnalysisManager() {
         <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">{err}</p>
       )}
 
-      {result && (
+      {runningId !== null && batchCount > 0 && (
+        <div className="rounded-xl border border-blue-800/30 bg-blue-500/5 px-4 py-3 text-sm text-blue-300 flex items-center gap-3">
+          <span className="h-4 w-4 animate-spin rounded-full border-2 border-blue-400 border-t-transparent flex-shrink-0" />
+          <span>
+            Batch {batchCount} complete · {totalProcessed.toLocaleString()} entities processed so far
+            {result && result.remaining > 0 && (
+              <span className="text-slate-400"> · ~{result.remaining.toLocaleString()} remaining</span>
+            )}
+          </span>
+        </div>
+      )}
+
+      {result && runningId === null && (
         <div className="rounded-xl border border-emerald-800/30 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-300">
-          ✓ Processed {result.processed} {result.mode === 'multi-topic' ? 'entities (all topics)' : 'items'}
+          ✓ {batchCount > 1 ? `${batchCount} batches · ` : ''}{totalProcessed.toLocaleString()} {result.mode === 'multi-topic' ? 'entities (all 12 topics)' : 'items'} processed
           {' '}· cost {parseFloat(result.cost_cents).toFixed(4)}¢
-          {!result.done && (
-            <span className="text-slate-400"> · {result.remaining} remaining — run again to continue</span>
+          {!result.done && result.remaining > 0 && (
+            <span className="text-slate-400"> · {result.remaining.toLocaleString()} remaining</span>
           )}
         </div>
       )}
