@@ -643,7 +643,7 @@ interface UsageStat {
   month: string; analysis_type: string;
   calls: number; input_tokens: number; output_tokens: number; cost_micro: number;
 }
-interface RunResult { processed: number; remaining: number; done: boolean; cost_cents: string; }
+interface RunResult { mode?: string; processed: number; remaining: number; done: boolean; cost_cents: string; }
 
 function LightAnalysisManager() {
   const [data, setData] = useState<{
@@ -694,11 +694,39 @@ function LightAnalysisManager() {
       <div>
         <h2 className="text-base font-semibold text-slate-100">Light AI Analysis</h2>
         <p className="text-sm text-slate-400 mt-0.5">
-          Scores all laws and proposals 1–10 for relevance to each topic using a lightweight AI model (~$0.001/item).
+          Scores all laws and proposals 1–10 for relevance to each of the 12 topics using a lightweight AI model.
+          Use <strong className="text-slate-300">Analyse All Topics</strong> to score each item once across all topics in a single API call —
+          the most cost-efficient approach (~3× cheaper than per-topic runs).
+          Use per-topic <strong className="text-slate-300">Re-run</strong> only after editing a single topic&apos;s principles.
           {data?.budget != null && (
             <> Monthly budget: <span className="text-slate-300">${((data.budget) / 100).toFixed(2)}</span>.</>
           )}
         </p>
+      </div>
+
+      <div className="flex gap-3 flex-wrap">
+        <button
+          onClick={() => runAnalysis(undefined, false)}
+          disabled={runningId !== null}
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-40 transition-colors flex items-center gap-2"
+        >
+          {runningId === 'all' ? (
+            <>
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent inline-block" />
+              Running…
+            </>
+          ) : 'Analyse All Topics'}
+        </button>
+        <button
+          onClick={() => {
+            if (!confirm('This will delete ALL existing scores and re-analyse everything from scratch. Continue?')) return;
+            runAnalysis(undefined, true);
+          }}
+          disabled={runningId !== null}
+          className="rounded-lg border border-rose-800/40 px-4 py-2 text-sm font-medium text-rose-400 hover:bg-rose-500/10 disabled:opacity-40 transition-colors"
+        >
+          Full Re-run All
+        </button>
       </div>
 
       {err && (
@@ -707,7 +735,8 @@ function LightAnalysisManager() {
 
       {result && (
         <div className="rounded-xl border border-emerald-800/30 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-300">
-          ✓ Processed {result.processed} items · cost {parseFloat(result.cost_cents).toFixed(4)}¢
+          ✓ Processed {result.processed} {result.mode === 'multi-topic' ? 'entities (all topics)' : 'items'}
+          {' '}· cost {parseFloat(result.cost_cents).toFixed(4)}¢
           {!result.done && (
             <span className="text-slate-400"> · {result.remaining} remaining — run again to continue</span>
           )}
