@@ -20,6 +20,7 @@ export default async function BillsPage() {
   let favIds: number[] = [];
   type TopicChip = { slug: string; score: number };
   let lightTopics: Record<string, TopicChip[]> = {};
+  let topics: { slug: string; name: string }[] = [];
   let initialFlaggedKeys: string[] = [];
 
   try {
@@ -99,6 +100,14 @@ export default async function BillsPage() {
     ssis   = ssiRes.rows;
     acts   = actRes.rows;
 
+    // Topics for filter dropdown
+    try {
+      const tRes = await tq<{ slug: string; name: string }>(
+        `SELECT slug, name FROM nsp_topics WHERE slug IS NOT NULL ORDER BY sort_order, name`
+      );
+      topics = tRes.rows;
+    } catch {}
+
     // Top topic scores per entity (score ≥ 5, max 4 per entity)
     try {
       const lsRes = await tq<{ entity_type: string; entity_id: number; slug: string; score: number }>(
@@ -171,6 +180,7 @@ export default async function BillsPage() {
           userId={session?.sub ?? null}
           initialFavIds={favIds}
           lightTopics={lightTopics}
+          topics={topics}
           initialFlaggedKeys={initialFlaggedKeys}
           isManager={isManager}
         />

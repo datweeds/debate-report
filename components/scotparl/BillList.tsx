@@ -159,6 +159,7 @@ export default function BillList({
   userId,
   initialFavIds,
   lightTopics = {},
+  topics = [],
   initialFlaggedKeys = [],
   isManager = false,
 }: {
@@ -171,14 +172,16 @@ export default function BillList({
   userId: string | null;
   initialFavIds: number[];
   lightTopics?: Record<string, TopicChip[]>;
+  topics?: { slug: string; name: string }[];
   initialFlaggedKeys?: string[];
   isManager?: boolean;
 }) {
-  const [search,      setSearch]    = useState('');
-  const [typeFilter,      setType]      = useState('');
-  const [stageFilter,     setStage]     = useState('');
-  const [procedureFilter, setProcedure] = useState('');
-  const [yearFilter,      setYear]      = useState<number | ''>('');
+  const [search,          setSearch]      = useState('');
+  const [typeFilter,      setType]        = useState('');
+  const [stageFilter,     setStage]       = useState('');
+  const [procedureFilter, setProcedure]   = useState('');
+  const [yearFilter,      setYear]        = useState<number | ''>('');
+  const [topicFilter,     setTopicFilter] = useState('');
   const [favsOnly,        setFavsOnly]  = useState(false);
   const [debateOnly,      setDebateOnly]= useState(false);
   const [lawKind,         setLawKind]   = useState<'all' | 'act' | 'bill' | 'ssi'>('all');
@@ -250,6 +253,11 @@ export default function BillList({
     return allItems.filter(item => {
       if (lawKind !== 'all' && item.item_type !== lawKind) return false;
 
+      if (topicFilter) {
+        const key = `${item.item_type}:${item.id}`;
+        if (!lightTopics[key]?.some(c => c.slug === topicFilter)) return false;
+      }
+
       if (item.item_type === 'bill') {
         if (typeFilter  && item.bill_type     !== typeFilter)  return false;
         if (stageFilter && item.current_stage !== stageFilter) return false;
@@ -296,16 +304,17 @@ export default function BillList({
         `ssi ${item.year}/${item.number}`.includes(q)
       );
     });
-  }, [allItems, search, lawKind, typeFilter, stageFilter, procedureFilter, yearFilter, dateFrom, dateTo, favsOnly, debateOnly, favIds]);
+  }, [allItems, search, lawKind, typeFilter, stageFilter, procedureFilter, yearFilter, dateFrom, dateTo, favsOnly, debateOnly, favIds, topicFilter, lightTopics]);
 
   const isDefaultWindow    = dateFrom === defaultFrom && dateTo === todayStr;
   const dateFiltersChanged = !isDefaultWindow;
-  const hasFilters = !!(search || typeFilter || stageFilter || procedureFilter || yearFilter || favsOnly || debateOnly || dateFiltersChanged || lawKind !== 'all');
+  const hasFilters = !!(search || topicFilter || typeFilter || stageFilter || procedureFilter || yearFilter || favsOnly || debateOnly || dateFiltersChanged || lawKind !== 'all');
   const showBillFilters = lawKind === 'all' || lawKind === 'bill';
   const showSsiFilters  = lawKind === 'ssi';
 
   function clearFilters() {
     setSearch('');
+    setTopicFilter('');
     setType('');
     setStage('');
     setProcedure('');
@@ -408,6 +417,16 @@ export default function BillList({
           <option value="">All years</option>
           {years.map(y => <option key={y} value={y}>{y}</option>)}
         </select>
+        {topics.length > 0 && (
+          <select
+            value={topicFilter}
+            onChange={e => setTopicFilter(e.target.value)}
+            className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-300 focus:border-blue-500 focus:outline-none"
+          >
+            <option value="">All topics</option>
+            {topics.map(t => <option key={t.slug} value={t.slug}>{t.name}</option>)}
+          </select>
+        )}
       </div>
 
       {/* Row 2: date range + bill-only buttons */}
@@ -552,7 +571,7 @@ export default function BillList({
             </div>
           ) : (
             /* ── Bill row ── */
-            <div key={`bill-${item.id}`} className="px-5 py-3 hover:bg-slate-800/40 transition-colors">
+            <div key={`bill-${item.id}`} className="px-5 py-3 hover:bg-slate-800/40 transition-colors" title={item.synopsis ?? undefined}>
               <div className="flex items-baseline justify-between gap-3">
                 <Link href={`/scotparl/bills/${item.id}`} className="flex-1 min-w-0">
                   <span className="text-sm font-medium text-slate-100 leading-snug hover:text-blue-300 transition-colors">{item.short_name}</span>
