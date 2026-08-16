@@ -85,7 +85,7 @@ export default async function BillsPage() {
         ? pool.query<{ bill_id: number }>(`SELECT bill_id FROM sp_bill_favs WHERE user_id = $1`, [session.sub])
         : Promise.resolve({ rows: [] }),
       pool.query<Ssi>(
-        `SELECT id, year, number, title, url, pdf_url, enacted_at
+        `SELECT id, year, number, title, url, pdf_url, enacted_at, procedure, subject
          FROM sp_ssis ORDER BY year DESC, number DESC`
       ).catch(() => ({ rows: [] as Ssi[] })),
       pool.query<Act>(

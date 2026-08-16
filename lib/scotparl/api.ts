@@ -39,9 +39,11 @@ export type SpSsi = {
   url:        string;
   pdf_url:    string | null;
   enacted_at: string | null;
+  procedure:  'negative' | 'affirmative' | null;
+  subject:    string | null;
 };
 
-export type SpAct = SpSsi; // identical shape; stored in separate table
+export type SpAct = Omit<SpSsi, 'procedure' | 'subject'>; // Acts don't have procedure metadata
 
 function decodeXml(s: string): string {
   return s
@@ -69,6 +71,18 @@ function parseAtomEntries(xml: string, kind: 'ssi' | 'asp'): SpSsi[] {
     if (!title || !yearV || !numV) continue;
     const year   = parseInt(yearV, 10);
     const number = parseInt(numV,  10);
+
+    // Procedure: if the SSI superseded a Draft SSI it went through affirmative procedure
+    // (parliament had to approve the draft). No supersedes → negative procedure.
+    const procedure: 'affirmative' | 'negative' | null = kind === 'ssi'
+      ? (/ScottishDraftStatutoryInstrument/.test(block) ? 'affirmative' : 'negative')
+      : null;
+
+    // Subject category from ukm:Subject or <category term>
+    const subject = /<ukm:Subject Value="([^"]+)"/.exec(block)?.[1]
+                 ?? /<category term="([^"]+)"/.exec(block)?.[1]
+                 ?? null;
+
     results.push({
       year,
       number,
@@ -76,6 +90,8 @@ function parseAtomEntries(xml: string, kind: 'ssi' | 'asp'): SpSsi[] {
       url:        url ?? `${LEG_BASE}/${kind}/${year}/${number}/made`,
       pdf_url:    pdf ?? null,
       enacted_at: upd ? upd.trim() : null,
+      procedure,
+      subject:    subject ? decodeXml(subject) : null,
     });
   }
   return results;

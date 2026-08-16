@@ -35,9 +35,11 @@ export type Ssi = {
   url: string;
   pdf_url: string | null;
   enacted_at: string | null;
+  procedure: string | null;
+  subject: string | null;
 };
 
-export type Act = Ssi; // identical shape, stored in sp_acts
+export type Act = Omit<Ssi, 'procedure' | 'subject'>; // sp_acts has no procedure metadata
 
 type LawItem =
   | ({ item_type: 'bill' } & Bill)
@@ -160,12 +162,13 @@ export default function BillList({
   isManager?: boolean;
 }) {
   const [search,      setSearch]    = useState('');
-  const [typeFilter,  setType]      = useState('');
-  const [stageFilter, setStage]     = useState('');
-  const [yearFilter,  setYear]      = useState<number | ''>('');
-  const [favsOnly,    setFavsOnly]  = useState(false);
-  const [debateOnly,  setDebateOnly]= useState(false);
-  const [lawKind,     setLawKind]   = useState<'all' | 'act' | 'bill' | 'ssi'>('all');
+  const [typeFilter,      setType]      = useState('');
+  const [stageFilter,     setStage]     = useState('');
+  const [procedureFilter, setProcedure] = useState('');
+  const [yearFilter,      setYear]      = useState<number | ''>('');
+  const [favsOnly,        setFavsOnly]  = useState(false);
+  const [debateOnly,      setDebateOnly]= useState(false);
+  const [lawKind,         setLawKind]   = useState<'all' | 'act' | 'bill' | 'ssi'>('all');
 
   const allItems = useMemo<LawItem[]>(() => {
     const bs: LawItem[] = bills.map(b => ({ item_type: 'bill' as const, ...b }));
@@ -241,6 +244,10 @@ export default function BillList({
         if (debateOnly  && item.debate_status !== 'active')    return false;
       }
 
+      if (item.item_type === 'ssi') {
+        if (procedureFilter && item.procedure !== procedureFilter) return false;
+      }
+
       if (yearFilter) {
         const d = itemDate(item);
         if (!d) return false;
@@ -276,17 +283,19 @@ export default function BillList({
         `ssi ${item.year}/${item.number}`.includes(q)
       );
     });
-  }, [allItems, search, lawKind, typeFilter, stageFilter, yearFilter, dateFrom, dateTo, favsOnly, debateOnly, favIds]);
+  }, [allItems, search, lawKind, typeFilter, stageFilter, procedureFilter, yearFilter, dateFrom, dateTo, favsOnly, debateOnly, favIds]);
 
-  const isDefaultWindow   = dateFrom === defaultFrom && dateTo === todayStr;
+  const isDefaultWindow    = dateFrom === defaultFrom && dateTo === todayStr;
   const dateFiltersChanged = !isDefaultWindow;
-  const hasFilters = !!(search || typeFilter || stageFilter || yearFilter || favsOnly || debateOnly || dateFiltersChanged || lawKind !== 'all');
+  const hasFilters = !!(search || typeFilter || stageFilter || procedureFilter || yearFilter || favsOnly || debateOnly || dateFiltersChanged || lawKind !== 'all');
   const showBillFilters = lawKind === 'all' || lawKind === 'bill';
+  const showSsiFilters  = lawKind === 'ssi';
 
   function clearFilters() {
     setSearch('');
     setType('');
     setStage('');
+    setProcedure('');
     setYear('');
     setFavsOnly(false);
     setDebateOnly(false);
@@ -366,6 +375,17 @@ export default function BillList({
               {stages.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </>
+        )}
+        {showSsiFilters && (
+          <select
+            value={procedureFilter}
+            onChange={e => setProcedure(e.target.value)}
+            className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-300 focus:border-teal-500 focus:outline-none"
+          >
+            <option value="">All procedures</option>
+            <option value="negative">Negative (Laid)</option>
+            <option value="affirmative">Affirmative (Approved)</option>
+          </select>
         )}
         <select
           value={yearFilter}
@@ -508,6 +528,16 @@ export default function BillList({
                     SSI
                   </span>
                   <span className="font-mono text-[11px] text-slate-500">SSI {item.year}/{item.number}</span>
+                  {item.procedure === 'affirmative' && (
+                    <span className="inline-flex items-center rounded bg-orange-500/10 px-1.5 py-0.5 text-[10px] font-medium text-orange-300 border border-orange-500/20">
+                      Affirmative
+                    </span>
+                  )}
+                  {item.procedure === 'negative' && (
+                    <span className="inline-flex items-center rounded bg-slate-700/40 px-1.5 py-0.5 text-[10px] font-medium text-slate-500 border border-slate-600/30">
+                      Negative
+                    </span>
+                  )}
                   {item.enacted_at && (
                     <span className="text-xs text-slate-600">{fmt(item.enacted_at)}</span>
                   )}

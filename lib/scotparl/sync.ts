@@ -168,14 +168,16 @@ export async function syncSSIs(years?: number[]): Promise<SyncResult> {
       const rows = await fetchSSIsForYear(year);
       for (const r of rows) {
         await client.query(
-          `INSERT INTO sp_ssis (year, number, title, url, pdf_url, enacted_at)
-           VALUES ($1,$2,$3,$4,$5,$6)
+          `INSERT INTO sp_ssis (year, number, title, url, pdf_url, enacted_at, procedure, subject)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
            ON CONFLICT (year, number) DO UPDATE SET
              title      = EXCLUDED.title,
              url        = EXCLUDED.url,
              pdf_url    = EXCLUDED.pdf_url,
-             enacted_at = EXCLUDED.enacted_at`,
-          [r.year, r.number, r.title, r.url, r.pdf_url, r.enacted_at]
+             enacted_at = EXCLUDED.enacted_at,
+             procedure  = EXCLUDED.procedure,
+             subject    = EXCLUDED.subject`,
+          [r.year, r.number, r.title, r.url, r.pdf_url, r.enacted_at, r.procedure, r.subject]
         );
         totalCount++;
       }
