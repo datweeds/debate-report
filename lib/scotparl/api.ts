@@ -30,16 +30,18 @@ export const fetchMemberParties  = () => fetchCollection<SpMemberParty>('MemberP
 export const fetchBills          = () => fetchCollection<SpBill>('Bills');
 export const fetchBillStages     = () => fetchCollection<SpBillStage>('BillStages');
 
-// ── Scottish Statutory Instruments (legislation.gov.uk) ───────────────────────
+// ── legislation.gov.uk feeds (SSIs + Acts) ───────────────────────────────────
 
 export type SpSsi = {
-  year:      number;
-  number:    number;
-  title:     string;
-  url:       string;
-  pdf_url:   string | null;
-  enacted_at: string | null; // YYYY-MM-DD
+  year:       number;
+  number:     number;
+  title:      string;
+  url:        string;
+  pdf_url:    string | null;
+  enacted_at: string | null;
 };
+
+export type SpAct = SpSsi; // identical shape; stored in separate table
 
 function decodeXml(s: string): string {
   return s
@@ -50,48 +52,49 @@ function decodeXml(s: string): string {
     .replace(/&#(\d+);/g, (_: string, n: string) => String.fromCharCode(parseInt(n, 10)));
 }
 
-function parseAtomEntries(xml: string): SpSsi[] {
+function parseAtomEntries(xml: string, kind: 'ssi' | 'asp'): SpSsi[] {
   const results: SpSsi[] = [];
   const entryRe = /<entry>([\s\S]*?)<\/entry>/g;
   let m: RegExpExecArray | null;
   while ((m = entryRe.exec(xml)) !== null) {
     const block = m[1];
-    const title  = /<title[^>]*>([^<]*)<\/title>/.exec(block)?.[1];
-    const yearV  = /<ukm:Year Value="(\d+)"/.exec(block)?.[1];
-    const numV   = /<ukm:Number Value="(\d+)"/.exec(block)?.[1];
-    const upd    = /<updated>([^<T]+)/.exec(block)?.[1];
-    const url    = /<link href="([^"]+\/ssi\/[^"]+\/made)"/.exec(block)?.[1]
-                ?? /<link href="([^"]+\/ssi\/[^"]+)"/.exec(block)?.[1];
-    const pdf    = /<link [^>]*type="application\/pdf"[^>]*href="([^"]+)"/.exec(block)?.[1];
+    const title = /<title[^>]*>([^<]*)<\/title>/.exec(block)?.[1];
+    const yearV = /<ukm:Year Value="(\d+)"/.exec(block)?.[1];
+    const numV  = /<ukm:Number Value="(\d+)"/.exec(block)?.[1];
+    const upd   = /<updated>([^<T]+)/.exec(block)?.[1];
+    const urlPat = new RegExp(`<link href="([^"]+\\/${kind}\\/[^"]+\\/made)"`);
+    const url   = urlPat.exec(block)?.[1]
+               ?? new RegExp(`<link href="([^"]+\\/${kind}\\/[^"]+)"`).exec(block)?.[1];
+    const pdf   = /<link [^>]*type="application\/pdf"[^>]*href="([^"]+)"/.exec(block)?.[1];
     if (!title || !yearV || !numV) continue;
-    const year = parseInt(yearV, 10);
-    const number = parseInt(numV, 10);
+    const year   = parseInt(yearV, 10);
+    const number = parseInt(numV,  10);
     results.push({
       year,
       number,
-      title: decodeXml(title),
-      url: url ?? `${LEG_BASE}/ssi/${year}/${number}/made`,
-      pdf_url: pdf ?? null,
+      title:      decodeXml(title),
+      url:        url ?? `${LEG_BASE}/${kind}/${year}/${number}/made`,
+      pdf_url:    pdf ?? null,
       enacted_at: upd ? upd.trim() : null,
     });
   }
   return results;
 }
 
-export async function fetchSSIsForYear(year: number): Promise<SpSsi[]> {
+async function fetchLegislationYear(kind: 'ssi' | 'asp', year: number): Promise<SpSsi[]> {
   const all: SpSsi[] = [];
   let page = 1;
   while (true) {
-    const url = `${LEG_BASE}/ssi/${year}/data.feed?results-count=500${page > 1 ? `&page=${page}` : ''}`;
+    const url = `${LEG_BASE}/${kind}/${year}/data.feed?results-count=500${page > 1 ? `&page=${page}` : ''}`;
     const res = await fetch(url, { next: { revalidate: 0 } });
     if (!res.ok) break;
     const xml = await res.text();
-    const entries = parseAtomEntries(xml);
-    all.push(...entries);
-    const hasNext = /<link[^>]+rel="next"/.test(xml);
-    if (!hasNext) break;
-    page++;
-    if (page > 10) break; // safety
+    all.push(...parseAtomEntries(xml, kind));
+    if (!/<link[^>]+rel="next"/.test(xml)) break;
+    if (++page > 10) break;
   }
   return all;
 }
+
+export const fetchSSIsForYear  = (year: number) => fetchLegislationYear('ssi', year);
+export const fetchActsForYear  = (year: number) => fetchLegislationYear('asp', year);

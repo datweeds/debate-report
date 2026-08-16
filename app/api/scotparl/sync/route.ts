@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
-import { syncAll, syncSSIs } from '@/lib/scotparl/sync';
+import { syncAll, syncSSIs, syncActs } from '@/lib/scotparl/sync';
 
 export async function POST(req: Request) {
   const session = await getSession();
@@ -9,12 +9,16 @@ export async function POST(req: Request) {
   }
   const body = await req.json().catch(() => ({}));
 
-  // ?ssi_only=true&years=2024,2025 — sync only SSIs for specified years
+  const parseYears = (raw: unknown) =>
+    raw ? String(raw).split(',').map(Number).filter(y => y > 1998 && y <= new Date().getFullYear() + 1) : undefined;
+
   if (body.ssi_only) {
-    const years: number[] | undefined = body.years
-      ? String(body.years).split(',').map(Number).filter(y => y > 1998 && y <= new Date().getFullYear() + 1)
-      : undefined;
-    const result = await syncSSIs(years);
+    const result = await syncSSIs(parseYears(body.years));
+    return NextResponse.json({ results: [result], ok: !result.error });
+  }
+
+  if (body.acts_only) {
+    const result = await syncActs(parseYears(body.years));
     return NextResponse.json({ results: [result], ok: !result.error });
   }
 

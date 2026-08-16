@@ -34,10 +34,15 @@ export type Ssi = {
   title: string;
   url: string;
   pdf_url: string | null;
-  enacted_at: string | null; // YYYY-MM-DD
+  enacted_at: string | null;
 };
 
-type LawItem = ({ item_type: 'bill' } & Bill) | ({ item_type: 'ssi' } & Ssi);
+export type Act = Ssi; // identical shape, stored in sp_acts
+
+type LawItem =
+  | ({ item_type: 'bill' } & Bill)
+  | ({ item_type: 'ssi'  } & Ssi)
+  | ({ item_type: 'act'  } & Act);
 
 function fmt(date: string | null) {
   if (!date) return null;
@@ -110,7 +115,8 @@ function itemDate(item: LawItem): string | null {
 
 export default function BillList({
   bills,
-  ssis = [],
+  ssis  = [],
+  acts  = [],
   types,
   stages,
   years,
@@ -118,7 +124,8 @@ export default function BillList({
   initialFavIds,
 }: {
   bills: Bill[];
-  ssis?: Ssi[];
+  ssis?:  Ssi[];
+  acts?:  Act[];
   types: string[];
   stages: string[];
   years: number[];
@@ -131,17 +138,18 @@ export default function BillList({
   const [yearFilter,  setYear]      = useState<number | ''>('');
   const [favsOnly,    setFavsOnly]  = useState(false);
   const [debateOnly,  setDebateOnly]= useState(false);
-  const [lawKind,     setLawKind]   = useState<'all' | 'bill' | 'ssi'>('all');
+  const [lawKind,     setLawKind]   = useState<'all' | 'act' | 'bill' | 'ssi'>('all');
 
   const allItems = useMemo<LawItem[]>(() => {
     const bs: LawItem[] = bills.map(b => ({ item_type: 'bill' as const, ...b }));
-    const ss: LawItem[] = ssis.map(s => ({ item_type: 'ssi' as const, ...s }));
-    return [...bs, ...ss].sort((a, b) => {
+    const ss: LawItem[] = ssis.map(s  => ({ item_type: 'ssi'  as const, ...s }));
+    const as_: LawItem[] = acts.map(a => ({ item_type: 'act'  as const, ...a }));
+    return [...as_, ...bs, ...ss].sort((a, b) => {
       const da = itemDate(a) ?? '0';
       const db = itemDate(b) ?? '0';
       return db.localeCompare(da);
     });
-  }, [bills, ssis]);
+  }, [bills, ssis, acts]);
 
   const minDate = useMemo(() => {
     const dates = allItems.map(i => itemDate(i)).filter((d): d is string => !!d);
@@ -215,7 +223,13 @@ export default function BillList({
           (item.synopsis ?? '').toLowerCase().includes(q)
         );
       }
-      // SSI: search on title and reference string
+      if (item.item_type === 'act') {
+        return (
+          item.title.toLowerCase().includes(q) ||
+          `asp ${item.year}/${item.number}`.includes(q)
+        );
+      }
+      // ssi
       return (
         item.title.toLowerCase().includes(q) ||
         `ssi ${item.year}/${item.number}`.includes(q)
@@ -225,6 +239,7 @@ export default function BillList({
 
   const dateFiltersChanged = dateFrom !== minDate || dateTo !== todayStr;
   const hasFilters = !!(search || typeFilter || stageFilter || yearFilter || favsOnly || debateOnly || dateFiltersChanged || lawKind !== 'all');
+  const showBillFilters = lawKind === 'all' || lawKind === 'bill';
 
   function clearFilters() {
     setSearch('');
@@ -238,37 +253,38 @@ export default function BillList({
     setLawKind('all');
   }
 
-  const showBillFilters = lawKind !== 'ssi';
-
   return (
     <div className="space-y-4">
 
-      {/* Type toggle: All / Bills / SSIs */}
-      <div className="flex items-center gap-2">
-        {(['all', 'bill', 'ssi'] as const).map(k => {
-          const label = k === 'all' ? 'All' : k === 'bill' ? 'Bills' : 'SSIs';
-          const count = k === 'all' ? allItems.length : k === 'bill' ? bills.length : ssis.length;
-          const active = lawKind === k;
-          const accent = k === 'ssi' ? 'border-teal-500 bg-teal-500/10 text-teal-300' : 'border-blue-500 bg-blue-500/10 text-blue-300';
-          return (
-            <button
-              key={k}
-              onClick={() => setLawKind(k)}
-              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                active ? accent : 'border-slate-700 text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              {label} <span className="opacity-60">{count}</span>
-            </button>
-          );
-        })}
+      {/* Type toggle: All / Acts / Bills / SSIs */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {([
+          { k: 'all',  label: 'All',   count: allItems.length, accent: 'border-slate-500 bg-slate-500/10 text-slate-300' },
+          { k: 'act',  label: 'Acts',  count: acts.length,     accent: 'border-amber-500 bg-amber-500/10 text-amber-300' },
+          { k: 'bill', label: 'Bills', count: bills.length,    accent: 'border-blue-500  bg-blue-500/10  text-blue-300'  },
+          { k: 'ssi',  label: 'SSIs',  count: ssis.length,     accent: 'border-teal-500  bg-teal-500/10  text-teal-300'  },
+        ] as const).map(({ k, label, count, accent }) => (
+          <button
+            key={k}
+            onClick={() => setLawKind(k)}
+            className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+              lawKind === k ? accent : 'border-slate-700 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            {label} <span className="opacity-60">{count}</span>
+          </button>
+        ))}
       </div>
 
       {/* Row 1: text search + bill dropdowns (hidden when SSI-only) */}
       <div className="flex flex-col sm:flex-row gap-2">
         <input
           type="text"
-          placeholder={lawKind === 'ssi' ? 'Search SSIs…' : lawKind === 'bill' ? 'Search bills…' : 'Search laws…'}
+          placeholder={
+            lawKind === 'act'  ? 'Search acts…'  :
+            lawKind === 'ssi'  ? 'Search SSIs…'  :
+            lawKind === 'bill' ? 'Search bills…' : 'Search laws…'
+          }
           value={search}
           onChange={e => setSearch(e.target.value)}
           className="flex-1 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -369,7 +385,45 @@ export default function BillList({
         {filtered.length === 0 ? (
           <div className="py-10 text-center text-slate-500 text-sm">No laws match your filters.</div>
         ) : filtered.map(item =>
-          item.item_type === 'ssi' ? (
+          item.item_type === 'act' ? (
+            /* ── Act row ── */
+            <div key={`act-${item.id}`} className="flex items-start gap-4 px-5 py-4 hover:bg-slate-800/40 transition-colors">
+              <a href={item.url} target="_blank" rel="noopener noreferrer" className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-slate-100 leading-snug">{item.title}</p>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <span className="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 border border-amber-500/20">
+                    Act
+                  </span>
+                  <span className="font-mono text-[11px] text-slate-500">ASP {item.year}/{item.number}</span>
+                  {item.enacted_at && (
+                    <span className="text-xs text-slate-600">{fmt(item.enacted_at)}</span>
+                  )}
+                </div>
+              </a>
+              <div className="flex flex-col items-end gap-2 flex-shrink-0 pt-0.5">
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-0.5 rounded border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-300 hover:bg-amber-500/20 transition-colors"
+                >
+                  Read
+                  <ExternalIcon />
+                </a>
+                {item.pdf_url && (
+                  <a
+                    href={item.pdf_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-0.5 rounded border border-slate-600/30 px-2 py-0.5 text-[10px] font-medium text-slate-500 hover:text-slate-300 transition-colors"
+                  >
+                    PDF
+                    <ExternalIcon />
+                  </a>
+                )}
+              </div>
+            </div>
+          ) : item.item_type === 'ssi' ? (
             /* ── SSI row ── */
             <div key={`ssi-${item.id}`} className="flex items-start gap-4 px-5 py-4 hover:bg-slate-800/40 transition-colors">
               <a

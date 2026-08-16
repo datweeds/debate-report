@@ -23,7 +23,8 @@ async function getTotals(): Promise<Counts> {
           (SELECT COUNT(*)::int FROM sp_proposal_debates)                                           AS debates,
         (SELECT COUNT(*)::int FROM sp_bill_pvc_polls)                                              AS votes,
         (SELECT COUNT(*)::int FROM sp_bills) +
-          (SELECT COUNT(*)::int FROM sp_ssis)                                                      AS laws,
+          (SELECT COUNT(*)::int FROM sp_ssis) +
+          (SELECT COUNT(*)::int FROM sp_acts)                                                      AS laws,
         (SELECT COUNT(np.*)::int FROM nsp_principles np
          JOIN nsp_principle_sets nps ON nps.id = np.set_id
          JOIN nsp_topics nt          ON nt.id  = nps.topic_id)                                     AS principles
@@ -43,7 +44,8 @@ async function getSinceCounts(since: string): Promise<Counts> {
           (SELECT COUNT(*)::int FROM sp_proposal_debates WHERE created_at >= $1)                   AS debates,
         (SELECT COUNT(*)::int FROM sp_bill_pvc_polls WHERE created_at >= $1)                       AS votes,
         (SELECT COUNT(*)::int FROM sp_bills         WHERE created_at >= $1) +
-          (SELECT COUNT(*)::int FROM sp_ssis         WHERE created_at >= $1)                       AS laws,
+          (SELECT COUNT(*)::int FROM sp_ssis         WHERE created_at >= $1) +
+          (SELECT COUNT(*)::int FROM sp_acts         WHERE created_at >= $1)                       AS laws,
         (SELECT COUNT(np.*)::int FROM nsp_principles np
          JOIN nsp_principle_sets nps ON nps.id = np.set_id
          JOIN nsp_topics nt          ON nt.id  = nps.topic_id
@@ -97,6 +99,11 @@ async function getRecentUpdates(since: string | null, limit: number): Promise<Up
                b.created_at, b.created_at
         FROM sp_bills b
         UNION ALL
+        SELECT 'Act', a.title,
+               a.url,
+               a.created_at, a.created_at
+        FROM sp_acts a
+        UNION ALL
         SELECT 'SSI', s.title,
                s.url,
                s.created_at, s.created_at
@@ -134,7 +141,8 @@ const TYPE_COLOURS: Record<string, string> = {
   Proposal:  'bg-violet-500/10 text-violet-300 border-violet-500/20',
   Debate:    'bg-blue-500/10   text-blue-300   border-blue-500/20',
   Vote:      'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
-  Bill:      'bg-amber-500/10  text-amber-300   border-amber-500/20',
+  Act:       'bg-amber-500/10  text-amber-300   border-amber-500/20',
+  Bill:      'bg-blue-500/10   text-blue-300    border-blue-500/20',
   SSI:       'bg-teal-500/10   text-teal-300    border-teal-500/20',
   Principle: 'bg-rose-500/10   text-rose-300    border-rose-500/20',
 };

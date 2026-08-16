@@ -3,7 +3,7 @@ import pool from '@/lib/db';
 import {
   fetchSessions, fetchParties, fetchBillTypes, fetchBillStageTypes,
   fetchCommittees, fetchMembers, fetchMemberParties, fetchBills, fetchBillStages,
-  fetchSSIsForYear,
+  fetchSSIsForYear, fetchActsForYear,
 } from './api';
 import { fetchMspConstituencies } from './wikidata';
 
@@ -151,6 +151,9 @@ export async function syncAll(): Promise<SyncResult[]> {
   // SSI sync — last 5 years by default
   results.push(await syncSSIs());
 
+  // Acts sync — all years since devolution (1999), then keep current year fresh
+  results.push(await syncActs());
+
   return results;
 }
 
@@ -191,6 +194,49 @@ export async function syncSSIs(years?: number[]): Promise<SyncResult> {
       [error]
     ).catch(() => {});
     return { collection: 'ssis', count: 0, error };
+  } finally {
+    client.release();
+  }
+}
+
+export async function syncActs(years?: number[]): Promise<SyncResult> {
+  const currentYear = new Date().getFullYear();
+  // Default: full backfill since devolution (1999)
+  const targetYears = years ?? Array.from({ length: currentYear - 1998 }, (_, i) => currentYear - i);
+  let totalCount = 0;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const year of targetYears) {
+      const rows = await fetchActsForYear(year);
+      for (const r of rows) {
+        await client.query(
+          `INSERT INTO sp_acts (year, number, title, url, pdf_url, enacted_at)
+           VALUES ($1,$2,$3,$4,$5,$6)
+           ON CONFLICT (year, number) DO UPDATE SET
+             title      = EXCLUDED.title,
+             url        = EXCLUDED.url,
+             pdf_url    = EXCLUDED.pdf_url,
+             enacted_at = EXCLUDED.enacted_at`,
+          [r.year, r.number, r.title, r.url, r.pdf_url, r.enacted_at]
+        );
+        totalCount++;
+      }
+    }
+    await client.query(
+      `INSERT INTO sp_sync_log (collection, record_count) VALUES ('acts', $1)`,
+      [totalCount]
+    );
+    await client.query('COMMIT');
+    return { collection: 'acts', count: totalCount };
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    const error = String(err);
+    await pool.query(
+      `INSERT INTO sp_sync_log (collection, record_count, error) VALUES ('acts', 0, $1)`,
+      [error]
+    ).catch(() => {});
+    return { collection: 'acts', count: 0, error };
   } finally {
     client.release();
   }
