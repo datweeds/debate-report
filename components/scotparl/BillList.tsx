@@ -178,19 +178,15 @@ export default function BillList({
     });
   }, [bills, ssis, acts]);
 
-  const minDate = useMemo(() => {
-    const dates = allItems.map(i => itemDate(i)).filter((d): d is string => !!d);
-    return dates.length ? dates.reduce((a, b) => (a < b ? a : b)) : '';
-  }, [allItems]);
   const todayStr = new Date().toISOString().split('T')[0];
+  const defaultFrom = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 90);
+    return d.toISOString().slice(0, 10);
+  }, []);
 
-  const [dateFrom, setDateFrom] = useState(() => {
-    const dates = bills
-      .map(b => b.latest_stage_date ? new Date(b.latest_stage_date).toISOString().slice(0, 10) : null)
-      .filter(Boolean) as string[];
-    return dates.length ? dates.reduce((a, b) => (a < b ? a : b)) : '';
-  });
-  const [dateTo, setDateTo] = useState(() => new Date().toISOString().split('T')[0]);
+  const [dateFrom, setDateFrom] = useState(defaultFrom);
+  const [dateTo,   setDateTo]   = useState(todayStr);
 
   const [favIds, setFavIds]     = useState<Set<number>>(() => new Set(initialFavIds));
   const [flagged, setFlagged]   = useState<Set<string>>(() => new Set(initialFlaggedKeys));
@@ -282,7 +278,8 @@ export default function BillList({
     });
   }, [allItems, search, lawKind, typeFilter, stageFilter, yearFilter, dateFrom, dateTo, favsOnly, debateOnly, favIds]);
 
-  const dateFiltersChanged = dateFrom !== minDate || dateTo !== todayStr;
+  const isDefaultWindow   = dateFrom === defaultFrom && dateTo === todayStr;
+  const dateFiltersChanged = !isDefaultWindow;
   const hasFilters = !!(search || typeFilter || stageFilter || yearFilter || favsOnly || debateOnly || dateFiltersChanged || lawKind !== 'all');
   const showBillFilters = lawKind === 'all' || lawKind === 'bill';
 
@@ -293,7 +290,7 @@ export default function BillList({
     setYear('');
     setFavsOnly(false);
     setDebateOnly(false);
-    setDateFrom(minDate);
+    setDateFrom(defaultFrom);
     setDateTo(todayStr);
     setLawKind('all');
   }
@@ -321,6 +318,22 @@ export default function BillList({
         ))}
       </div>
 
+      {/* Default-window notice */}
+      {isDefaultWindow && (
+        <div className="flex items-center gap-2 text-xs text-slate-500">
+          <svg className="h-3.5 w-3.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2m6-2a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z" />
+          </svg>
+          <span>Showing laws updated in the last 90 days</span>
+          <button
+            onClick={() => setDateFrom('')}
+            className="text-blue-400 hover:text-blue-300 transition-colors"
+          >
+            Show all {allItems.length.toLocaleString()} →
+          </button>
+        </div>
+      )}
+
       {/* Row 1: text search + bill dropdowns (hidden when SSI-only) */}
       <div className="flex flex-col sm:flex-row gap-2">
         <input
@@ -341,7 +354,7 @@ export default function BillList({
               onChange={e => setType(e.target.value)}
               className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-300 focus:border-blue-500 focus:outline-none"
             >
-              <option value="">All types</option>
+              <option value="">Bill types</option>
               {types.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
             <select
@@ -349,7 +362,7 @@ export default function BillList({
               onChange={e => setStage(e.target.value)}
               className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-300 focus:border-blue-500 focus:outline-none"
             >
-              <option value="">All stages</option>
+              <option value="">Bill stages</option>
               {stages.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </>
