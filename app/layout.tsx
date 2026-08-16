@@ -13,19 +13,19 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://debate.report'),
+  metadataBase: new URL('https://new.vote'),
   title: {
-    default: 'debate.report — Structured Online Debate',
-    template: '%s | debate.report',
+    default: 'new.vote — Democracy Tools for Society',
+    template: '%s | new.vote',
   },
   description:
-    'An online platform for structured, moderated debate on the issues that matter. Arguments presented visually — pros, cons, evidence — so you can reach a reasoned position.',
+    'Structured debate, democratic proposals, and civic tools. Evidence-based. Open to all.',
   icons: { icon: '/favicon.svg', apple: '/favicon.svg' },
   openGraph: {
-    title: 'debate.report — Structured Online Debate',
-    description: 'Structured, moderated debate on the important issues of today. Evidence-based. Strictly moderated. Open to all.',
-    siteName: 'debate.report',
-    url: 'https://debate.report',
+    title: 'new.vote — Democracy Tools for Society',
+    description: 'Structured debate, democratic proposals, and civic tools. Evidence-based. Open to all.',
+    siteName: 'new.vote',
+    url: 'https://new.vote',
     type: 'website',
     locale: 'en_GB',
   },

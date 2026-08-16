@@ -50,10 +50,11 @@ function AboutContent() {
     <div className="space-y-1">
       <Section title="Our Mission">
         <p>
-          debate.report is a structured online debate platform designed to raise the quality of public discourse.
-          We believe that good arguments should be visible, traceable and judged on their merits — not on how
-          loudly they are shouted. Our platform presents debates as structured argument graphs: claims supported
-          by warrants, warrants backed by evidence, and rebuttals that challenge each step of the chain.
+          new.vote is a structured debate and democratic engagement platform designed to raise the quality of
+          public discourse. We believe that good arguments should be visible, traceable and judged on their
+          merits — not on how loudly they are shouted. Our platform presents debates as structured argument
+          graphs: claims supported by warrants, warrants backed by evidence, and rebuttals that challenge each
+          step of the chain.
         </p>
       </Section>
       <Section title="Why Structured Debate?">
@@ -105,13 +106,13 @@ function TermsContent() {
     <div>
       <p className="text-xs text-slate-500 mb-5">Last updated: July 2026</p>
       <Section title="1. Acceptance of Terms">
-        <p>By accessing or using debate.report you agree to be bound by these Terms. If you do not agree, please do not use the platform. We reserve the right to update these terms at any time.</p>
+        <p>By accessing or using new.vote you agree to be bound by these Terms. If you do not agree, please do not use the platform. We reserve the right to update these terms at any time.</p>
       </Section>
       <Section title="2. User Accounts">
         <p>You must create an account to participate. You are responsible for maintaining the confidentiality of your credentials and for all activity under your account. We reserve the right to suspend accounts that violate these terms.</p>
       </Section>
       <Section title="3. User-Generated Content">
-        <p>By submitting content you grant debate.report a non-exclusive, royalty-free, worldwide licence to display and distribute that content within the platform. You warrant that your content does not infringe third-party rights, is not false or defamatory, and complies with our community standards.</p>
+        <p>By submitting content you grant new.vote a non-exclusive, royalty-free, worldwide licence to display and distribute that content within the platform. You warrant that your content does not infringe third-party rights, is not false or defamatory, and complies with our community standards.</p>
       </Section>
       <Section title="4. Moderation">
         <p>All contributions are subject to moderator review before publication. We reserve the right to reject or remove any content that does not meet our quality standards, without obligation to provide reasons.</p>
@@ -120,10 +121,10 @@ function TermsContent() {
         <p>You agree not to: submit false or deliberately misleading content; harass or abuse other users; attempt to manipulate voting or engagement metrics; use the platform for commercial advertising without consent; impersonate any person or entity.</p>
       </Section>
       <Section title="6. Intellectual Property">
-        <p>Platform software, design, and branding are the intellectual property of debate.report. User-submitted content remains the property of the respective authors.</p>
+        <p>Platform software, design, and branding are the intellectual property of new.vote. User-submitted content remains the property of the respective authors.</p>
       </Section>
       <Section title="7. Limitation of Liability">
-        <p>The platform is provided &quot;as is&quot; without warranties of any kind. To the maximum extent permitted by law, debate.report shall not be liable for any indirect, incidental, or consequential damages.</p>
+        <p>The platform is provided &quot;as is&quot; without warranties of any kind. To the maximum extent permitted by law, new.vote shall not be liable for any indirect, incidental, or consequential damages.</p>
       </Section>
       <Section title="8. Governing Law">
         <p>These terms are governed by the laws of England and Wales.</p>
@@ -139,7 +140,7 @@ function PrivacyContent() {
     <div>
       <p className="text-xs text-slate-500 mb-5">Last updated: July 2026</p>
       <Section title="1. Who We Are">
-        <p>debate.report is a structured online debate platform. &quot;We&quot;, &quot;us&quot; and &quot;our&quot; refer to the operators of debate.report.</p>
+        <p>new.vote is a structured debate and democratic engagement platform. &quot;We&quot;, &quot;us&quot; and &quot;our&quot; refer to the operators of new.vote.</p>
       </Section>
       <Section title="2. Data We Collect">
         <ul className="list-disc pl-4 space-y-1.5">
@@ -154,7 +155,7 @@ function PrivacyContent() {
         <p>We use your data to provide and operate the platform, authenticate you, associate contributions with your account, respond to enquiries, and prevent abuse. We do not sell or share your data with third parties for marketing purposes.</p>
       </Section>
       <Section title="4. Cookies">
-        <p>We use a session cookie (<code className="rounded bg-slate-800 px-1 text-xs text-blue-300">dr_session</code>) to maintain your authenticated session. We also use <code className="rounded bg-slate-800 px-1 text-xs text-blue-300">localStorage</code> to remember your theme preference. No tracking or advertising cookies are used.</p>
+        <p>We use a session cookie (<code className="rounded bg-slate-800 px-1 text-xs text-blue-300">nv_session</code>) to maintain your authenticated session. We also use <code className="rounded bg-slate-800 px-1 text-xs text-blue-300">localStorage</code> to remember your theme preference. No tracking or advertising cookies are used.</p>
       </Section>
       <Section title="5. Your Rights">
         <p>Under applicable data protection law you have the right to access, correct, or request deletion of your personal data, and to object to or restrict processing. To exercise any of these rights please contact us. We will respond within 30 days.</p>
@@ -285,7 +286,7 @@ export default function FooterModals({ modal, onClose }: Props) {
   if (!modal) return null;
 
   const titles: Record<NonNullable<FooterModal>, string> = {
-    about:   'About debate.report',
+    about:   'About new.vote',
     terms:   'Terms & Conditions',
     privacy: 'Privacy Policy',
     contact: 'Contact Us',
