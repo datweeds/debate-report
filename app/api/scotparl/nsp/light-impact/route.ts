@@ -193,6 +193,14 @@ async function runMultiTopicMode(anthropic: Anthropic, full_rerun: boolean) {
     await client.query('BEGIN');
     for (const r of results) {
       if (!r) continue;
+      // One API call covers all topics — accumulate cost once per entity.
+      const entityCost = costMicro(r.input_tokens, r.output_tokens);
+      const nTopics    = r.scores.length || 1;
+      // Apportion tokens evenly so per-topic usage log rows sum to the real call cost.
+      const inPerTopic  = Math.round(r.input_tokens  / nTopics);
+      const outPerTopic = Math.round(r.output_tokens / nTopics);
+      const costPerTopic = Math.round(entityCost / nTopics);
+
       for (const s of r.scores) {
         await client.query(
           `INSERT INTO society_light_analyses
@@ -208,18 +216,17 @@ async function runMultiTopicMode(anthropic: Anthropic, full_rerun: boolean) {
              created_at    = now()`,
           [TENANT_ID, r.entity_type, r.entity_id, s.topic_id,
            s.score, s.rationale, r.synopsis_used,
-           MODEL, r.input_tokens, r.output_tokens]
+           MODEL, inPerTopic, outPerTopic]
         );
         await client.query(
           `INSERT INTO ai_usage_log
              (tenant_id, analysis_type, entity_type, entity_id, topic_id, model, input_tokens, output_tokens, cost_micro)
            VALUES ($1,'light',$2,$3,$4,$5,$6,$7,$8)`,
           [TENANT_ID, r.entity_type, r.entity_id, s.topic_id,
-           MODEL, r.input_tokens, r.output_tokens,
-           costMicro(r.input_tokens, r.output_tokens)]
+           MODEL, inPerTopic, outPerTopic, costPerTopic]
         );
-        totalCostMicro += costMicro(r.input_tokens, r.output_tokens);
       }
+      totalCostMicro += entityCost;
       totalProcessed++;
     }
     await client.query('COMMIT');
