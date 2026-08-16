@@ -65,4 +65,4 @@ CREATE TABLE IF NOT EXISTS ai_usage_log (
   cost_micro    INT  NOT NULL DEFAULT 0,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS aul_tenant_month ON ai_usage_log (tenant_id, date_trunc('month', created_at));
+CREATE INDEX IF NOT EXISTS aul_tenant_month ON ai_usage_log (tenant_id, created_at DESC);
