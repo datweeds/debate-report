@@ -42,7 +42,7 @@ export async function GET(req: Request) {
       SELECT
         nt.id, nt.name, nt.description,
         MAX(la.created_at)::text                                                AS last_run_at,
-        COUNT(la.id)::int                                                       AS scored_count,
+        COUNT(DISTINCT la.id)::int                                              AS scored_count,
         MAX(np.updated_at)::text                                                AS principles_changed_at
       FROM nsp_topics nt
       LEFT JOIN nsp_principle_sets nps ON nps.topic_id = nt.id AND nps.is_current = true
@@ -103,10 +103,15 @@ export async function GET(req: Request) {
       t.principles_changed_at > t.last_run_at,
   }));
 
+  const lastRes = await tq<{ last_analysed_at: string | null }>(
+    `SELECT MAX(created_at)::text AS last_analysed_at FROM society_light_analyses`
+  );
+
   return NextResponse.json({
     topics,
-    stats:  statsRes.rows,
-    budget: budgetRes.rows[0]?.ai_budget_cents ?? null,
+    stats:            statsRes.rows,
+    budget:           budgetRes.rows[0]?.ai_budget_cents ?? null,
+    last_analysed_at: lastRes.rows[0]?.last_analysed_at ?? null,
   });
 }
 
@@ -126,16 +131,21 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => ({})) as {
-    topic_id?:    number;
-    full_rerun?:  boolean;
+    topic_id?:   number;
+    full_rerun?: boolean;
+    since_dt?:   string;   // ISO datetime — re-analyse entities last scored before this
   };
 
-  const { topic_id, full_rerun = false } = body;
+  const { topic_id, full_rerun = false, since_dt } = body;
+
+  // Validate since_dt if provided
+  const sinceDate = since_dt ? new Date(since_dt) : null;
+  const sinceDateIso = sinceDate && !isNaN(sinceDate.getTime()) ? sinceDate.toISOString() : null;
 
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   if (!topic_id) {
-    return runMultiTopicMode(anthropic, full_rerun);
+    return runMultiTopicMode(anthropic, full_rerun, sinceDateIso);
   } else {
     return runSingleTopicMode(anthropic, topic_id, full_rerun);
   }
@@ -144,7 +154,7 @@ export async function POST(req: Request) {
 // ── Multi-topic mode ──────────────────────────────────────────────────────────
 // One API call per entity; all topics scored simultaneously.
 
-async function runMultiTopicMode(anthropic: Anthropic, full_rerun: boolean) {
+async function runMultiTopicMode(anthropic: Anthropic, full_rerun: boolean, sinceDateIso: string | null = null) {
   // Load all topics with their current principles
   const topicsRes = await tq<TopicRow>(
     `SELECT id, name, description FROM nsp_topics
@@ -179,7 +189,7 @@ async function runMultiTopicMode(anthropic: Anthropic, full_rerun: boolean) {
     );
   }
 
-  const entities = await getAllPendingEntities(topics.length);
+  const entities = await getAllPendingEntities(topics.length, sinceDateIso);
   const totalRemaining = Math.max(0, entities.length - BATCH_SIZE);
   const batch = entities.slice(0, BATCH_SIZE);
 
@@ -334,8 +344,18 @@ async function runSingleTopicMode(anthropic: Anthropic, topic_id: number, full_r
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-// Entities missing at least one topic score (for multi-topic mode)
-async function getAllPendingEntities(topicCount: number): Promise<EntityRow[]> {
+// Entities pending for multi-topic mode.
+// Without sinceDateIso: entities missing at least one topic score.
+// With sinceDateIso: entities last scored before that datetime (or never scored).
+async function getAllPendingEntities(topicCount: number, sinceDateIso: string | null = null): Promise<EntityRow[]> {
+  const pendingClause = (entityType: string, idCol: string) => sinceDateIso
+    ? `(SELECT COALESCE(MAX(la.created_at), '-infinity'::timestamptz) FROM society_light_analyses la
+        WHERE la.entity_type = '${entityType}' AND la.entity_id = ${idCol} AND la.tenant_id = ${TENANT_ID}
+       ) < '${sinceDateIso}'`
+    : `(SELECT COUNT(DISTINCT la.topic_id) FROM society_light_analyses la
+        WHERE la.entity_type = '${entityType}' AND la.entity_id = ${idCol} AND la.tenant_id = ${TENANT_ID}
+       ) < ${topicCount}`;
+
   const [billsRes, actsRes, ssisRes, propsRes] = await Promise.all([
     pool.query<EntityRow>(`
       SELECT 'bill' AS entity_type, id AS entity_id,
@@ -344,38 +364,26 @@ async function getAllPendingEntities(topicCount: number): Promise<EntityRow[]> {
                short_name
              ) AS synopsis
       FROM sp_bills b
-      WHERE (
-        SELECT COUNT(DISTINCT la.topic_id) FROM society_light_analyses la
-        WHERE la.entity_type = 'bill' AND la.entity_id = b.id AND la.tenant_id = ${TENANT_ID}
-      ) < ${topicCount}
+      WHERE ${pendingClause('bill', 'b.id')}
       ORDER BY id DESC
     `),
     pool.query<EntityRow>(`
       SELECT 'act' AS entity_type, id AS entity_id, title AS synopsis
       FROM sp_acts a
-      WHERE (
-        SELECT COUNT(DISTINCT la.topic_id) FROM society_light_analyses la
-        WHERE la.entity_type = 'act' AND la.entity_id = a.id AND la.tenant_id = ${TENANT_ID}
-      ) < ${topicCount}
+      WHERE ${pendingClause('act', 'a.id')}
       ORDER BY year DESC, number DESC
     `),
     pool.query<EntityRow>(`
       SELECT 'ssi' AS entity_type, id AS entity_id, title AS synopsis
       FROM sp_ssis s
-      WHERE (
-        SELECT COUNT(DISTINCT la.topic_id) FROM society_light_analyses la
-        WHERE la.entity_type = 'ssi' AND la.entity_id = s.id AND la.tenant_id = ${TENANT_ID}
-      ) < ${topicCount}
+      WHERE ${pendingClause('ssi', 's.id')}
       ORDER BY year DESC, number DESC
     `),
     tq<EntityRow>(`
       SELECT 'proposal' AS entity_type, id AS entity_id,
              SUBSTRING(COALESCE(title,'') || ' ' || COALESCE(description,''), 1, 500) AS synopsis
       FROM proposals p
-      WHERE (
-        SELECT COUNT(DISTINCT la.topic_id) FROM society_light_analyses la
-        WHERE la.entity_type = 'proposal' AND la.entity_id = p.id AND la.tenant_id = ${TENANT_ID}
-      ) < ${topicCount}
+      WHERE ${pendingClause('proposal', 'p.id')}
       ORDER BY id DESC
     `),
   ]);
