@@ -321,7 +321,7 @@ export default function BillList({
     setYear('');
     setFavsOnly(false);
     setDebateOnly(false);
-    setDateFrom(defaultFrom);
+    setDateFrom('');
     setDateTo(todayStr);
     setLawKind('all');
   }

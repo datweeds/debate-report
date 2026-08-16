@@ -648,6 +648,7 @@ interface RunResult { mode?: string; processed: number; remaining: number; done:
 function LightAnalysisManager() {
   const [data, setData] = useState<{
     topics: TopicStatus[]; stats: UsageStat[]; budget: number | null;
+    last_analysed_at?: string | null;
   } | null>(null);
   const [loading, setLoading]       = useState(true);
   const [runningId, setRunningId]   = useState<number | 'all' | null>(null);
@@ -655,6 +656,7 @@ function LightAnalysisManager() {
   const [err, setErr]               = useState('');
   const [batchCount, setBatchCount] = useState(0);
   const [totalProcessed, setTotalProcessed] = useState(0);
+  const [sinceDt, setSinceDt]       = useState('');
   const runningRef = useRef(false);
 
   const loadDataQuiet = useCallback(async () => {
@@ -698,6 +700,7 @@ function LightAnalysisManager() {
             ...(topicId ? { topic_id: topicId } : {}),
             // Only send full_rerun on first batch — subsequent passes are incremental
             ...(fullRerun && batch === 0 ? { full_rerun: true } : {}),
+            ...(!topicId && sinceDt ? { since_dt: sinceDt } : {}),
           }),
         });
         if (!r.ok) { const d = await r.json(); setErr(d.error ?? 'Analysis failed'); break; }
@@ -737,6 +740,34 @@ function LightAnalysisManager() {
             <> Monthly budget: <span className="text-slate-300">${((data.budget) / 100).toFixed(2)}</span>.</>
           )}
         </p>
+      </div>
+
+      {data?.last_analysed_at && (
+        <p className="text-xs text-slate-500">
+          Last analysed: <span className="text-slate-400">{new Date(data.last_analysed_at).toLocaleString()}</span>
+        </p>
+      )}
+
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-slate-500">Only re-analyse items not scored since</label>
+          <input
+            type="datetime-local"
+            value={sinceDt}
+            onChange={e => setSinceDt(e.target.value)}
+            disabled={runningId !== null}
+            className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 disabled:opacity-40 focus:outline-none focus:border-slate-500"
+          />
+        </div>
+        {sinceDt && (
+          <button
+            onClick={() => setSinceDt('')}
+            disabled={runningId !== null}
+            className="mt-5 text-xs text-slate-500 hover:text-slate-300 disabled:opacity-40"
+          >
+            Clear date
+          </button>
+        )}
       </div>
 
       <div className="flex gap-3 flex-wrap">
