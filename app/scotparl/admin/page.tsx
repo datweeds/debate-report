@@ -712,6 +712,7 @@ function LightAnalysisManager() {
         setResult({ ...res, processed });
         await loadDataQuiet();
         if (res.done || res.remaining === 0) break;
+        if (res.processed === 0) { setErr('No progress — remaining entities may have no content to analyse.'); break; }
       }
     } finally {
       runningRef.current = false;

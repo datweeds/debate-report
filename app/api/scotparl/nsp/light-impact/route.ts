@@ -365,18 +365,22 @@ async function getAllPendingEntities(topicCount: number, sinceDateIso: string | 
              ) AS synopsis
       FROM sp_bills b
       WHERE ${pendingClause('bill', 'b.id')}
+        AND (NULLIF(TRIM(COALESCE(short_name,'') || ' ' || COALESCE(synopsis,'')), '') IS NOT NULL
+             OR short_name IS NOT NULL)
       ORDER BY id DESC
     `),
     pool.query<EntityRow>(`
       SELECT 'act' AS entity_type, id AS entity_id, title AS synopsis
       FROM sp_acts a
       WHERE ${pendingClause('act', 'a.id')}
+        AND NULLIF(TRIM(COALESCE(title,'')), '') IS NOT NULL
       ORDER BY year DESC, number DESC
     `),
     pool.query<EntityRow>(`
       SELECT 'ssi' AS entity_type, id AS entity_id, title AS synopsis
       FROM sp_ssis s
       WHERE ${pendingClause('ssi', 's.id')}
+        AND NULLIF(TRIM(COALESCE(title,'')), '') IS NOT NULL
       ORDER BY year DESC, number DESC
     `),
     tq<EntityRow>(`
@@ -384,6 +388,7 @@ async function getAllPendingEntities(topicCount: number, sinceDateIso: string | 
              SUBSTRING(COALESCE(title,'') || ' ' || COALESCE(description,''), 1, 500) AS synopsis
       FROM proposals p
       WHERE ${pendingClause('proposal', 'p.id')}
+        AND NULLIF(TRIM(COALESCE(title,'') || ' ' || COALESCE(description,'')), '') IS NOT NULL
       ORDER BY id DESC
     `),
   ]);
@@ -490,7 +495,8 @@ async function processMultiBatch(
   for (const chunk of chunks) {
     const settled = await Promise.allSettled(
       chunk.map(async (entity) => {
-        const synopsis = entity.synopsis.slice(0, 600);
+        const synopsis = (entity.synopsis ?? '').trim().slice(0, 600);
+        if (!synopsis) return null;
 
         const prompt =
 `You are assessing Scottish legislation for relevance to each of ${topics.length} subject areas.
