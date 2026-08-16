@@ -21,7 +21,7 @@ function costMicro(inputTok: number, outputTok: number) {
   return inputTok * INPUT_MICRO_PER_TOKEN + outputTok * OUTPUT_MICRO_PER_TOKEN;
 }
 
-type TopicRow = { id: number; name: string };
+type TopicRow = { id: number; name: string; description: string | null };
 type PrincipleRow = { title: string };
 type EntityRow = { entity_type: string; entity_id: number; synopsis: string };
 
@@ -36,13 +36,13 @@ export async function GET(req: Request) {
   const [topicsRes, statsRes, budgetRes] = await Promise.all([
     // Topics with last-run info and pending count
     tq<{
-      id: number; name: string;
+      id: number; name: string; description: string | null;
       last_run_at: string | null;
       scored_count: number;
       principles_changed_at: string | null;
     }>(`
       SELECT
-        nt.id, nt.name,
+        nt.id, nt.name, nt.description,
         MAX(la.created_at)::text                                                AS last_run_at,
         COUNT(la.id)::int                                                       AS scored_count,
         MAX(np.updated_at)::text                                                AS principles_changed_at
@@ -133,8 +133,8 @@ export async function POST(req: Request) {
   // Get topics to analyse
   const topicsRes = await tq<TopicRow>(
     topic_id
-      ? `SELECT id, name FROM nsp_topics WHERE id = $1 AND tenant_id = current_setting('app.tenant_id')::int`
-      : `SELECT id, name FROM nsp_topics WHERE tenant_id = current_setting('app.tenant_id')::int ORDER BY name`,
+      ? `SELECT id, name, description FROM nsp_topics WHERE id = $1 AND tenant_id = current_setting('app.tenant_id')::int`
+      : `SELECT id, name, description FROM nsp_topics WHERE tenant_id = current_setting('app.tenant_id')::int ORDER BY sort_order, name`,
     topic_id ? [topic_id] : []
   );
   const topics = topicsRes.rows;
@@ -158,7 +158,6 @@ export async function POST(req: Request) {
       [topic.id]
     );
     const principles = princRes.rows;
-    if (principles.length === 0) continue; // no principles to analyse against
 
     // Full re-run: wipe existing scores for this topic first
     if (full_rerun) {
@@ -175,7 +174,7 @@ export async function POST(req: Request) {
     const batch = entities.slice(0, BATCH_SIZE);
 
     // Process batch with concurrency
-    const results = await processBatch(anthropic, topic, principles, batch);
+    const results = await processBatch(anthropic, topic, principles, batch, topic.description);
 
     // Persist results
     const client = await pool.connect();
@@ -294,9 +293,13 @@ async function processBatch(
   anthropic: Anthropic,
   topic: TopicRow,
   principles: PrincipleRow[],
-  entities: EntityRow[]
+  entities: EntityRow[],
+  topicDescription: string | null = null,
 ): Promise<(AnalysisResult | null)[]> {
-  const principleList = principles.map(p => `• ${p.title}`).join('\n');
+  const hasPrinciples = principles.length > 0;
+  const principleList = hasPrinciples
+    ? principles.map(p => `• ${p.title}`).join('\n')
+    : null;
 
   const results: (AnalysisResult | null)[] = new Array(entities.length).fill(null);
   const chunks: EntityRow[][] = [];
@@ -309,12 +312,18 @@ async function processBatch(
     const settled = await Promise.allSettled(
       chunk.map(async (entity) => {
         const synopsis = entity.synopsis.slice(0, 800);
-        const prompt =
-`You are assessing Scottish legislation for relevance to a policy topic.
 
-Topic: ${topic.name}
-Key principles:
-${principleList}
+        const contextBlock = hasPrinciples
+          ? `Key principles:\n${principleList}`
+          : topicDescription
+            ? `Description: ${topicDescription}`
+            : '';
+
+        const prompt =
+`You are assessing Scottish legislation for relevance to a subject area.
+
+Subject area: ${topic.name}
+${contextBlock}
 
 Item: ${synopsis}
 
@@ -322,7 +331,7 @@ Rate relevance 1–10:
 1–3 = minimal or no relevance
 4–6 = moderate or indirect relevance
 7–8 = significant relevance
-9–10 = directly addresses core principles
+9–10 = directly addresses this subject area
 
 Reply ONLY with valid JSON: {"score": N, "rationale": "one sentence, max 100 chars"}`;
 
