@@ -206,7 +206,7 @@ export default function PrinciplesPage({ userId, isSysAdmin, canManage }: Props)
   const nextVersion = (activeTopic?.current_set?.version ?? 0) + 1;
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6">
 
       {/* Page title */}
       <div>

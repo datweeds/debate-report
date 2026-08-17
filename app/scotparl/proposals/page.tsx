@@ -203,7 +203,7 @@ export default async function ProposalsPage({ searchParams }: Props) {
   const mine        = session && !session.isSysAdmin ? rows.filter(p => p.proposer_id === session.sub && p.status !== 'accepted') : [];
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-100">Proposals</h1>
