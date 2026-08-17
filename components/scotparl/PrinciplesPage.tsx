@@ -53,6 +53,7 @@ type Props = {
   userHandle: string | null;
   isSysAdmin: boolean;
   canManage: boolean;
+  siteName?: string | null;
 };
 
 function fmtDate(d: string) {
@@ -62,7 +63,7 @@ function fmtDate(d: string) {
 const BLANK_FORM = { title: '', body: '', grounding: '' };
 const BLANK_TOPIC = { name: '', description: '' };
 
-export default function PrinciplesPage({ userId, isSysAdmin, canManage }: Props) {
+export default function PrinciplesPage({ userId, isSysAdmin, canManage, siteName }: Props) {
   const [data, setData] = useState<PageData | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [activeTopicId, setActiveTopicId] = useState<number | null>(null);
@@ -210,39 +211,35 @@ export default function PrinciplesPage({ userId, isSysAdmin, canManage }: Props)
 
       {/* Page title */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-100">New Society Principles</h1>
+        <h1 className="text-2xl font-bold text-slate-100">{siteName ? `${siteName} Principles` : 'Principles'}</h1>
         <p className="text-slate-400 text-sm mt-1">
           Principles that guide proposals and legislative priorities, grouped by topic.
         </p>
       </div>
 
-      {/* ── Topic tabs ── */}
-      <div className="flex items-end gap-0 border-b border-slate-800 overflow-x-auto scrollbar-none">
-        {data.topics.map(t => (
-          <button
-            key={t.id}
-            onClick={() => {
-              setActiveTopicId(t.id);
-              setEditingPrincipleId(null);
-              setShowAddForm(false);
-              setShowNewSet(false);
-            }}
-            className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              t.id === activeTopicId
-                ? 'text-blue-400 border-blue-500'
-                : 'text-slate-400 border-transparent hover:text-slate-200 hover:border-slate-600'
-            }`}
-          >
-            {t.name}
-            {t.current_set && (
-              <span className="text-xs text-slate-600 font-normal">v{t.current_set.version}</span>
-            )}
-          </button>
-        ))}
+      {/* ── Topic selector ── */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <select
+          value={activeTopicId ?? ''}
+          onChange={e => {
+            const id = Number(e.target.value) || null;
+            setActiveTopicId(id);
+            setEditingPrincipleId(null);
+            setShowAddForm(false);
+            setShowNewSet(false);
+          }}
+          className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-slate-500"
+        >
+          {data.topics.map(t => (
+            <option key={t.id} value={t.id}>
+              {t.name}{t.current_set ? ` (v${t.current_set.version})` : ''}
+            </option>
+          ))}
+        </select>
         {isSysAdmin && (
           <button
             onClick={() => setShowNewTopic(true)}
-            className="flex-shrink-0 flex items-center gap-1 px-3 py-2.5 text-sm text-slate-500 hover:text-blue-400 border-b-2 border-transparent transition-colors"
+            className="flex items-center gap-1 text-sm text-slate-500 hover:text-blue-400 transition-colors"
           >
             <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />

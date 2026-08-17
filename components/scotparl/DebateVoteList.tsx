@@ -16,6 +16,8 @@ export type DebateVoteItem = {
   entity_type: string;
   entity_id: string;
   entity_title: string;
+  topic_id: number | null;
+  topic_name: string | null;
 };
 
 const PVC_BASE = 'https://poll.voter.care';
@@ -130,18 +132,20 @@ function ItemCard({ item }: { item: DebateVoteItem }) {
 type KindFilter   = 'all' | 'debate' | 'vote';
 type StatusFilter = 'all' | 'open'   | 'closed';
 
-export default function DebateVoteList({ items }: { items: DebateVoteItem[] }) {
-  const [search,     setSearch]     = useState('');
-  const [kind,       setKind]       = useState<KindFilter>('all');
-  const [status,     setStatus]     = useState<StatusFilter>('all');
-  const [dateFrom,   setDateFrom]   = useState('');
-  const [dateTo,     setDateTo]     = useState('');
+export default function DebateVoteList({ items, topics = [] }: { items: DebateVoteItem[]; topics?: { id: number; name: string }[] }) {
+  const [search,      setSearch]      = useState('');
+  const [kind,        setKind]        = useState<KindFilter>('all');
+  const [status,      setStatus]      = useState<StatusFilter>('all');
+  const [dateFrom,    setDateFrom]    = useState('');
+  const [dateTo,      setDateTo]      = useState('');
+  const [topicFilter, setTopicFilter] = useState('');
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return items.filter(item => {
       if (kind   !== 'all' && item.kind   !== kind)   return false;
       if (status !== 'all' && item.status !== status) return false;
+      if (topicFilter && item.topic_id !== Number(topicFilter)) return false;
       if (dateFrom) {
         if (new Date(item.created_at).toISOString().slice(0, 10) < dateFrom) return false;
       }
@@ -154,9 +158,9 @@ export default function DebateVoteList({ items }: { items: DebateVoteItem[] }) {
         item.entity_title.toLowerCase().includes(q)
       );
     });
-  }, [items, search, kind, status, dateFrom, dateTo]);
+  }, [items, search, kind, status, dateFrom, dateTo, topicFilter]);
 
-  const hasFilters = !!(search || kind !== 'all' || status !== 'all' || dateFrom || dateTo);
+  const hasFilters = !!(search || kind !== 'all' || status !== 'all' || dateFrom || dateTo || topicFilter);
 
   function clearFilters() {
     setSearch('');
@@ -164,6 +168,7 @@ export default function DebateVoteList({ items }: { items: DebateVoteItem[] }) {
     setStatus('all');
     setDateFrom('');
     setDateTo('');
+    setTopicFilter('');
   }
 
   function ToggleGroup<T extends string>({ value, options, onChange }: {
@@ -210,6 +215,18 @@ export default function DebateVoteList({ items }: { items: DebateVoteItem[] }) {
           onChange={setStatus}
         />
       </div>
+      {topics.length > 0 && (
+        <div className="flex items-center gap-2">
+          <select
+            value={topicFilter}
+            onChange={e => setTopicFilter(e.target.value)}
+            className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-slate-500"
+          >
+            <option value="">All Topics</option>
+            {topics.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+        </div>
+      )}
       <div className="flex flex-wrap gap-2 items-center">
         <label className="text-xs text-slate-500 whitespace-nowrap">From</label>
         <input

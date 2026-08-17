@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { tq } from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import TopicDropdown from '@/components/scotparl/TopicDropdown';
 
 export const metadata: Metadata = { title: 'Proposals' };
 export const dynamic = 'force-dynamic';
@@ -230,22 +231,8 @@ export default async function ProposalsPage({ searchParams }: Props) {
 
       {/* Topic filter */}
       {topicRows.length > 0 && (
-        <div className="mb-5 flex flex-wrap gap-2">
-          <Link
-            href="/scotparl/proposals"
-            className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${!topicId ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-700 text-slate-400 hover:text-slate-200'}`}
-          >
-            All
-          </Link>
-          {topicRows.map(t => (
-            <Link
-              key={t.id}
-              href={`/scotparl/proposals?topic_id=${t.id}`}
-              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${topicId === t.id ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-700 text-slate-400 hover:text-slate-200'}`}
-            >
-              {t.name}
-            </Link>
-          ))}
+        <div className="mb-5">
+          <TopicDropdown topics={topicRows} selectedId={topicId} basePath="/scotparl/proposals" />
         </div>
       )}
 
