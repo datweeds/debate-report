@@ -26,7 +26,7 @@ type AdminRole = { isCustomerAdmin: boolean; isTopicOwner: boolean; isScotparlMo
 
 function NavLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-600 select-none">
+    <p className="px-3 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-widest text-slate-600 select-none">
       {children}
     </p>
   );
@@ -54,7 +54,7 @@ function NavLink({
   badge?: string;
 }) {
   const isActive = !external && (pathname === href || (href !== '/' && pathname.startsWith(href)));
-  const cls = `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+  const cls = `flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors ${
     isActive ? 'bg-blue-500/15 text-blue-300 font-medium' : 'text-slate-300 hover:bg-blue-500/10 hover:text-blue-300'
   }`;
   const content = (
