@@ -79,6 +79,29 @@ export default function PrinciplesPage({ userId, isSysAdmin, canManage, siteName
   const [showNewSet, setShowNewSet] = useState(false);
   const [newSetDesc, setNewSetDesc] = useState('');
 
+  // Favourite principle IDs
+  const [favPrincipleIds, setFavPrincipleIds] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    if (!userId) return;
+    fetch('/api/user/scotparl-favs')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.principles) setFavPrincipleIds(new Set(d.principles)); })
+      .catch(() => {});
+  }, [userId]);
+
+  async function togglePrincipleFav(id: number) {
+    const res = await fetch(`/api/scotparl/principles/${id}/favourite`, { method: 'POST' });
+    if (res.ok) {
+      const d = await res.json();
+      setFavPrincipleIds(prev => {
+        const next = new Set(prev);
+        if (d.isFavourite) next.add(id); else next.delete(id);
+        return next;
+      });
+    }
+  }
+
   // Principle editing
   const [editingPrincipleId, setEditingPrincipleId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState(BLANK_FORM);
@@ -470,17 +493,30 @@ export default function PrinciplesPage({ userId, isSysAdmin, canManage, siteName
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between gap-3">
                               <h3 className="text-base font-semibold text-slate-100 leading-snug">{p.title}</h3>
-                              {isSysAdmin && (
-                                <div className="flex items-center gap-1 flex-shrink-0 -mt-0.5">
+                              <div className="flex items-center gap-1 flex-shrink-0 -mt-0.5">
+                                {userId && (
                                   <button
-                                    onClick={() => { setEditingPrincipleId(p.id); setEditForm({ title: p.title, body: p.body, grounding: p.grounding }); }}
-                                    className="rounded px-2 py-1 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 transition-colors"
-                                  >Edit</button>
-                                  <button onClick={() => deletePrinciple(p.id)}
-                                    className="rounded px-2 py-1 text-xs text-rose-500/80 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
-                                  >Delete</button>
-                                </div>
-                              )}
+                                    onClick={() => togglePrincipleFav(p.id)}
+                                    aria-label={favPrincipleIds.has(p.id) ? 'Remove from favourites' : 'Add to favourites'}
+                                    className={`rounded-full p-1 transition-colors ${favPrincipleIds.has(p.id) ? 'text-rose-400 hover:text-rose-300' : 'text-slate-600 hover:text-rose-400'}`}
+                                  >
+                                    <svg className="h-4 w-4" fill={favPrincipleIds.has(p.id) ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
+                                    </svg>
+                                  </button>
+                                )}
+                                {isSysAdmin && (
+                                  <>
+                                    <button
+                                      onClick={() => { setEditingPrincipleId(p.id); setEditForm({ title: p.title, body: p.body, grounding: p.grounding }); }}
+                                      className="rounded px-2 py-1 text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 transition-colors"
+                                    >Edit</button>
+                                    <button onClick={() => deletePrinciple(p.id)}
+                                      className="rounded px-2 py-1 text-xs text-rose-500/80 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                                    >Delete</button>
+                                  </>
+                                )}
+                              </div>
                             </div>
                             <p className="mt-2 text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">{p.body}</p>
                             {p.grounding && (

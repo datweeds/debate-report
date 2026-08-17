@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { tq } from '@/lib/db';
+import pool, { tq } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import TopicDropdown from '@/components/scotparl/TopicDropdown';
+import FavButton from '@/components/scotparl/FavButton';
 
 export const metadata: Metadata = { title: 'Proposals' };
 export const dynamic = 'force-dynamic';
@@ -39,12 +40,14 @@ function statusBadge(status: string) {
   return <span className={`inline-flex items-center rounded px-2 py-0.5 text-[11px] font-semibold leading-none ${cls}`}>{label}</span>;
 }
 
-function ProposalRow({ p, mine }: { p: Proposal; mine: boolean }) {
+function ProposalRow({ p, mine, isFav }: { p: Proposal; mine: boolean; isFav: boolean }) {
   return (
-    <Link
-      href={`/scotparl/proposals/${p.id}`}
-      className="block card-dr px-4 py-3 hover:border-blue-600/40 transition-colors"
-    >
+    <div className="card-dr hover:border-blue-600/40 transition-colors">
+      <div className="flex items-start gap-1">
+        <Link
+          href={`/scotparl/proposals/${p.id}`}
+          className="flex-1 min-w-0 px-4 py-3"
+        >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-slate-100 truncate">{p.title}</p>
@@ -98,17 +101,22 @@ function ProposalRow({ p, mine }: { p: Proposal; mine: boolean }) {
         </div>
         <div className="flex-shrink-0">{statusBadge(p.status)}</div>
       </div>
-    </Link>
+        </Link>
+        <div className="flex items-start pt-3 pr-2">
+          <FavButton endpoint={`/api/scotparl/proposals/${p.id}/favourite`} initialValue={isFav} />
+        </div>
+      </div>
+    </div>
   );
 }
 
-function Section({ title, proposals, mine = false }: { title: string; proposals: Proposal[]; mine?: boolean }) {
+function Section({ title, proposals, mine = false, favIds }: { title: string; proposals: Proposal[]; mine?: boolean; favIds: Set<number> }) {
   if (!proposals.length) return null;
   return (
     <section>
       <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">{title}</h2>
       <div className="space-y-2">
-        {proposals.map(p => <ProposalRow key={p.id} p={p} mine={mine} />)}
+        {proposals.map(p => <ProposalRow key={p.id} p={p} mine={mine} isFav={favIds.has(p.id)} />)}
       </div>
     </section>
   );
@@ -203,6 +211,14 @@ export default async function ProposalsPage({ searchParams }: Props) {
   const rejected    = rows.filter(p => p.status === 'rejected');
   const mine        = session && !session.isSysAdmin ? rows.filter(p => p.proposer_id === session.sub && p.status !== 'accepted') : [];
 
+  const favIds = new Set<number>(
+    session
+      ? await pool.query<{ proposal_id: number }>(`SELECT proposal_id FROM proposal_favs WHERE user_id = $1`, [session.sub])
+          .then(r => r.rows.map(r => r.proposal_id))
+          .catch(() => [])
+      : []
+  );
+
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
@@ -261,19 +277,19 @@ export default async function ProposalsPage({ searchParams }: Props) {
         <div className="space-y-6">
           {session?.isSysAdmin && (
             <>
-              <Section title="Needs Review" proposals={needsReview} />
-              <Section title="Accepted" proposals={accepted} />
-              <Section title="Rejected" proposals={rejected} />
+              <Section title="Needs Review" proposals={needsReview} favIds={favIds} />
+              <Section title="Accepted" proposals={accepted} favIds={favIds} />
+              <Section title="Rejected" proposals={rejected} favIds={favIds} />
             </>
           )}
           {session && !session.isSysAdmin && (
             <>
-              <Section title="Your Proposals" proposals={mine as Proposal[]} mine />
-              <Section title="Accepted Proposals" proposals={accepted} />
+              <Section title="Your Proposals" proposals={mine as Proposal[]} mine favIds={favIds} />
+              <Section title="Accepted Proposals" proposals={accepted} favIds={favIds} />
             </>
           )}
           {!session && (
-            <Section title="Accepted Proposals" proposals={accepted} />
+            <Section title="Accepted Proposals" proposals={accepted} favIds={new Set()} />
           )}
         </div>
       )}

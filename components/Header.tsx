@@ -302,13 +302,13 @@ export default function Header() {
           {/* ── NEW SOCIETY ── */}
           <NavLabel>New Society</NavLabel>
           <NavLink href="/scotparl/debates" onClick={close} pathname={pathname} icon={icons.debate}>
-            Debate &amp; Vote
-          </NavLink>
-          <NavLink href="/scotparl/bills" onClick={close} pathname={pathname} icon={icons.laws}>
-            Laws
+            Debates &amp; Votes
           </NavLink>
           <NavLink href="/scotparl/proposals" onClick={close} pathname={pathname} icon={icons.proposals}>
             Proposals
+          </NavLink>
+          <NavLink href="/scotparl/bills" onClick={close} pathname={pathname} icon={icons.laws}>
+            Laws
           </NavLink>
           <NavLink href="/scotparl/principles" onClick={close} pathname={pathname} icon={icons.principles}>
             Principles

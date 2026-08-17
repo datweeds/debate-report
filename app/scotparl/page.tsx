@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import pool, { tq } from '@/lib/db';
+import { tq } from '@/lib/db';
 import DateFilter from '@/components/scotparl/DateFilter';
+import ActivityList from '@/components/scotparl/ActivityList';
+import { getSession } from '@/lib/auth';
 
 export const metadata: Metadata = { title: 'Scottish Parliament' };
 export const dynamic = 'force-dynamic';
@@ -30,7 +32,8 @@ async function getTotals(): Promise<Counts> {
          JOIN nsp_topics nt          ON nt.id  = nps.topic_id)                                     AS principles
     `);
     return r as Counts;
-  } catch {
+  } catch (err) {
+    console.error('[getTotals]', err);
     return { proposals: 0, debates: 0, votes: 0, laws: 0, principles: 0 };
   }
 }
@@ -52,17 +55,19 @@ async function getSinceCounts(since: string): Promise<Counts> {
          WHERE np.created_at >= $1)                                                                 AS principles
     `, [since]);
     return r as Counts;
-  } catch {
+  } catch (err) {
+    console.error('[getSinceCounts]', err);
     return { proposals: 0, debates: 0, votes: 0, laws: 0, principles: 0 };
   }
 }
 
-type UpdateItem = {
+export type UpdateItem = {
   item_type: string;
   name: string;
   url: string;
   created_at: string;
   changed_at: string;
+  entity_id: string;
 };
 
 async function getRecentUpdates(since: string | null, limit: number): Promise<UpdateItem[]> {
@@ -70,48 +75,56 @@ async function getRecentUpdates(since: string | null, limit: number): Promise<Up
   const limitClause = since ? '' : `LIMIT ${limit}`;
   try {
     const { rows } = await tq<UpdateItem>(`
-      SELECT item_type, name, url, created_at, changed_at FROM (
+      SELECT item_type, name, url, created_at, changed_at, entity_id FROM (
         SELECT 'Proposal'  AS item_type, title AS name,
                '/scotparl/proposals/' || id    AS url,
-               created_at, updated_at           AS changed_at
+               created_at, updated_at           AS changed_at,
+               id::text                         AS entity_id
         FROM proposals
         UNION ALL
         SELECT 'Debate', s.stat_title,
                '/scotparl/debates',
-               sbd.created_at, sbd.created_at
+               sbd.created_at, sbd.created_at,
+               sbd.resolution_id::text
         FROM sp_bill_debates sbd
         JOIN statements s ON s.id = sbd.resolution_id
         UNION ALL
         SELECT 'Debate', s.stat_title,
                '/scotparl/debates',
-               spd.created_at, spd.created_at
+               spd.created_at, spd.created_at,
+               spd.resolution_id::text
         FROM sp_proposal_debates spd
         JOIN statements s ON s.id = spd.resolution_id
         UNION ALL
         SELECT 'Vote', b.short_name,
                '/scotparl/bills/' || p.sp_bill_id,
-               p.created_at, p.created_at
+               p.created_at, p.created_at,
+               p.sp_bill_id::text
         FROM sp_bill_pvc_polls p
         JOIN sp_bills b ON b.id = p.sp_bill_id
         UNION ALL
         SELECT 'Bill', b.short_name,
                '/scotparl/bills/' || b.id,
-               b.created_at, b.created_at
+               b.created_at, b.created_at,
+               b.id::text
         FROM sp_bills b
         UNION ALL
         SELECT 'Act', a.title,
                a.url,
-               a.created_at, a.created_at
+               a.created_at, a.created_at,
+               a.id::text
         FROM sp_acts a
         UNION ALL
         SELECT 'SSI', s.title,
                s.url,
-               s.created_at, s.created_at
+               s.created_at, s.created_at,
+               s.id::text
         FROM sp_ssis s
         UNION ALL
         SELECT 'Principle', np.title,
                '/scotparl/principles',
-               np.created_at, np.created_at
+               np.created_at, np.created_at,
+               np.id::text
         FROM nsp_principles np
         JOIN nsp_principle_sets nps ON nps.id = np.set_id
         JOIN nsp_topics nt          ON nt.id  = nps.topic_id
@@ -121,14 +134,10 @@ async function getRecentUpdates(since: string | null, limit: number): Promise<Up
       ${limitClause}
     `);
     return rows;
-  } catch {
+  } catch (err) {
+    console.error('[getRecentUpdates]', err);
     return [];
   }
-}
-
-function fmt(date: string | null) {
-  if (!date) return '—';
-  return new Date(date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 function parseSince(raw: string | undefined): string | null {
@@ -136,16 +145,6 @@ function parseSince(raw: string | undefined): string | null {
   const d = new Date(raw);
   return isNaN(d.getTime()) ? null : raw;
 }
-
-const TYPE_COLOURS: Record<string, string> = {
-  Proposal:  'bg-violet-500/10 text-violet-300 border-violet-500/20',
-  Debate:    'bg-blue-500/10   text-blue-300   border-blue-500/20',
-  Vote:      'bg-emerald-500/10 text-emerald-300 border-emerald-500/20',
-  Act:       'bg-amber-500/10  text-amber-300   border-amber-500/20',
-  Bill:      'bg-blue-500/10   text-blue-300    border-blue-500/20',
-  SSI:       'bg-teal-500/10   text-teal-300    border-teal-500/20',
-  Principle: 'bg-rose-500/10   text-rose-300    border-rose-500/20',
-};
 
 const METRIC_CONFIG = [
   { key: 'proposals' as keyof Counts,  label: 'Proposals',  href: '/scotparl/proposals', colour: 'text-violet-400',  bg: 'border-violet-800/30 bg-violet-500/5' },
@@ -160,8 +159,12 @@ export default async function ScotparlPage({
 }: {
   searchParams: Promise<{ since?: string }>;
 }) {
-  const { since: rawSince } = await searchParams;
+  const [{ since: rawSince }, session] = await Promise.all([
+    searchParams,
+    getSession().catch(() => null),
+  ]);
   const since = parseSince(rawSince);
+  const isLoggedIn = !!session;
 
   const [totals, sinceCounts, updates] = await Promise.all([
     getTotals(),
@@ -184,7 +187,7 @@ export default async function ScotparlPage({
             Activity across laws, debates, proposals, and principles.
           </p>
         </div>
-        <DateFilter since={since ?? undefined} pathname="/scotparl" />
+        <DateFilter since={since ?? undefined} pathname="/scotparl" isLoggedIn={isLoggedIn} />
       </div>
 
       {/* Totals row */}
@@ -226,51 +229,12 @@ export default async function ScotparlPage({
       )}
 
       {/* Recent updates */}
-      {updates.length > 0 && (
-        <div className="card-dr">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
-            <h2 className="text-base font-semibold text-slate-100">
-              {since ? `All changes since ${sinceLabel}` : 'Recent Updates'}
-            </h2>
-            {!since && <span className="text-xs text-slate-600">15 most recent</span>}
-          </div>
-          <ul className="divide-y divide-slate-800/60">
-            {updates.map((u, i) => {
-              const isExternal = u.url.startsWith('http');
-              const inner = (
-                <>
-                  <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-xs font-medium border ${TYPE_COLOURS[u.item_type] ?? 'bg-slate-500/10 text-slate-400 border-slate-500/20'}`}>
-                    {u.item_type}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-slate-200 truncate">{u.name}</p>
-                  </div>
-                  <div className="flex-shrink-0 text-right hidden sm:block">
-                    <p className="text-xs text-slate-600">Created {fmt(u.created_at)}</p>
-                    {u.changed_at !== u.created_at && (
-                      <p className="text-xs text-slate-500">Updated {fmt(u.changed_at)}</p>
-                    )}
-                  </div>
-                </>
-              );
-              return (
-                <li key={i}>
-                  {isExternal ? (
-                    <a href={u.url} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-3 px-5 py-3 hover:bg-slate-800/40 transition-colors">
-                      {inner}
-                    </a>
-                  ) : (
-                    <Link href={u.url} className="flex items-center gap-3 px-5 py-3 hover:bg-slate-800/40 transition-colors">
-                      {inner}
-                    </Link>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
+      <ActivityList
+        updates={updates}
+        since={since}
+        sinceLabel={sinceLabel}
+        isLoggedIn={isLoggedIn}
+      />
 
     </div>
   );

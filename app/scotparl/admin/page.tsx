@@ -16,7 +16,7 @@ interface Counts {
 }
 interface RecentProposal { id: number; title: string; status: string; updated_at: string; topic_name: string | null; }
 interface TopicOwnerRow { user_id: string; handle: string; topics: { id: number; name: string }[]; }
-interface SiteConfig { name: string; hero_text: string; hero_image: string; contact_email: string; }
+interface SiteConfig { name: string; hero_text: string; hero_image: string; contact_email: string; description: string; is_public: boolean; }
 
 const STATUS_BADGE: Record<string, string> = {
   proposed: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
@@ -213,7 +213,7 @@ function StraplineEditor({ me }: { me: MeData }) {
 // ── Site Settings tab (CustomerAdmin only) ────────────────────────────────────
 
 function SiteSettingsTab() {
-  const [form, setForm]       = useState<SiteConfig>({ name: '', hero_text: '', hero_image: '', contact_email: '' });
+  const [form, setForm]       = useState<SiteConfig>({ name: '', hero_text: '', hero_image: '', contact_email: '', description: '', is_public: true });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
   const [saved,  setSaved]    = useState(false);
@@ -222,7 +222,7 @@ function SiteSettingsTab() {
   useEffect(() => {
     fetch('/api/scotparl/admin/site-config')
       .then(r => r.json())
-      .then(d => setForm({ name: d.name ?? '', hero_text: d.hero_text ?? '', hero_image: d.hero_image ?? '', contact_email: d.contact_email ?? '' }))
+      .then(d => setForm({ name: d.name ?? '', hero_text: d.hero_text ?? '', hero_image: d.hero_image ?? '', contact_email: d.contact_email ?? '', description: d.description ?? '', is_public: d.is_public ?? true }))
       .finally(() => setLoading(false));
   }, []);
 
@@ -246,6 +246,7 @@ function SiteSettingsTab() {
       {err && <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">{err}</p>}
       {([
         { label: 'Site Title',     key: 'name'          as const, placeholder: 'e.g. Scottish Parliament Hub' },
+        { label: 'Description',    key: 'description'   as const, placeholder: 'Short description shown on the new.vote home page' },
         { label: 'Hero Text',      key: 'hero_text'     as const, placeholder: 'Short tagline shown on the homepage' },
         { label: 'Hero Image URL', key: 'hero_image'    as const, placeholder: 'https://…' },
         { label: 'Contact Email',  key: 'contact_email' as const, placeholder: 'contact@example.com' },
@@ -260,6 +261,30 @@ function SiteSettingsTab() {
           />
         </div>
       ))}
+      {/* Visibility */}
+      <div>
+        <label className="block text-xs font-medium text-slate-400 mb-2">Society Visibility</label>
+        <div className="flex items-center gap-3">
+          {([
+            { value: true,  label: 'Public',  desc: 'Anyone can view and enter' },
+            { value: false, label: 'Private', desc: 'Members only' },
+          ] as { value: boolean; label: string; desc: string }[]).map(opt => (
+            <button
+              key={String(opt.value)}
+              type="button"
+              onClick={() => setForm(p => ({ ...p, is_public: opt.value }))}
+              className={`flex-1 rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                form.is_public === opt.value
+                  ? 'border-blue-500/50 bg-blue-500/10 text-blue-200'
+                  : 'border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-500'
+              }`}
+            >
+              <p className="text-sm font-medium">{opt.label}</p>
+              <p className="text-xs opacity-70 mt-0.5">{opt.desc}</p>
+            </button>
+          ))}
+        </div>
+      </div>
       <button
         onClick={save}
         disabled={saving}

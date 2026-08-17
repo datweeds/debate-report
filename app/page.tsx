@@ -3,7 +3,15 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
-import { SUBJECT_LABELS, SUBJECT_COLOURS } from '@/components/chamber/constants';
+
+type Society = {
+  id: number;
+  name: string;
+  subdomain: string;
+  description: string | null;
+  is_public: boolean;
+  is_member: boolean;
+};
 
 const SUBJECT_AREAS = [
   { label: 'Culture, Identity & Social Issues', emoji: '🎭', slug: 'culture' },
@@ -20,75 +28,21 @@ const SUBJECT_AREAS = [
   { label: 'Science & Technology',              emoji: '🔬', slug: 'science' },
 ];
 
-type DebateRow = { id: string; stat_title: string; subject_area?: string; vote_for?: number; vote_against?: number; chat_count?: number; statement_count?: number; science_count?: number };
-
-function DebateStatsMeta({ row }: { row: DebateRow }) {
-  return (
-    <div className="flex items-center gap-2 mt-1 flex-wrap">
-      {row.subject_area && (
-        <span className={`rounded-full px-2 py-0.5 text-xs font-bold border ${SUBJECT_COLOURS[row.subject_area] ?? 'bg-slate-700 text-slate-400 border-slate-600'}`}>
-          {SUBJECT_LABELS[row.subject_area] ?? row.subject_area}
-        </span>
-      )}
-      {(row.statement_count ?? 0) > 0 && (
-        <span className="flex items-center gap-1 text-xs text-slate-500" title="Statements">
-          <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />
-          </svg>
-          {row.statement_count}
-        </span>
-      )}
-      {((row.vote_for ?? 0) > 0 || (row.vote_against ?? 0) > 0) && (
-        <span className="flex items-center gap-1 text-xs">
-          <span className="text-emerald-500">{row.vote_for ?? 0}↑</span>
-          <span className="text-rose-500">{row.vote_against ?? 0}↓</span>
-        </span>
-      )}
-      {(row.science_count ?? 0) > 0 && (
-        <span className="flex items-center gap-1 text-xs text-violet-400" title="Science Reports">
-          <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 0 1 4.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0 1 12 15a9.065 9.065 0 0 0-6.23-.693L5 14.5m14.8.8 1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0 1 12 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" />
-          </svg>
-          {row.science_count}
-        </span>
-      )}
-      {(row.chat_count ?? 0) > 0 && (
-        <span className="flex items-center gap-1 text-xs text-slate-500" title="Chat messages">
-          <svg className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
-          </svg>
-          {row.chat_count}
-        </span>
-      )}
-    </div>
-  );
-}
 
 export default function HomePage() {
-  const [subjectsOpen, setSubjectsOpen] = useState(false);
   const { user } = useAuth();
+  const [subjectsOpen, setSubjectsOpen] = useState(false);
+  const [societies, setSocieties] = useState<Society[] | null>(null);
 
-  const [favourites,    setFavourites]    = useState<DebateRow[] | null>(null);
-  const [hotDebates,    setHotDebates]    = useState<DebateRow[] | null>(null);
-  const [hotLoading,    setHotLoading]    = useState(true);
-
-  // Fetch "What's Hot" for everyone
   useEffect(() => {
-    fetch('/api/debates/hot')
+    fetch('/api/societies')
       .then(r => r.ok ? r.json() : [])
-      .then(setHotDebates)
-      .catch(() => setHotDebates([]))
-      .finally(() => setHotLoading(false));
-  }, []);
+      .then(setSocieties)
+      .catch(() => setSocieties([]));
+  }, [user]); // re-fetch when login state changes
 
-  // Fetch favourites when logged in
-  useEffect(() => {
-    if (!user) { setFavourites(null); return; }
-    fetch('/api/user/favourites')
-      .then(r => r.ok ? r.json() : [])
-      .then(setFavourites)
-      .catch(() => setFavourites([]));
-  }, [user]);
+  const publicSocieties  = societies?.filter(s => s.is_public)  ?? [];
+  const privateSocieties = societies?.filter(s => !s.is_public) ?? [];
 
   return (
     <div className="flex flex-col">
@@ -142,26 +96,14 @@ export default function HomePage() {
             evidence-led.
           </p>
 
-          {/* CTAs */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link
-              href="/chamber"
-              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:bg-blue-500 hover:shadow-blue-500/25 hover:shadow-xl active:scale-[0.98]"
-            >
-              Enter the Chamber
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
-              </svg>
+          <p className="text-sm text-slate-500">
+            Choose a society below to enter the debate, or{' '}
+            <Link href="/about" className="text-blue-500 hover:text-blue-400 underline underline-offset-2 transition-colors">
+              learn how it works
             </Link>
-            <Link
-              href="/about"
-              className="dr-btn-ghost inline-flex items-center gap-2 rounded-xl border border-slate-600 px-6 py-3 text-sm font-medium text-slate-300 transition-colors"
-            >
-              How it works
-            </Link>
-          </div>
-
-          <p className="mt-8 text-xs text-slate-600">
+            .
+          </p>
+          <p className="mt-4 text-xs text-slate-600">
             Stay informed —{' '}
             <Link href="/blog" className="text-blue-500 hover:text-blue-400 underline underline-offset-2 transition-colors">
               read the blog &amp; subscribe
@@ -184,6 +126,80 @@ export default function HomePage() {
               <p className="text-xs text-slate-500 mt-0.5">{s.label}</p>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* ── Society lists ─────────────────────────────────────── */}
+      <div className="bg-dr-base px-4 sm:px-6 pb-4 space-y-4">
+        <div className="mx-auto max-w-5xl space-y-4">
+
+          {/* Public Societies */}
+          {societies === null ? (
+            <div className="card-dr px-5 py-6 text-center text-slate-600 text-sm italic">Loading societies…</div>
+          ) : publicSocieties.length > 0 ? (
+            <div className="card-dr overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-800/60">
+                <h2 className="text-base font-semibold text-slate-100">Open Societies</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Public debate platforms — open to everyone</p>
+              </div>
+              <div className="divide-y divide-slate-800/60">
+                {publicSocieties.map(s => (
+                  <div key={s.id} className="px-5 py-4 flex items-center justify-between gap-4 flex-wrap">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-200">{s.name}</p>
+                      {s.description && <p className="text-xs text-slate-500 mt-0.5">{s.description}</p>}
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Link
+                        href="/chamber"
+                        className="rounded-lg border border-blue-700/40 px-3 py-1.5 text-xs font-medium text-blue-400 hover:bg-blue-500/10 transition-colors"
+                      >
+                        Debate Chamber
+                      </Link>
+                      <Link
+                        href="/scotparl"
+                        className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 transition-colors"
+                      >
+                        Society House →
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {/* Private Societies (logged-in members only) */}
+          {user && privateSocieties.length > 0 && (
+            <div className="card-dr overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-800/60">
+                <h2 className="text-base font-semibold text-slate-100">Your Private Societies</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Closed platforms — members only</p>
+              </div>
+              <div className="divide-y divide-slate-800/60">
+                {privateSocieties.map(s => (
+                  <div key={s.id} className="px-5 py-4 flex items-center justify-between gap-4 flex-wrap">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-200">{s.name}</p>
+                      {s.description && <p className="text-xs text-slate-500 mt-0.5">{s.description}</p>}
+                      <span className="inline-flex items-center gap-1 mt-1 rounded bg-slate-700/50 px-1.5 py-0.5 text-[10px] text-slate-400 border border-slate-700/60">
+                        🔒 Private
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Link href="/chamber" className="rounded-lg border border-blue-700/40 px-3 py-1.5 text-xs font-medium text-blue-400 hover:bg-blue-500/10 transition-colors">
+                        Debate Chamber
+                      </Link>
+                      <Link href="/scotparl" className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 transition-colors">
+                        Society House →
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
 
@@ -224,74 +240,6 @@ export default function HomePage() {
                   </Link>
                 ))}
               </div>
-            )}
-          </div>
-
-          {/* Your Favourites */}
-          <div className="card-dr px-5 py-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-base font-semibold text-slate-200">Your Favourite Debates</h2>
-                <p className="text-xs text-slate-500 mt-0.5">Debates you have bookmarked</p>
-              </div>
-            </div>
-            {!user ? (
-              <div className="rounded-lg border border-blue-900/15 bg-dr-base/60 px-6 py-6 text-center">
-                <p className="text-sm text-slate-400 mb-3">Log in to see your favourite debates</p>
-                <Link href="/login" className="rounded-lg border border-blue-700/40 px-4 py-2 text-sm font-medium text-blue-400 hover:bg-blue-500/10 transition-colors">
-                  Log in
-                </Link>
-              </div>
-            ) : favourites === null ? (
-              <p className="text-sm text-slate-600 italic">Loading…</p>
-            ) : favourites.length === 0 ? (
-              <p className="text-sm text-slate-500 italic">No favourites yet — star a debate in the Chamber to see it here.</p>
-            ) : (
-              <ul className="divide-y divide-slate-800/60">
-                {favourites.map(d => (
-                  <li key={d.id}>
-                    <Link
-                      href={`/chamber?resolution=${d.id}`}
-                      className="block rounded-lg px-3 py-2.5 hover:bg-slate-800/60 transition-colors"
-                    >
-                      <p className="text-sm text-slate-200 font-medium leading-snug">{d.stat_title}</p>
-                      <DebateStatsMeta row={d} />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          {/* What's Hot */}
-          <div className="card-dr px-5 py-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-base font-semibold text-slate-200">What&apos;s Hot</h2>
-                <p className="text-xs text-slate-500 mt-0.5">Most recently active debates</p>
-              </div>
-              <Link href="/chamber" className="text-xs text-blue-500 hover:text-blue-400 transition-colors">
-                Open Chamber →
-              </Link>
-            </div>
-            {hotLoading ? (
-              <p className="text-sm text-slate-600 italic">Loading…</p>
-            ) : !hotDebates || hotDebates.length === 0 ? (
-              <p className="text-sm text-slate-500 italic">No debates yet.</p>
-            ) : (
-              <ul className="divide-y divide-slate-800/60">
-                {hotDebates.map(d => (
-                  <li key={d.id}>
-                    <Link
-                      href={`/chamber?resolution=${d.id}`}
-                      className="block rounded-lg px-3 py-2.5 hover:bg-slate-800/60 transition-colors"
-                    >
-                      <p className="text-sm text-slate-200 font-medium leading-snug">{d.stat_title}</p>
-                      <DebateStatsMeta row={d} />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
             )}
           </div>
 

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import pool, { tq } from '@/lib/db';
 import DebateVoteList, { type DebateVoteItem } from '@/components/scotparl/DebateVoteList';
+import { getSession } from '@/lib/auth';
 
 export const metadata: Metadata = { title: 'Debates & Votes' };
 export const dynamic = 'force-dynamic';
@@ -11,9 +12,10 @@ export default async function DebatesPage() {
   let items: DebateVoteItem[] = [];
   let topics: { id: number; name: string }[] = [];
   let siteName: string | null = null;
+  let isLoggedIn = false;
 
   try {
-    const [itemsRes, topicsRes, nameRes] = await Promise.all([
+    const [itemsRes, topicsRes, nameRes, session] = await Promise.all([
       tq<DebateVoteItem>(`
         -- Bill debates
         SELECT
@@ -116,10 +118,12 @@ export default async function DebatesPage() {
       ).catch(() => ({ rows: [] as { id: number; name: string }[] })),
       pool.query<{ name: string }>(`SELECT name FROM customers WHERE id = $1`, [TENANT_ID])
         .catch(() => ({ rows: [] })),
+      getSession().catch(() => null),
     ]);
-    items    = itemsRes.rows;
-    topics   = topicsRes.rows;
-    siteName = nameRes.rows[0]?.name ?? null;
+    items      = itemsRes.rows;
+    topics     = topicsRes.rows;
+    siteName   = nameRes.rows[0]?.name ?? null;
+    isLoggedIn = !!session;
   } catch {
     // tables not yet populated
   }
@@ -138,7 +142,7 @@ export default async function DebatesPage() {
           <p className="text-slate-400">No debates or votes yet.</p>
         </div>
       ) : (
-        <DebateVoteList items={items} topics={topics} />
+        <DebateVoteList items={items} topics={topics} isLoggedIn={isLoggedIn} />
       )}
     </div>
   );

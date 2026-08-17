@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 
 export type DebateVoteItem = {
@@ -45,7 +45,7 @@ function ResultBar({ vFor, vAgainst }: { vFor: number; vAgainst: number }) {
   );
 }
 
-function ItemCard({ item }: { item: DebateVoteItem }) {
+function ItemCard({ item, isFav, onFavToggle }: { item: DebateVoteItem; isFav: boolean; onFavToggle: (e: React.MouseEvent, id: string) => void }) {
   const entityHref = `${item.entity_type === 'bill' ? '/scotparl/bills/' : '/scotparl/proposals/'}${item.entity_id}`;
   const itemHref   = item.kind === 'debate'
     ? `/chamber?resolution=${item.id}`
@@ -110,21 +110,34 @@ function ItemCard({ item }: { item: DebateVoteItem }) {
         </div>
       </div>
 
-      {/* Action link */}
-      <a
-        href={itemHref}
-        target={item.kind === 'vote' ? '_blank' : undefined}
-        rel={item.kind === 'vote' ? 'noopener noreferrer' : undefined}
-        className={`flex-shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-          isOpen
-            ? item.kind === 'debate'
-              ? 'bg-blue-600/80 hover:bg-blue-600 text-white'
-              : 'bg-amber-600/80 hover:bg-amber-600 text-white'
-            : 'border border-slate-600/50 text-slate-400 hover:text-slate-200 hover:border-slate-500'
-        }`}
-      >
-        {item.kind === 'debate' ? 'Open →' : 'Vote →'}
-      </a>
+      {/* Right column: fav + action */}
+      <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
+        {item.kind === 'debate' && (
+          <button
+            onClick={e => onFavToggle(e, item.id)}
+            aria-label={isFav ? 'Remove from favourites' : 'Add to favourites'}
+            className={`rounded-full p-1 transition-colors ${isFav ? 'text-rose-400 hover:text-rose-300' : 'text-slate-600 hover:text-rose-400'}`}
+          >
+            <svg className="h-4 w-4" fill={isFav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
+            </svg>
+          </button>
+        )}
+        <a
+          href={itemHref}
+          target={item.kind === 'vote' ? '_blank' : undefined}
+          rel={item.kind === 'vote' ? 'noopener noreferrer' : undefined}
+          className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+            isOpen
+              ? item.kind === 'debate'
+                ? 'bg-blue-600/80 hover:bg-blue-600 text-white'
+                : 'bg-amber-600/80 hover:bg-amber-600 text-white'
+              : 'border border-slate-600/50 text-slate-400 hover:text-slate-200 hover:border-slate-500'
+          }`}
+        >
+          {item.kind === 'debate' ? 'Open →' : 'Vote →'}
+        </a>
+      </div>
     </div>
   );
 }
@@ -132,13 +145,37 @@ function ItemCard({ item }: { item: DebateVoteItem }) {
 type KindFilter   = 'all' | 'debate' | 'vote';
 type StatusFilter = 'all' | 'open'   | 'closed';
 
-export default function DebateVoteList({ items, topics = [] }: { items: DebateVoteItem[]; topics?: { id: number; name: string }[] }) {
+export default function DebateVoteList({ items, topics = [], isLoggedIn = false }: { items: DebateVoteItem[]; topics?: { id: number; name: string }[]; isLoggedIn?: boolean }) {
   const [search,      setSearch]      = useState('');
   const [kind,        setKind]        = useState<KindFilter>('all');
   const [status,      setStatus]      = useState<StatusFilter>('all');
   const [dateFrom,    setDateFrom]    = useState('');
   const [dateTo,      setDateTo]      = useState('');
   const [topicFilter, setTopicFilter] = useState('');
+  const [favsOnly,    setFavsOnly]    = useState(false);
+  const [favIds,      setFavIds]      = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    fetch('/api/user/scotparl-favs')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.debates) setFavIds(new Set(d.debates)); })
+      .catch(() => {});
+  }, [isLoggedIn]);
+
+  async function toggleFav(e: React.MouseEvent, id: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    const res = await fetch(`/api/statements/${id}/favourite`, { method: 'POST' });
+    if (res.ok) {
+      const d = await res.json();
+      setFavIds(prev => {
+        const next = new Set(prev);
+        if (d.isFavourite) next.add(id); else next.delete(id);
+        return next;
+      });
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -146,6 +183,7 @@ export default function DebateVoteList({ items, topics = [] }: { items: DebateVo
       if (kind   !== 'all' && item.kind   !== kind)   return false;
       if (status !== 'all' && item.status !== status) return false;
       if (topicFilter && item.topic_id !== Number(topicFilter)) return false;
+      if (favsOnly && !favIds.has(item.id)) return false;
       if (dateFrom) {
         if (new Date(item.created_at).toISOString().slice(0, 10) < dateFrom) return false;
       }
@@ -160,7 +198,7 @@ export default function DebateVoteList({ items, topics = [] }: { items: DebateVo
     });
   }, [items, search, kind, status, dateFrom, dateTo, topicFilter]);
 
-  const hasFilters = !!(search || kind !== 'all' || status !== 'all' || dateFrom || dateTo || topicFilter);
+  const hasFilters = !!(search || kind !== 'all' || status !== 'all' || dateFrom || dateTo || topicFilter || favsOnly);
 
   function clearFilters() {
     setSearch('');
@@ -169,6 +207,7 @@ export default function DebateVoteList({ items, topics = [] }: { items: DebateVo
     setDateFrom('');
     setDateTo('');
     setTopicFilter('');
+    setFavsOnly(false);
   }
 
   function ToggleGroup<T extends string>({ value, options, onChange }: {
@@ -214,6 +253,21 @@ export default function DebateVoteList({ items, topics = [] }: { items: DebateVo
           options={[{ v: 'all', label: 'All' }, { v: 'open', label: 'Open' }, { v: 'closed', label: 'Closed' }]}
           onChange={setStatus}
         />
+        {isLoggedIn && (
+          <button
+            onClick={() => setFavsOnly(f => !f)}
+            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors ${
+              favsOnly
+                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                : 'border border-slate-700 bg-slate-800 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <svg className="h-3 w-3" fill={favsOnly ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
+            </svg>
+            Favourites
+          </button>
+        )}
       </div>
       {topics.length > 0 && (
         <div className="flex items-center gap-2">
@@ -258,7 +312,7 @@ export default function DebateVoteList({ items, topics = [] }: { items: DebateVo
         {filtered.length === 0 ? (
           <div className="py-10 text-center text-slate-500 text-sm">Nothing matches your filters.</div>
         ) : (
-          filtered.map(item => <ItemCard key={`${item.kind}-${item.id}`} item={item} />)
+          filtered.map(item => <ItemCard key={`${item.kind}-${item.id}`} item={item} isFav={favIds.has(item.id)} onFavToggle={toggleFav} />)
         )}
       </div>
     </div>
