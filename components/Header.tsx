@@ -41,6 +41,7 @@ function NavLink({
   onClick,
   pathname,
   external,
+  exact,
   children,
   icon,
   badge,
@@ -49,11 +50,12 @@ function NavLink({
   onClick: () => void;
   pathname: string;
   external?: boolean;
+  exact?: boolean;
   children: React.ReactNode;
   icon: React.ReactNode;
   badge?: string;
 }) {
-  const isActive = !external && (pathname === href || (href !== '/' && pathname.startsWith(href)));
+  const isActive = !external && (pathname === href || (!exact && href !== '/' && pathname.startsWith(href)));
   const cls = `flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors ${
     isActive ? 'bg-blue-500/15 text-blue-300 font-medium' : 'text-slate-300 hover:bg-blue-500/10 hover:text-blue-300'
   }`;
@@ -335,7 +337,7 @@ export default function Header() {
           <NavLink href="/" onClick={close} pathname={pathname} icon={icons.home}>
             Home
           </NavLink>
-          <NavLink href="/scotparl" onClick={close} pathname={pathname} icon={icons.dashboard}>
+          <NavLink href="/scotparl" onClick={close} pathname={pathname} icon={icons.dashboard} exact>
             Dashboard
           </NavLink>
 

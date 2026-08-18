@@ -46,7 +46,7 @@ async function getSinceCounts(since: string): Promise<Counts> {
         (SELECT COUNT(*)::int FROM sp_bill_debates WHERE created_at  >= $1) +
           (SELECT COUNT(*)::int FROM sp_proposal_debates WHERE created_at >= $1)                   AS debates,
         (SELECT COUNT(*)::int FROM sp_bill_pvc_polls WHERE created_at >= $1)                       AS votes,
-        (SELECT COUNT(*)::int FROM sp_bills         WHERE created_at >= $1) +
+        (SELECT COUNT(DISTINCT bill_id)::int FROM sp_bill_stages WHERE stage_date >= $1) +
           (SELECT COUNT(*)::int FROM sp_ssis         WHERE created_at >= $1) +
           (SELECT COUNT(*)::int FROM sp_acts         WHERE created_at >= $1)                       AS laws,
         (SELECT COUNT(np.*)::int FROM nsp_principles np
@@ -105,9 +105,13 @@ async function getRecentUpdates(since: string | null, limit: number): Promise<Up
         UNION ALL
         SELECT 'Bill', b.short_name,
                '/scotparl/bills/' || b.id,
-               b.created_at, b.created_at,
+               bs.stage_date, bs.stage_date,
                b.id::text
         FROM sp_bills b
+        JOIN LATERAL (
+          SELECT stage_date FROM sp_bill_stages
+          WHERE bill_id = b.id ORDER BY stage_date DESC NULLS LAST LIMIT 1
+        ) bs ON bs.stage_date IS NOT NULL
         UNION ALL
         SELECT 'Act', a.title,
                a.url,
