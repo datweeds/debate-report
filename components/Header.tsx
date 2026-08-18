@@ -76,7 +76,7 @@ function NavLink({
   if (external) {
     return <a href={href} target="_blank" rel="noopener noreferrer" onClick={onClick} className={cls}>{content}</a>;
   }
-  return <Link href={href} onClick={onClick} className={cls}>{content}</Link>;
+  return <Link href={href} onClick={onClick} className={cls} data-active={isActive ? 'true' : undefined}>{content}</Link>;
 }
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -98,6 +98,7 @@ const icons = {
   login:     <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" /></svg>,
   signup:    <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" /></svg>,
   logout:    <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" /></svg>,
+  home:      <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /></svg>,
 };
 
 export default function Header() {
@@ -110,10 +111,18 @@ export default function Header() {
   const [adminRole,     setAdminRole]     = useState<AdminRole | null>(null);
   const [siteName,      setSiteName]      = useState<string | null>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
+  const navRef    = useRef<HTMLElement>(null);
 
   const isHomePage = pathname === '/';
 
   const isMod = user?.tier === 'moderator' || user?.isSysAdmin;
+
+  // Scroll active nav item into view when drawer opens
+  useEffect(() => {
+    if (!menuOpen || !navRef.current) return;
+    const active = navRef.current.querySelector('[data-active="true"]') as HTMLElement | null;
+    if (active) active.scrollIntoView({ block: 'nearest' });
+  }, [menuOpen]);
 
   // Close drawer on outside click / Escape
   useEffect(() => {
@@ -267,6 +276,37 @@ export default function Header() {
         aria-hidden="true"
       />
 
+      {/* ── Mobile bottom tab bar ────────────────────────────────────────────── */}
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 flex border-t border-blue-900/20 bg-[#080d1a]/95 backdrop-blur-md">
+        {[
+          { href: '/scotparl/debates',   label: 'Debates',   icon: icons.debate },
+          { href: '/scotparl/proposals', label: 'Proposals', icon: icons.proposals },
+          { href: '/scotparl/bills',     label: 'Laws',      icon: icons.laws },
+          { href: '/scotparl/principles',label: 'Principles',icon: icons.principles },
+        ].map(({ href, label, icon }) => {
+          const active = pathname === href || pathname.startsWith(href);
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5 text-[10px] font-medium transition-colors ${active ? 'text-blue-400' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+              <span className={active ? 'text-blue-400' : 'text-slate-500'}>{icon}</span>
+              {label}
+            </Link>
+          );
+        })}
+        <button
+          onClick={() => setMenuOpen(true)}
+          className="flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5 text-[10px] font-medium text-slate-500 hover:text-slate-300 transition-colors"
+        >
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+          More
+        </button>
+      </nav>
+
       {/* ── Slide-in nav drawer ───────────────────────────────────────────────── */}
       <div
         ref={drawerRef}
@@ -289,10 +329,12 @@ export default function Header() {
         </div>
 
         {/* Nav items */}
-        <nav className="flex-1 overflow-y-auto py-2 px-3 space-y-0.5">
+        <nav ref={navRef} className="flex-1 overflow-y-auto py-2 px-3 space-y-0.5">
 
-          {/* ── HOME ── */}
-          <NavLabel>Home</NavLabel>
+          {/* ── HOME / DASHBOARD ── */}
+          <NavLink href="/" onClick={close} pathname={pathname} icon={icons.home}>
+            Home
+          </NavLink>
           <NavLink href="/scotparl" onClick={close} pathname={pathname} icon={icons.dashboard}>
             Dashboard
           </NavLink>
