@@ -5,16 +5,6 @@ import { usePathname } from 'next/navigation';
 
 const NAV_ITEMS = [
   {
-    label: 'Home',
-    href: '/',
-    exact: true,
-    icon: (
-      <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0 7-7 7 7M5 10v10a1 1 0 0 0 1 1h3m10-11 2 2m-2-2v10a1 1 0 0 1-1 1h-3m-6 0a1 1 0 0 0 1-1v-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v4a1 1 0 0 0 1 1m-6 0h6" />
-      </svg>
-    ),
-  },
-  {
     label: 'Dashboard',
     href: '/scotparl',
     exact: true,
@@ -71,7 +61,7 @@ export default function SubNav() {
   if (HIDDEN_ON.some(p => pathname.startsWith(p))) return null;
 
   return (
-    <div className="fixed top-16 left-0 right-0 z-30 border-b border-blue-900/20 bg-[#060b17]/95 backdrop-blur-md">
+    <div className="hidden sm:block fixed top-16 left-0 right-0 z-30 border-b border-blue-900/20 bg-[#060b17]/95 backdrop-blur-md">
       <div className="flex items-center overflow-x-auto px-3 sm:px-6 scrollbar-none">
         {NAV_ITEMS.map(item => {
           const isActive = item.exact

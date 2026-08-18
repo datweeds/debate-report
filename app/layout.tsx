@@ -44,7 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AuthProvider>
             <Header />
             <SubNav />
-            <main className="flex-1 pt-[108px] pb-16 sm:pb-0">{children}</main>
+            <main className="flex-1 pt-16 sm:pt-[108px] pb-14 sm:pb-0">{children}</main>
             <Footer />
           </AuthProvider>
         </ThemeProvider>
