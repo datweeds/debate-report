@@ -1,16 +1,41 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await getSession();
   const userId = session?.sub ?? null;
 
-  // Debates visible in the Switchboard:
-  // (a) Public House forum (forum_type = 'public')
-  // (b) Apply-type private forums (anyone can see to apply)
-  // (c) Invite-type private forums where the user is an active member
-  // Legacy: debates with no forum_id and forum_visibility = 'public'
+  // Detect society context from middleware header
+  const subdomain = req.headers.get('x-customer-subdomain') ?? '';
+
+  // When on a society subdomain, scope debates to that society:
+  //   - debates linked to the society's bills or proposals
+  //   - debates in any public forum (globally accessible)
+  //   - legacy debates with no forum (globally public)
+  // When on the platform root (no subdomain), show all accessible debates.
+  let tenantId: number | null = null;
+  if (subdomain) {
+    const { rows: [customer] } = await pool.query<{ id: number }>(
+      `SELECT id FROM customers WHERE subdomain = $1`,
+      [subdomain]
+    );
+    tenantId = customer?.id ?? null;
+  }
+
+  const societyClause = tenantId
+    ? `AND (
+         s.forum_id IS NULL
+         OR f.forum_type = 'public'
+         OR f.forum_visibility = 'apply'
+         OR s.id IN (
+           SELECT resolution_id FROM sp_bill_debates     WHERE tenant_id = ${tenantId}
+           UNION
+           SELECT resolution_id FROM sp_proposal_debates WHERE tenant_id = ${tenantId}
+         )
+       )`
+    : '';
+
   const { rows } = await pool.query(
     `SELECT s.id, s.stat_title, s.subject_area, s.forum_id,
             COALESCE(f.forum_type::text, 'public')       AS forum_type,
@@ -39,6 +64,7 @@ export async function GET() {
                   AND fm.member_status = 'active'
               ))
             )
+       ${societyClause}
      GROUP  BY s.id, s.vote_for, s.vote_against, f.id
      ORDER  BY s.created_at DESC`,
     [userId]
