@@ -54,6 +54,7 @@ export async function proxy(req: NextRequest) {
   // Rewrite customer subdomain paths to /scotparl/* prefix
   if (subdomain) {
     if (
+      pathname !== '/' &&
       !pathname.startsWith('/api') &&
       !pathname.startsWith('/_next') &&
       !pathname.startsWith('/scotparl') &&
@@ -67,7 +68,7 @@ export async function proxy(req: NextRequest) {
       !pathname.startsWith('/sso')
     ) {
       const url = req.nextUrl.clone();
-      url.pathname = pathname === '/' ? '/scotparl' : `/scotparl${pathname}`;
+      url.pathname = `/scotparl${pathname}`;
       return NextResponse.rewrite(url, { request: { headers: requestHeaders } });
     }
   }
