@@ -365,8 +365,8 @@ export default function Header() {
 
           <NavDivider />
 
-          {/* ── DEBATE CHAMBER (contextual — shown when on /chamber) ── */}
-          {pathname.startsWith('/chamber') && (
+          {/* ── DEBATE CHAMBER (contextual — shown on all debate.report pages) ── */}
+          {(pathname.startsWith('/chamber') || pathname.startsWith('/dashboard') || pathname.startsWith('/debates')) && (
             <>
               <NavLabel>Debate Chamber</NavLabel>
               <NavLink href="/chamber" onClick={close} pathname={pathname} icon={icons.debate} exact>
