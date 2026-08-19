@@ -10,9 +10,9 @@ export async function GET(req: NextRequest) {
   const subdomain = req.headers.get('x-customer-subdomain') ?? '';
 
   // When on a society subdomain, scope debates to that society:
-  //   - debates linked to the society's bills or proposals
-  //   - debates in any public forum (globally accessible)
-  //   - legacy debates with no forum (globally public)
+  //   - debates in a public forum
+  //   - debates linked to the society's bills or proposals via tenant_id
+  // Legacy debates with no forum are excluded from society-scoped views.
   // When on the platform root (no subdomain), show all accessible debates.
   let tenantId: number | null = null;
   if (subdomain) {
@@ -25,8 +25,7 @@ export async function GET(req: NextRequest) {
 
   const societyClause = tenantId
     ? `AND (
-         s.forum_id IS NULL
-         OR f.forum_type = 'public'
+         f.forum_type = 'public'
          OR f.forum_visibility = 'apply'
          OR s.id IN (
            SELECT resolution_id FROM sp_bill_debates     WHERE tenant_id = ${tenantId}
