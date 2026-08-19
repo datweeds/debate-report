@@ -469,7 +469,8 @@ export default function ChamberGraph({
         const url  = URL.createObjectURL(blob);
         const a    = document.createElement('a');
         a.href     = url;
-        a.download = 'debate-graph.svg';
+        const slug = debateTitle.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+        a.download = `debate_${slug}.svg`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
