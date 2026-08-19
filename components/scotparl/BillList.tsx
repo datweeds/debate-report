@@ -609,20 +609,22 @@ export default function BillList({
                 {item.third_party_organisation && <span className="text-xs text-slate-500">{item.third_party_organisation}</span>}
                 {item.latest_stage_date && <span className="text-xs text-slate-600">{fmt(item.latest_stage_date)}</span>}
                 {item.resolution_id && item.debate_status === 'active' && (
-                  <span className="inline-flex items-center gap-1 rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-300 border border-blue-500/20">
+                  <Link href={`/chamber?resolution=${item.resolution_id}`} onClick={e => e.stopPropagation()}
+                    className="inline-flex items-center gap-1 rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-300 border border-blue-500/20 hover:bg-blue-500/20 transition-colors">
                     Open Debate
                     {(item.debate_votes_for > 0 || item.debate_votes_against > 0) && (
                       <span className="font-normal text-blue-300/70">· {item.debate_votes_for}/{item.debate_votes_against}</span>
                     )}
-                  </span>
+                  </Link>
                 )}
                 {item.resolution_id && item.debate_status !== 'active' && (
-                  <span className="inline-flex items-center gap-1 rounded bg-slate-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 border border-slate-600/30">
+                  <Link href={`/chamber?resolution=${item.resolution_id}`} onClick={e => e.stopPropagation()}
+                    className="inline-flex items-center gap-1 rounded bg-slate-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 border border-slate-600/30 hover:bg-slate-700/50 transition-colors">
                     Debate
                     {(item.debate_votes_for > 0 || item.debate_votes_against > 0) && (
                       <span className="font-normal">· {item.debate_votes_for}/{item.debate_votes_against}</span>
                     )}
-                  </span>
+                  </Link>
                 )}
                 {!item.resolution_id && item.debate_request_count > 0 && (
                   <span className="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400/80 border border-amber-500/20">
@@ -630,7 +632,10 @@ export default function BillList({
                   </span>
                 )}
                 {item.pvc_poll_id && (
-                  <span className="inline-flex items-center rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 border border-amber-500/20">Vote</span>
+                  <a href={`https://poll.voter.care/vote/${item.pvc_poll_id}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                    className="inline-flex items-center gap-0.5 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 border border-amber-500/20 hover:bg-amber-500/20 transition-colors">
+                    Vote <ExternalIcon />
+                  </a>
                 )}
                 {item.impact_count > 0 && item.impact_score !== null && (
                   <span className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-semibold border ${

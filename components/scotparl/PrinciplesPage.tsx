@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import DebateRequestSection, { type DebateRequest, type DebateLink } from './DebateRequestSection';
 import VoteSection, { type PollInfo } from './VoteSection';
 
@@ -493,7 +494,39 @@ export default function PrinciplesPage({ userId, isSysAdmin, canManage, siteName
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between gap-3">
                               <h3 className="text-base font-semibold text-slate-100 leading-snug">{p.title}</h3>
-                              <div className="flex items-center gap-1 flex-shrink-0 -mt-0.5">
+                              <div className="flex items-center gap-1.5 flex-shrink-0 -mt-0.5 flex-wrap justify-end">
+                                {p.debates.length > 0 && (
+                                  <Link
+                                    href={`/chamber?resolution=${p.debates[0].resolution_id}`}
+                                    className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-semibold border transition-colors ${
+                                      p.debates[0].stat_status === 'active'
+                                        ? 'bg-blue-500/10 text-blue-300 border-blue-500/20 hover:bg-blue-500/20'
+                                        : 'bg-slate-700/40 text-slate-400 border-slate-600/30 hover:bg-slate-700/60'
+                                    }`}
+                                  >
+                                    Debate
+                                    {(p.debates[0].vote_total_for > 0 || p.debates[0].vote_total_against > 0) && (
+                                      <span className="font-normal opacity-75">{p.debates[0].vote_total_for}↑ {p.debates[0].vote_total_against}↓</span>
+                                    )}
+                                  </Link>
+                                )}
+                                {p.poll && (
+                                  <a
+                                    href={`https://poll.voter.care/vote/${p.pvc_poll_id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-semibold border transition-colors ${
+                                      p.poll.status === 'open'
+                                        ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20 hover:bg-emerald-500/20'
+                                        : 'bg-slate-700/40 text-slate-400 border-slate-600/30 hover:bg-slate-700/60'
+                                    }`}
+                                  >
+                                    Vote
+                                    {p.poll.vote_count > 0 && (
+                                      <span className="font-normal opacity-75">{p.poll.vote_count}</span>
+                                    )}
+                                  </a>
+                                )}
                                 {userId && (
                                   <button
                                     onClick={() => togglePrincipleFav(p.id)}
@@ -586,36 +619,6 @@ export default function PrinciplesPage({ userId, isSysAdmin, canManage, siteName
                         )}
                       </div>
 
-                      {/* Debate section */}
-                      <div className="border-t border-slate-800/80 bg-slate-900/30 px-5 py-4">
-                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Debate</p>
-                        {(userId || p.debates.length > 0 || canManage) ? (
-                          <DebateRequestSection
-                            entityType="principle"
-                            entityId={p.id}
-                            entityTitle={p.title}
-                            entityDescription={p.body}
-                            userId={userId}
-                            canManage={canManage}
-                            initialRequests={p.debate_requests}
-                            debates={p.debates}
-                          />
-                        ) : (
-                          <p className="text-xs text-slate-600">Log in to request a debate.</p>
-                        )}
-                      </div>
-
-                      {/* Vote section */}
-                      {(p.poll || canManage) && (
-                        <div className="border-t border-slate-800/80 bg-slate-900/30 px-5 py-4">
-                          <VoteSection
-                            poll={p.poll}
-                            entityType="principle"
-                            entityId={p.id}
-                            canManage={canManage}
-                          />
-                        </div>
-                      )}
                     </>
                   )}
                 </div>
