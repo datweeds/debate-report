@@ -349,22 +349,6 @@ export default function BillList({
         ))}
       </div>
 
-      {/* Default-window notice */}
-      {isDefaultWindow && (
-        <div className="flex items-center gap-2 text-xs text-slate-500">
-          <svg className="h-3.5 w-3.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2m6-2a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z" />
-          </svg>
-          <span>Showing laws updated in the last 90 days</span>
-          <button
-            onClick={() => setDateFrom('')}
-            className="text-blue-400 hover:text-blue-300 transition-colors"
-          >
-            Show all {allItems.length.toLocaleString()} →
-          </button>
-        </div>
-      )}
-
       {/* Row 1: text search + bill dropdowns (hidden when SSI-only) */}
       <div className="flex flex-col sm:flex-row gap-2">
         <input
@@ -479,17 +463,32 @@ export default function BillList({
         )}
       </div>
 
-      <p className="text-xs text-slate-600">
-        Showing {filtered.length} of {allItems.length} laws
+      <div className="flex items-center gap-2 flex-wrap text-xs text-slate-600">
+        <span>Showing {filtered.length} of {allItems.length} laws</span>
+        {isDefaultWindow && (
+          <>
+            <span className="text-slate-700">·</span>
+            <svg className="h-3 w-3 flex-shrink-0 text-slate-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2m6-2a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z" />
+            </svg>
+            <span>last 90 days</span>
+            <button
+              onClick={() => setDateFrom('')}
+              className="text-blue-500 hover:text-blue-400 transition-colors"
+            >
+              Show all {allItems.length.toLocaleString()} →
+            </button>
+          </>
+        )}
         {hasFilters && (
           <button
             onClick={clearFilters}
-            className="ml-2 text-blue-500 hover:text-blue-400 underline underline-offset-2"
+            className="text-blue-500 hover:text-blue-400 underline underline-offset-2"
           >
             Clear filters
           </button>
         )}
-      </p>
+      </div>
 
       <div className="card-dr divide-y divide-slate-800/60">
         {filtered.length === 0 ? (
