@@ -96,6 +96,7 @@ export default function Footer() {
                 <li><button onClick={() => setModal('contact')} className="text-sm text-slate-500 hover:text-slate-300 transition-colors text-left">Contact</button></li>
                 <li><FooterLink href="https://debate.support" external>Help</FooterLink></li>
                 <li><Link href="/blog" className="text-sm text-slate-500 hover:text-slate-300 transition-colors">Blog</Link></li>
+                <li><Link href="/support" className="text-sm text-slate-500 hover:text-slate-300 transition-colors">Support &amp; Investors</Link></li>
               </ul>
               <p className="text-xs font-semibold uppercase tracking-widest text-slate-600 mt-6 mb-3">Legal</p>
               <ul className="space-y-2">
