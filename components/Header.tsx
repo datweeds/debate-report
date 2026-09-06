@@ -397,10 +397,10 @@ export default function Header() {
 
           {/* ── UTILITIES ── */}
           <NavLabel>Utilities</NavLabel>
-          <NavLink href="https://poll.new.vote/poll" onClick={close} pathname={pathname} icon={icons.poll} external>
+          <NavLink href="https://vote.new.vote/poll" onClick={close} pathname={pathname} icon={icons.poll} external>
             Poll
           </NavLink>
-          <NavLink href="https://poll.new.vote/elect" onClick={close} pathname={pathname} icon={icons.elect} external>
+          <NavLink href="https://vote.new.vote/elect" onClick={close} pathname={pathname} icon={icons.elect} external>
             Elect
           </NavLink>
           <NavLink href="https://tasks.debate.report" onClick={close} pathname={pathname} icon={icons.task} external>

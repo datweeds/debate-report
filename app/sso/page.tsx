@@ -5,7 +5,7 @@ import pool from '@/lib/db';
 export const dynamic = 'force-dynamic';
 
 const ALLOWED_CLIENTS: Record<string, string> = {
-  'voter-care': process.env.VOTER_CARE_URL ?? 'https://poll.new.vote',
+  'voter-care': process.env.VOTER_CARE_URL ?? 'https://vote.new.vote',
 };
 
 type Props = { searchParams: Promise<{ client?: string; next?: string }> };
