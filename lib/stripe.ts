@@ -13,4 +13,4 @@ export const PRICE_IDS = {
 } as const;
 
 export const BASE_URL =
-  process.env.NEXT_PUBLIC_BASE_URL ?? 'https://staging.debate.report';
+  process.env.NEXT_PUBLIC_BASE_URL ?? 'https://new.vote';

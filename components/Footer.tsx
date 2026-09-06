@@ -12,8 +12,8 @@ const SERVICES = [
   { label: 'Principles',   href: '/scotparl/principles' },
   { label: 'Debate',       href: '/chamber' },
   { label: 'Vote',         href: '/chamber' },
-  { label: 'Poll',         href: 'https://voter.care/poll',  external: true },
-  { label: 'Elect',        href: 'https://voter.care/elect', external: true },
+  { label: 'Poll',         href: 'https://poll.new.vote/poll',  external: true },
+  { label: 'Elect',        href: 'https://poll.new.vote/elect', external: true },
   { label: 'Share Task',   href: 'https://tasks.debate.report', external: true },
 ];
 

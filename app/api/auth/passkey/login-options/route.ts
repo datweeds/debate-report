@@ -3,7 +3,7 @@ import { generateAuthenticationOptions, type AuthenticatorTransportFuture } from
 import pool from '@/lib/db';
 import { signChallengeToken, challengeCookie } from '@/lib/auth';
 
-const RP_ID = process.env.WEBAUTHN_RP_ID || 'debate.report';
+const RP_ID = process.env.WEBAUTHN_RP_ID || 'new.vote';
 
 export async function POST(req: NextRequest) {
   const { identifier } = await req.json();

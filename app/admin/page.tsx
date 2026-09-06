@@ -135,14 +135,14 @@ function EmailModal({ alert, onClose }: { alert: AdminAlert; onClose: () => void
 
   const [selected, setSelected] = useState<Set<string>>(new Set(targets.map(t => t.email)));
   const [subject, setSubject]   = useState(
-    `debate.report — Content Alert on "${truncate(alert.resolution_title ?? alert.statement_title ?? 'your debate', 60)}"`
+    `new.vote — Content Alert on "${truncate(alert.resolution_title ?? alert.statement_title ?? 'your debate', 60)}"`
   );
   const [body, setBody] = useState(
-    `Hello,\n\nA content alert has been raised on debate.report regarding content in the debate:\n"${alert.resolution_title ?? alert.statement_title ?? ''}"\n\n${
+    `Hello,\n\nA content alert has been raised on new.vote regarding content in the debate:\n"${alert.resolution_title ?? alert.statement_title ?? ''}"\n\n${
       alert.source === 'auto'
         ? `Our automated scanner flagged the following text:\n"${alert.flagged_text ?? ''}"\n\nFlags: ${(alert.flags ?? []).map(f => SCAN_FLAG_LABELS[f] ?? f).join(', ')}`
         : `A user reported this statement for: ${MANUAL_REASON_LABELS[alert.reason ?? ''] ?? alert.reason ?? ''}`
-    }\n\nPlease review your content and ensure it complies with our community guidelines.\n\nKind regards,\ndebate.report`
+    }\n\nPlease review your content and ensure it complies with our community guidelines.\n\nKind regards,\nnew.vote`
   );
 
   const toggle = (email: string) => setSelected(prev => {

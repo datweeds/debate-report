@@ -45,7 +45,7 @@ export default function ContactPage() {
           <h1 className="text-3xl font-bold text-slate-100">Contact Us</h1>
           <p className="mt-2 text-slate-400">
             Have a question, suggestion, or concern? We&apos;d love to hear from you.
-            Messages go directly to the debate.report team.
+            Messages go directly to the new.vote team.
           </p>
         </div>
 

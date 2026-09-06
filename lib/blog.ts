@@ -40,7 +40,7 @@ export function getAllPosts(): PostMeta[] {
       date:    data.date    || '',
       excerpt: data.excerpt || '',
       tags:    data.tags    || [],
-      author:  data.author  || 'debate.report Team',
+      author:  data.author  || 'new.vote Team',
       image:   data.image   || undefined,
     } as PostMeta;
   });
@@ -64,7 +64,7 @@ export async function getPost(slug: string): Promise<Post | null> {
     date:        data.date    || '',
     excerpt:     data.excerpt || '',
     tags:        data.tags    || [],
-    author:      data.author  || 'debate.report Team',
+    author:      data.author  || 'new.vote Team',
     image:       data.image   || undefined,
     contentHtml,
   };

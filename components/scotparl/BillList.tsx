@@ -631,7 +631,7 @@ export default function BillList({
                   </span>
                 )}
                 {item.pvc_poll_id && (
-                  <a href={`https://poll.voter.care/vote/${item.pvc_poll_id}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                  <a href={`https://poll.new.vote/vote/${item.pvc_poll_id}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
                     className="inline-flex items-center gap-0.5 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 border border-amber-500/20 hover:bg-amber-500/20 transition-colors">
                     Vote <ExternalIcon />
                   </a>

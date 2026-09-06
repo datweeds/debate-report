@@ -58,7 +58,7 @@ export default function InvitePage() {
         <div className="w-full max-w-md text-center">
           <p className="text-slate-300 font-semibold mb-2">Invitation declined</p>
           <p className="text-slate-500 text-sm mb-6">You have declined this invitation.</p>
-          <Link href="/" className="text-blue-400 hover:text-blue-300 text-sm">Go to debate.report →</Link>
+          <Link href="/" className="text-blue-400 hover:text-blue-300 text-sm">Go to new.vote →</Link>
         </div>
       </div>
     );
@@ -70,7 +70,7 @@ export default function InvitePage() {
         <div className="w-full max-w-md text-center">
           <p className="text-rose-400 font-semibold mb-2">Invitation unavailable</p>
           <p className="text-slate-500 text-sm mb-6">{error || 'This invitation could not be found.'}</p>
-          <Link href="/" className="text-blue-400 hover:text-blue-300 text-sm">Go to debate.report →</Link>
+          <Link href="/" className="text-blue-400 hover:text-blue-300 text-sm">Go to new.vote →</Link>
         </div>
       </div>
     );
@@ -86,7 +86,7 @@ export default function InvitePage() {
       <Link href="/" className="flex items-center gap-2 mb-10 select-none">
         <DrLogo className="w-8 h-8" />
         <span className="font-bold text-lg text-slate-100 tracking-tight">
-          debate<span className="text-blue-400">.report</span>
+          new<span className="text-blue-400">.vote</span>
         </span>
       </Link>
 
@@ -124,7 +124,7 @@ export default function InvitePage() {
           )}
 
           <p className="text-xs text-slate-500 leading-relaxed">
-            Accepting this invitation will create a debate.report account and add you as a member of this private forum.
+            Accepting this invitation will create a new.vote account and add you as a member of this private forum.
             You can choose to join this forum only (free) or upgrade to participate in all public debates.
           </p>
         </div>

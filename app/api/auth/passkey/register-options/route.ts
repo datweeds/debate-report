@@ -3,8 +3,8 @@ import { generateRegistrationOptions } from '@simplewebauthn/server';
 import pool from '@/lib/db';
 import { signChallengeToken, challengeCookie } from '@/lib/auth';
 
-const RP_NAME = process.env.WEBAUTHN_RP_NAME || 'debate.report';
-const RP_ID   = process.env.WEBAUTHN_RP_ID   || 'debate.report';
+const RP_NAME = process.env.WEBAUTHN_RP_NAME || 'new.vote';
+const RP_ID   = process.env.WEBAUTHN_RP_ID   || 'new.vote';
 
 export async function POST(req: NextRequest) {
   const { userHandle, email, tier, plan, displayName, bio, inviteToken } = await req.json();

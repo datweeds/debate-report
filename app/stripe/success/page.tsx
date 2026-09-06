@@ -21,7 +21,7 @@ export default function StripeSuccessPage() {
             <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
           </svg>
         </div>
-        <h1 className="text-2xl font-bold text-slate-100 mb-3">Welcome to debate.report Paid</h1>
+        <h1 className="text-2xl font-bold text-slate-100 mb-3">Welcome to new.vote Paid</h1>
         <p className="text-slate-400 text-sm mb-8 leading-relaxed">
           Your subscription is active. You now have access to unlimited private forums and public debates.
         </p>

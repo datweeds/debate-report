@@ -126,7 +126,7 @@ export default function SupportPage() {
         {/* Back link */}
         <div className="text-center pt-2">
           <Link href="/" className="text-sm text-blue-500 hover:text-blue-400 underline underline-offset-2 transition-colors">
-            ← Back to debate.report
+            ← Back to new.vote
           </Link>
         </div>
 

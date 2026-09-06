@@ -8,8 +8,8 @@ import {
   CHALLENGE_COOKIE,
 } from '@/lib/auth';
 
-const RP_ID    = process.env.WEBAUTHN_RP_ID    || 'debate.report';
-const ORIGINS  = (process.env.WEBAUTHN_ORIGIN  || 'https://debate.report').split(',').map(s => s.trim());
+const RP_ID    = process.env.WEBAUTHN_RP_ID    || 'new.vote';
+const ORIGINS  = (process.env.WEBAUTHN_ORIGIN  || 'https://new.vote').split(',').map(s => s.trim());
 
 export async function POST(req: NextRequest) {
   const chalToken = req.cookies.get(CHALLENGE_COOKIE)?.value;

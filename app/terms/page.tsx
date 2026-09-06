@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Terms & Conditions',
-  description: 'Terms and conditions for using debate.report.',
+  description: 'Terms and conditions for using new.vote.',
 };
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -34,7 +34,7 @@ export default function TermsPage() {
 
           <Section title="1. Acceptance of Terms">
             <p>
-              By accessing or using debate.report (the &quot;Platform&quot;), you agree to be bound by these Terms and
+              By accessing or using new.vote (the &quot;Platform&quot;), you agree to be bound by these Terms and
               Conditions. If you do not agree to these terms, please do not use the Platform.
             </p>
             <p>
@@ -60,7 +60,7 @@ export default function TermsPage() {
           <Section title="3. User-Generated Content">
             <p>
               By submitting content (claims, warrants, evidence, rebuttals, comments) to the Platform, you grant
-              debate.report a non-exclusive, royalty-free, worldwide licence to display, distribute and use that
+              new.vote a non-exclusive, royalty-free, worldwide licence to display, distribute and use that
               content within the Platform.
             </p>
             <p>You represent and warrant that your content:</p>
@@ -98,7 +98,7 @@ export default function TermsPage() {
 
           <Section title="6. Intellectual Property">
             <p>
-              The Platform software, design, and branding are the intellectual property of debate.report.
+              The Platform software, design, and branding are the intellectual property of new.vote.
               You may not copy, reproduce, or distribute any part of the Platform without express written permission.
             </p>
             <p>
@@ -110,7 +110,7 @@ export default function TermsPage() {
           <Section title="7. Limitation of Liability">
             <p>
               The Platform is provided &quot;as is&quot; without warranties of any kind. To the maximum extent permitted
-              by law, debate.report shall not be liable for any indirect, incidental, or consequential damages
+              by law, new.vote shall not be liable for any indirect, incidental, or consequential damages
               arising from your use of the Platform.
             </p>
             <p>

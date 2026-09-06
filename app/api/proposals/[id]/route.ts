@@ -88,7 +88,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     let votePollId: string | null = null;
 
     if (resolution === 'vote') {
-      const entityUrl = `${process.env.SCOTPARL_BASE_URL ?? 'https://staging.debate.report'}/scotparl/proposals/${id}`;
+      const entityUrl = `${process.env.SCOTPARL_BASE_URL ?? 'https://new.vote'}/scotparl/proposals/${id}`;
       const question  = `The question you are asked is whether or not you agree with the resolution debated: ${p.title}`;
       const { rows: [poll] } = await pool.query(
         `INSERT INTO vc_polls (title, question, entity_type, entity_id, entity_url, closes_at, created_by)

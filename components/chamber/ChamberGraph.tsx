@@ -436,7 +436,7 @@ export default function ChamberGraph({
 
         const printDate = new Date().toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
         svg += `<rect x="0" y="0" width="${svgW}" height="${HEADER_H}" fill="#0c1322"/>`;
-        svg += `<text x="18" y="22" font-family="Arial,sans-serif" font-size="15" font-weight="bold" fill="#60a5fa">debate.report</text>`;
+        svg += `<text x="18" y="22" font-family="Arial,sans-serif" font-size="15" font-weight="bold" fill="#60a5fa">new.vote</text>`;
         svg += `<text x="18" y="40" font-family="Arial,sans-serif" font-size="11" fill="#94a3b8">${escapeXml(debateTitle)}</text>`;
         svg += `<text x="${svgW - 18}" y="40" font-family="Arial,sans-serif" font-size="10" fill="#475569" text-anchor="end">Printed: ${printDate}</text>`;
         svg += `<line x1="0" y1="${HEADER_H}" x2="${svgW}" y2="${HEADER_H}" stroke="#1e293b" stroke-width="1"/>`;

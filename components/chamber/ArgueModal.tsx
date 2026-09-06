@@ -505,7 +505,7 @@ export default function ArgueModal({ statement, resolution, onClose, onStatement
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4}/>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
             </svg>
-            <p className="text-sm font-semibold text-slate-300 text-center max-w-lg">debate.report AI agents are researching potential arguments for you. This should take about 30 seconds, sometimes a bit longer.</p>
+            <p className="text-sm font-semibold text-slate-300 text-center max-w-lg">new.vote AI agents are researching potential arguments for you. This should take about 30 seconds, sometimes a bit longer.</p>
             <p className="text-xs text-slate-400 text-center max-w-lg">Once provided you will be able to review and select any arguments you want to carry forward to the actual debate. If you wish to, you can come back to this Assistant later and carry forward additional arguments. Once carried forward to the debate, you can edit the arguments in the Chamber.</p>
           </div>
         )}

@@ -74,7 +74,7 @@ function AccessCodeScreen({ code, onDone }: { code: string; onDone: () => void }
           disabled={!saved}
           className="w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          Continue to debate.report
+          Continue to new.vote
         </button>
       </div>
     </div>

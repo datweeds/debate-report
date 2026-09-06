@@ -1,9 +1,9 @@
 const POSTMARK_API = 'https://api.postmarkapp.com';
 const TOKEN        = process.env.POSTMARK_SERVER_TOKEN ?? '';
-const FROM         = process.env.POSTMARK_FROM_EMAIL   ?? 'hello@debate.report';
-const BASE_URL     = process.env.NEXT_PUBLIC_BASE_URL  ?? 'https://staging.debate.report';
+const FROM         = process.env.POSTMARK_FROM_EMAIL   ?? 'hello@new.vote';
+const BASE_URL     = process.env.NEXT_PUBLIC_BASE_URL  ?? 'https://new.vote';
 
-export const PRODUCT_NAME = 'debate.report';
+export const PRODUCT_NAME = 'new.vote';
 export const PRODUCT_URL  = BASE_URL;
 
 export async function sendBlogNewsletter({

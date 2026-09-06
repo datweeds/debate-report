@@ -18,7 +18,7 @@ type Props = {
   canManage: boolean;
 };
 
-const PVC_BASE = 'https://poll.voter.care';
+const PVC_BASE = 'https://poll.new.vote';
 
 function CopyButton({ url, label }: { url: string; label: string }) {
   const [copied, setCopied] = useState(false);
@@ -91,7 +91,7 @@ export default function VoteSection({ poll, entityType, entityId, canManage }: P
         )}
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <a href={voteUrl} target="_blank" rel="noopener noreferrer" className={`inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors ${closed ? 'bg-slate-600 hover:bg-slate-500' : 'bg-emerald-600 hover:bg-emerald-500'}`}>
-            {closed ? 'View Results' : 'Vote on poll.voter.care'}
+            {closed ? 'View Results' : 'Vote on poll.new.vote'}
             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
           </a>
           <CopyButton url={voteUrl} label="Copy vote link" />
@@ -116,7 +116,7 @@ export default function VoteSection({ poll, entityType, entityId, canManage }: P
       <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Formal Vote</p>
       {!linking ? (
         <button onClick={() => setLinking(true)} className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm font-medium text-amber-300 transition-colors hover:bg-amber-500/20">
-          Link poll.voter.care poll…
+          Link poll.new.vote poll…
         </button>
       ) : (
         <div className="space-y-3">
@@ -124,7 +124,7 @@ export default function VoteSection({ poll, entityType, entityId, canManage }: P
           <div>
             <label className="block mb-1 text-xs text-slate-400">
               Poll ID{' '}
-              <a href="https://poll.voter.care/dashboard" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">(open dashboard to copy)</a>
+              <a href="https://poll.new.vote/dashboard" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">(open dashboard to copy)</a>
             </label>
             <input value={pollId} onChange={e => setPollId(e.target.value)} className="w-full rounded-lg border border-blue-900/30 bg-slate-800/50 px-3 py-2 text-sm text-slate-100 font-mono focus:border-blue-500/50 focus:outline-none" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
           </div>

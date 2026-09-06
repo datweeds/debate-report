@@ -774,7 +774,7 @@ function ChamberInner() {
 
       {/* Thin footer strip */}
       <div className="fixed bottom-0 left-0 right-0 z-40 h-7 border-t border-slate-800/60 bg-[#04060b] flex items-center justify-between px-4 text-xs text-slate-600">
-        <span>© debate.report {new Date().getFullYear()}</span>
+        <span>© new.vote {new Date().getFullYear()}</span>
         <nav className="flex items-center gap-4">
           {(['about', 'contact', 'terms', 'privacy'] as FooterModal[]).map(k => (
             <button key={k!} onClick={() => setFooterModal(k)} className="hover:text-slate-400 transition-colors capitalize">

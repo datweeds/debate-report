@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'About Us',
-  description: 'Learn about debate.report — our mission, approach and the principles behind structured online debate.',
+  description: 'Learn about new.vote — our mission, approach and the principles behind structured online debate.',
 };
 
 export default function AboutPage() {
@@ -17,7 +17,7 @@ export default function AboutPage() {
             <span>/</span>
             <span className="text-slate-300">About Us</span>
           </div>
-          <h1 className="text-4xl font-bold text-slate-100">About debate.report</h1>
+          <h1 className="text-4xl font-bold text-slate-100">About new.vote</h1>
         </div>
 
         <div className="space-y-8">
@@ -25,7 +25,7 @@ export default function AboutPage() {
           <div className="card-dr p-7">
             <h2 className="text-xl font-bold text-slate-100 mb-3">Our Mission</h2>
             <p className="text-slate-300 leading-relaxed">
-              debate.report is a structured online debate platform designed to raise the quality of public discourse.
+              new.vote is a structured online debate platform designed to raise the quality of public discourse.
               We believe that good arguments should be visible, traceable and judged on their merits — not on how loudly
               they are shouted. Our platform presents debates as structured argument graphs: claims supported by warrants,
               warrants backed by evidence, and rebuttals that challenge each step of the chain.

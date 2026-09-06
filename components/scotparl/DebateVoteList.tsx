@@ -20,7 +20,7 @@ export type DebateVoteItem = {
   topic_name: string | null;
 };
 
-const PVC_BASE = 'https://poll.voter.care';
+const PVC_BASE = 'https://poll.new.vote';
 
 function fmt(d: string | null) {
   if (!d) return null;

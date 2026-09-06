@@ -512,7 +512,7 @@ export default function PrinciplesPage({ userId, isSysAdmin, canManage, siteName
                                 )}
                                 {p.poll && (
                                   <a
-                                    href={`https://poll.voter.care/vote/${p.pvc_poll_id}`}
+                                    href={`https://poll.new.vote/vote/${p.pvc_poll_id}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-semibold border transition-colors ${

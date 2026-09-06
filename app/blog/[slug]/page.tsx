@@ -14,9 +14,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const post = await getPost(slug);
   if (!post) return { title: 'Post not found' };
-  const base = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://staging.debate.report';
+  const base = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://new.vote';
   return {
-    title: `${post.title} — debate.report Blog`,
+    title: `${post.title} — new.vote Blog`,
     description: post.excerpt,
     openGraph: {
       title:         post.title,

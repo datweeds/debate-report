@@ -377,7 +377,7 @@ export default function ProfilePage() {
             <Toggle
               checked={newsletter}
               onChange={setNewsletter}
-              label="Subscribe to the debate.report newsletter"
+              label="Subscribe to the new.vote newsletter"
             />
             {!email && newsletter && (
               <p className="text-xs text-amber-400">Add an email address to receive the newsletter.</p>

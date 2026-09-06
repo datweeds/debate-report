@@ -3,7 +3,7 @@ import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
 
 const FREE_INVITE_CAP = 6;
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://staging.debate.report';
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://new.vote';
 
 type Params = { params: Promise<{ id: string }> };
 

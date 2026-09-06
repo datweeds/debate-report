@@ -26,7 +26,7 @@ export type WdConstituency = {
 export async function fetchMspConstituencies(): Promise<WdConstituency[]> {
   const url = `${SPARQL}?format=json&query=${encodeURIComponent(QUERY)}`;
   const res = await fetch(url, {
-    headers: { 'User-Agent': 'debate.report/1.0 (contact@debate.report)', Accept: 'application/json' },
+    headers: { 'User-Agent': 'new.vote/1.0 (hello@new.vote)', Accept: 'application/json' },
     next: { revalidate: 0 },
   });
   if (!res.ok) throw new Error(`Wikidata SPARQL HTTP ${res.status}`);
