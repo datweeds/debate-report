@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 
 export async function POST(req: NextRequest) {
-  const { name, email, subject, message } = await req.json();
+  const { name, email, subject, message, website } = await req.json();
+
+  if (website) return NextResponse.json({ ok: true }, { status: 201 }); // honeypot — silent reject
 
   if (!name?.trim())    return NextResponse.json({ error: 'Name is required' },    { status: 400 });
   if (!email?.trim())   return NextResponse.json({ error: 'Email is required' },   { status: 400 });
