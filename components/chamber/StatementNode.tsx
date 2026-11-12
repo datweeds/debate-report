@@ -303,7 +303,11 @@ function StatementNode({ id, data, selected }: NodeProps & { data: StatementNode
         <div
           onClick={handleToggleGroup}
           style={{ width: NODE_W }}
-          className="flex items-center gap-2 rounded-xl border-2 border-dashed border-emerald-700/60 bg-emerald-950/40 px-3 py-2.5 shadow-xl transition-all cursor-pointer hover:bg-emerald-900/40 hover:border-emerald-500/70"
+          className={`flex items-center gap-2 rounded-xl border-2 border-dashed px-3 py-2.5 shadow-xl transition-all cursor-pointer ${
+            selected
+              ? 'border-emerald-400 bg-emerald-900/50 shadow-emerald-500/30'
+              : 'border-emerald-700/60 bg-emerald-950/40 hover:bg-emerald-900/40 hover:border-emerald-500/70'
+          }`}
           title={expanded ? 'Collapse this evidence' : 'Expand to view this evidence'}
         >
           <span className="text-emerald-300 text-sm">{expanded ? '▾' : '▸'}</span>

@@ -486,8 +486,15 @@ export default function ChamberGraph({
   // Which header node triggered the most recent toggle, so the post-layout
   // camera move can re-center on THAT node rather than refitting everything.
   const lastToggledNodeIdRef = useRef<string | null>(null);
+  // Separate from `selectedId` (which drives the real DetailPanel) — a header's
+  // click never reaches the normal node-click handler (stopPropagation, so
+  // toggling doesn't also try to open a detail panel for a synthetic id), so
+  // it needs its own highlight state, cleared the same way normal selection is.
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const toggleGroupRef = useRef((parentId: string) => {
-    lastToggledNodeIdRef.current = `evgrp:${parentId}`;
+    const headerId = `evgrp:${parentId}`;
+    lastToggledNodeIdRef.current = headerId;
+    setSelectedGroupId(headerId);
     setExpandedGroups(prev => {
       const next = new Set(prev);
       if (next.has(parentId)) next.delete(parentId); else next.add(parentId);
@@ -501,7 +508,11 @@ export default function ChamberGraph({
     const focusNodeId = opts?.focusNodeId;
     const { nodes: raw, edges: rawEdges } = buildGraph(resolution, statements, relationships, expandedGroups);
     applyElkLayout(raw, rawEdges).then(({ nodes: laid, edges: laidEdges }) => {
-      setNodes(decorateNodes(laid, statements, relationships, resolution, userIdRef.current, metricsRef.current, stableUpdate, stableRetract, stableCreateChild, stableChat, stableVote, stableDescPopup, canArgueRef.current ? stableArgue : undefined, canAnalyseRef.current ? stableAnalyse : undefined, stableToggleGroup));
+      const decorated = decorateNodes(laid, statements, relationships, resolution, userIdRef.current, metricsRef.current, stableUpdate, stableRetract, stableCreateChild, stableChat, stableVote, stableDescPopup, canArgueRef.current ? stableArgue : undefined, canAnalyseRef.current ? stableAnalyse : undefined, stableToggleGroup);
+      // Re-apply selection here too, not just in the separate selection-sync
+      // effect below — this rebuild is async (ELK), so without this the
+      // highlight set by a toggle would get wiped the instant layout lands.
+      setNodes(decorated.map(n => ({ ...n, selected: n.id === selectedId || n.id === selectedGroupId })));
       setEdges(laidEdges);
       if (fit) {
         setTimeout(() => rfRef.current?.fitView({ padding: 0.25, duration: 400 }), 60);
@@ -518,7 +529,7 @@ export default function ChamberGraph({
       }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolution.id, statements.map(s => s.id).join(','), relationships.length, expandedGroups]);
+  }, [resolution.id, statements.map(s => s.id).join(','), relationships.length, expandedGroups, selectedId, selectedGroupId]);
 
   // Layout: reruns when visible statement set, relationship count, or group
   // expansion changes (expanding/collapsing changes which nodes exist). A real
@@ -551,10 +562,12 @@ export default function ChamberGraph({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statements, relationships, userId, metrics, canArgue, canAnalyse]);
 
-  // Selection-sync
+  // Selection-sync — a header's highlight (selectedGroupId) and a normal
+  // node's highlight (selectedId) are mutually exclusive by construction
+  // (different id namespaces), so a node is just selected if either matches.
   useEffect(() => {
-    setNodes(prev => prev.map(n => ({ ...n, selected: n.id === selectedId })));
-  }, [selectedId, setNodes]);
+    setNodes(prev => prev.map(n => ({ ...n, selected: n.id === selectedId || n.id === selectedGroupId })));
+  }, [selectedId, selectedGroupId, setNodes]);
 
   // Expose handle via onMounted callback
   const onMountedRef = useRef(onMounted);
@@ -635,11 +648,15 @@ export default function ChamberGraph({
         node.position.y + (nodeH + BTN_H) / 2,
         { duration: 300, zoom: rfRef.current.getZoom() },
       );
+      setSelectedGroupId(null);
       onNodeClick(node.id);
     },
     [onNodeClick],
   );
-  const handlePaneClick = useCallback(() => onNodeClick(''), [onNodeClick]);
+  const handlePaneClick = useCallback(() => {
+    setSelectedGroupId(null);
+    onNodeClick('');
+  }, [onNodeClick]);
 
   return (
     <div className="w-full h-full">
