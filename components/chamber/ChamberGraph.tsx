@@ -492,21 +492,33 @@ export default function ChamberGraph({
   });
   const stableToggleGroup = useCallback((parentId: string) => toggleGroupRef.current(parentId), []);
 
-  const runLayout = useCallback(() => {
+  const runLayout = useCallback((opts?: { fit?: boolean }) => {
+    const fit = opts?.fit ?? true;
     const { nodes: raw, edges: rawEdges } = buildGraph(resolution, statements, relationships, expandedGroups);
     applyElkLayout(raw, rawEdges).then(({ nodes: laid, edges: laidEdges }) => {
       setNodes(decorateNodes(laid, statements, relationships, resolution, userIdRef.current, metricsRef.current, stableUpdate, stableRetract, stableCreateChild, stableChat, stableVote, stableDescPopup, canArgueRef.current ? stableArgue : undefined, canAnalyseRef.current ? stableAnalyse : undefined, stableToggleGroup));
       setEdges(laidEdges);
-      setTimeout(() => rfRef.current?.fitView({ padding: 0.25, duration: 400 }), 60);
+      if (fit) setTimeout(() => rfRef.current?.fitView({ padding: 0.25, duration: 400 }), 60);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolution.id, statements.map(s => s.id).join(','), relationships.length, expandedGroups]);
 
   // Layout: reruns when visible statement set, relationship count, or group
-  // expansion changes (expanding/collapsing changes which nodes exist).
+  // expansion changes (expanding/collapsing changes which nodes exist). Only
+  // fit-to-view when the underlying statement/relationship SET actually
+  // changed — a pure expand/collapse toggle keeps whatever pan/zoom the user
+  // had, since they likely zoomed in to read that specific leg.
   const statIdKey = [resolution.id, ...statements.map(s => s.id)].join(',');
+  const prevStatIdKeyRef = useRef<string | null>(null);
+  const prevRelCountRef  = useRef<number | null>(null);
   useEffect(() => {
-    runLayout();
+    const isFirstRun = prevStatIdKeyRef.current === null;
+    const dataChanged = isFirstRun
+      || prevStatIdKeyRef.current !== statIdKey
+      || prevRelCountRef.current !== relationships.length;
+    prevStatIdKeyRef.current = statIdKey;
+    prevRelCountRef.current  = relationships.length;
+    runLayout({ fit: dataChanged });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statIdKey, relationships.length, expandedGroups]);
 
@@ -528,7 +540,7 @@ export default function ChamberGraph({
   onMountedRef.current = onMounted;
   useEffect(() => {
     onMountedRef.current?.({
-      resetLayout: runLayout,
+      resetLayout: () => runLayout({ fit: true }),
       exportSVG: (debateTitle: string) => {
         const currentNodes = rfRef.current?.getNodes() as Node<StatementNodeData>[] | undefined;
         const currentEdges = rfRef.current?.getEdges() as Edge[] | undefined;
@@ -632,7 +644,7 @@ export default function ChamberGraph({
       >
         <Background variant={BackgroundVariant.Dots} gap={24} size={1} color="#1e293b" />
         <Controls showInteractive={false}>
-          <ControlButton onClick={runLayout} title="Reset layout">
+          <ControlButton onClick={() => runLayout({ fit: true })} title="Reset layout">
             <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{ width: '1em', height: '1em' }}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
             </svg>
