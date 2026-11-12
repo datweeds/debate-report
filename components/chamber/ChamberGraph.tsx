@@ -483,7 +483,11 @@ export default function ChamberGraph({
   // currently shown in full. Empty by default, so every debate loads with
   // evidence collapsed into summary nodes; each one toggles independently.
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set());
+  // Which header node triggered the most recent toggle, so the post-layout
+  // camera move can re-center on THAT node rather than refitting everything.
+  const lastToggledNodeIdRef = useRef<string | null>(null);
   const toggleGroupRef = useRef((parentId: string) => {
+    lastToggledNodeIdRef.current = `evgrp:${parentId}`;
     setExpandedGroups(prev => {
       const next = new Set(prev);
       if (next.has(parentId)) next.delete(parentId); else next.add(parentId);
@@ -492,22 +496,35 @@ export default function ChamberGraph({
   });
   const stableToggleGroup = useCallback((parentId: string) => toggleGroupRef.current(parentId), []);
 
-  const runLayout = useCallback((opts?: { fit?: boolean }) => {
+  const runLayout = useCallback((opts?: { fit?: boolean; focusNodeId?: string | null }) => {
     const fit = opts?.fit ?? true;
+    const focusNodeId = opts?.focusNodeId;
     const { nodes: raw, edges: rawEdges } = buildGraph(resolution, statements, relationships, expandedGroups);
     applyElkLayout(raw, rawEdges).then(({ nodes: laid, edges: laidEdges }) => {
       setNodes(decorateNodes(laid, statements, relationships, resolution, userIdRef.current, metricsRef.current, stableUpdate, stableRetract, stableCreateChild, stableChat, stableVote, stableDescPopup, canArgueRef.current ? stableArgue : undefined, canAnalyseRef.current ? stableAnalyse : undefined, stableToggleGroup));
       setEdges(laidEdges);
-      if (fit) setTimeout(() => rfRef.current?.fitView({ padding: 0.25, duration: 400 }), 60);
+      if (fit) {
+        setTimeout(() => rfRef.current?.fitView({ padding: 0.25, duration: 400 }), 60);
+      } else if (focusNodeId) {
+        const target = laid.find(n => n.id === focusNodeId);
+        if (target && rfRef.current) {
+          const nodeH = computeNodeH(target.data.label);
+          setTimeout(() => rfRef.current?.setCenter(
+            target.position.x + NODE_W / 2,
+            target.position.y + (nodeH + BTN_H) / 2,
+            { duration: 400, zoom: rfRef.current.getZoom() },
+          ), 60);
+        }
+      }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolution.id, statements.map(s => s.id).join(','), relationships.length, expandedGroups]);
 
   // Layout: reruns when visible statement set, relationship count, or group
-  // expansion changes (expanding/collapsing changes which nodes exist). Only
-  // fit-to-view when the underlying statement/relationship SET actually
-  // changed — a pure expand/collapse toggle keeps whatever pan/zoom the user
-  // had, since they likely zoomed in to read that specific leg.
+  // expansion changes (expanding/collapsing changes which nodes exist). A real
+  // data change re-fits the whole graph; a pure expand/collapse toggle instead
+  // re-centers on the node that was toggled, at whatever zoom the user had —
+  // ELK may move it, so "keep the camera still" isn't enough on its own.
   const statIdKey = [resolution.id, ...statements.map(s => s.id)].join(',');
   const prevStatIdKeyRef = useRef<string | null>(null);
   const prevRelCountRef  = useRef<number | null>(null);
@@ -518,7 +535,11 @@ export default function ChamberGraph({
       || prevRelCountRef.current !== relationships.length;
     prevStatIdKeyRef.current = statIdKey;
     prevRelCountRef.current  = relationships.length;
-    runLayout({ fit: dataChanged });
+    if (dataChanged) {
+      runLayout({ fit: true });
+    } else {
+      runLayout({ fit: false, focusNodeId: lastToggledNodeIdRef.current });
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statIdKey, relationships.length, expandedGroups]);
 
