@@ -3,6 +3,7 @@
 // row in our own `users` table, so statement ownership ("only authors can edit
 // their own statements") falls out of the existing created_by check for free.
 import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 import { NextRequest } from 'next/server';
 import pool from './db';
 
@@ -70,14 +71,20 @@ export async function resolveOrCreateExternalAuthor(
     .replace(/[^a-zA-Z0-9_]/g, '_')
     .slice(0, 60);
 
+  // `users` has a CHECK constraint requiring password_hash or access_code to be
+  // set. These accounts are never meant to log in directly (they only ever act
+  // through the party's token), so this is a random, never-disclosed code —
+  // just enough to satisfy the constraint without opening a real login path.
+  const placeholderAccessCode = await bcrypt.hash(crypto.randomBytes(24).toString('hex'), 12);
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     const { rows: [user] } = await client.query(
-      `INSERT INTO users (user_handle, user_full_name, user_tier, terms_agreed)
-       VALUES ($1, $2, 'debater', TRUE)
+      `INSERT INTO users (user_handle, user_full_name, user_tier, terms_agreed, access_code)
+       VALUES ($1, $2, 'debater', TRUE, $3)
        RETURNING id`,
-      [handle, authorName?.toString().trim() || null],
+      [handle, authorName?.toString().trim() || null, placeholderAccessCode],
     );
     await client.query(
       'INSERT INTO api_party_users (api_party_id, external_user_id, user_id) VALUES ($1, $2, $3)',
