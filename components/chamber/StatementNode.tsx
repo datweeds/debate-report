@@ -33,6 +33,14 @@ export type StatementNodeData = {
   onDescriptionPopup: (id: string) => void;
   onArgue?:   (id: string) => void;
   onAnalyse?: (id: string) => void;
+  // Synthetic "N evidence" summary node — collapses a parent's evidence
+  // children into one expandable node so a heavily-evidenced leg doesn't
+  // clutter the graph. Only set on synthetic group-header nodes.
+  isGroupHeader?: boolean;
+  groupCount?: number;
+  groupExpanded?: boolean;
+  groupParentId?: string;
+  onToggleGroup?: (parentId: string) => void;
 };
 
 export const NODE_W = 260;
@@ -249,6 +257,10 @@ function StatementNode({ id, data, selected }: NodeProps & { data: StatementNode
     e.preventDefault();
     data.onDescriptionPopup(id);
   }, [id, data]);
+  const handleToggleGroup = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (data.groupParentId) data.onToggleGroup?.(data.groupParentId);
+  }, [data]);
 
   const stripCls = !hasButtons
     ? 'opacity-0 pointer-events-none'
@@ -276,6 +288,41 @@ function StatementNode({ id, data, selected }: NodeProps & { data: StatementNode
     : data.direction === 'for' ? 'border-emerald-700/50'
     : data.direction === 'against' ? 'border-rose-700/50'
     : 'border-slate-700/80';
+
+  if (data.isGroupHeader) {
+    const count    = data.groupCount ?? 0;
+    const expanded = !!data.groupExpanded;
+    return (
+      <>
+        <Handle
+          type="target"
+          position={Position.Top}
+          className="!bg-slate-600 !border-slate-500"
+          style={{ width: 8, height: 8 }}
+        />
+        <div
+          onClick={handleToggleGroup}
+          style={{ width: NODE_W }}
+          className="flex items-center gap-2 rounded-xl border-2 border-dashed border-emerald-700/60 bg-emerald-950/40 px-3 py-2.5 shadow-xl transition-all cursor-pointer hover:bg-emerald-900/40 hover:border-emerald-500/70"
+          title={expanded ? 'Collapse this evidence' : 'Expand to view this evidence'}
+        >
+          <span className="text-emerald-300 text-sm">{expanded ? '▾' : '▸'}</span>
+          <span className="flex-1 text-sm font-medium text-emerald-200">
+            {count} piece{count === 1 ? '' : 's'} of evidence
+          </span>
+          <span className="rounded px-1.5 py-0.5 text-[10px] font-bold border bg-emerald-500/20 text-emerald-300 border-emerald-500/40">
+            {expanded ? 'Collapse' : 'Expand'}
+          </span>
+        </div>
+        <Handle
+          type="source"
+          position={Position.Bottom}
+          className="!bg-slate-600 !border-slate-500"
+          style={{ width: 8, height: 8 }}
+        />
+      </>
+    );
+  }
 
   return (
     <>

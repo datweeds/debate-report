@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -175,18 +175,53 @@ function buildNodeSvg(n: Node<StatementNodeData>, ox: number, oy: number): strin
 
 // ── Graph builder ─────────────────────────────────────────────────────────────
 
+// A parent's evidence children collapse into one "N pieces of evidence" node
+// when there are 2+ of them and none has children of its own (collapsing would
+// otherwise hide a rebuttal/warrant subtree, so those legs stay fully expanded).
+function computeEvidenceGroups(
+  statements: ChamberStatement[],
+  relationships: ChamberRelationship[],
+): Map<string, string[]> {
+  const childrenByParent = new Map<string, string[]>();
+  for (const r of relationships) {
+    const arr = childrenByParent.get(r.stat_id_supported) ?? [];
+    arr.push(r.stat_id_supported_by);
+    childrenByParent.set(r.stat_id_supported, arr);
+  }
+  const stmtMap = new Map(statements.map(s => [s.id, s]));
+  const hasOwnChildren = (id: string) => (childrenByParent.get(id)?.length ?? 0) > 0;
+
+  const groups = new Map<string, string[]>();
+  for (const [parentId, childIds] of childrenByParent) {
+    const evidenceChildren = childIds.filter(cid => stmtMap.get(cid)?.stat_type === 'evidence');
+    if (evidenceChildren.length < 2) continue;
+    if (evidenceChildren.some(hasOwnChildren)) continue;
+    groups.set(parentId, evidenceChildren);
+  }
+  return groups;
+}
+
 function buildGraph(
   resolution: { id: string; stat_title: string; stat_description: string | null; created_by: string | null },
   statements: ChamberStatement[],
   relationships: ChamberRelationship[],
+  expandedGroups: Set<string>,
 ): { nodes: Node<StatementNodeData>[]; edges: Edge[] } {
+  const groups = computeEvidenceGroups(statements, relationships);
+  const groupedChildIds = new Map<string, string>(); // evidence id -> its group's parent id
+  for (const [parentId, ids] of groups) for (const id of ids) groupedChildIds.set(id, parentId);
+
   const all: ChamberStatement[] = [
     {
       id: resolution.id, stat_type: 'resolution', stat_title: resolution.stat_title,
       stat_direction: null, retracted_at: null, created_by: resolution.created_by,
       stat_description: resolution.stat_description,
     },
-    ...statements,
+    // Hide a grouped evidence statement only while its group is collapsed.
+    ...statements.filter(s => {
+      const parentId = groupedChildIds.get(s.id);
+      return !parentId || expandedGroups.has(parentId);
+    }),
   ];
 
   const nodes: Node<StatementNodeData>[] = all.map(s => ({
@@ -216,15 +251,75 @@ function buildGraph(
     },
   }));
 
-  const edges: Edge[] = relationships.map(r => ({
-    id: `${r.stat_id_supported}__${r.stat_id_supported_by}`,
-    source: r.stat_id_supported,
-    target: r.stat_id_supported_by,
-    markerEnd: { type: MarkerType.ArrowClosed, color: '#475569', width: 14, height: 14 },
-    style: { stroke: '#475569', strokeWidth: 1.5 },
-  }));
+  // One synthetic header node per group, always present whether collapsed or expanded.
+  for (const [parentId, evidenceIds] of groups) {
+    const expanded = expandedGroups.has(parentId);
+    nodes.push({
+      id: `evgrp:${parentId}`,
+      type: 'statement',
+      position: { x: 0, y: 0 },
+      selected: false,
+      data: {
+        label: `${evidenceIds.length} pieces of evidence`,
+        statType: 'evidence',
+        direction: null,
+        isRetracted: false,
+        isOwner: false,
+        hasChildren: expanded,
+        canCreate: false,
+        allowedChildren: [],
+        description: null,
+        agreeCount: 0, disagreeCount: 0,
+        totalFor: 0, totalAgainst: 0,
+        chatCount: 0, hasAnalysis: false, isFlagged: false,
+        onUpdate: () => {},
+        onRetract: () => {},
+        onCreateChild: () => {},
+        onChat: () => {},
+        onVote: () => {},
+        onDescriptionPopup: () => {},
+        isGroupHeader: true,
+        groupCount: evidenceIds.length,
+        groupExpanded: expanded,
+        groupParentId: parentId,
+      },
+    });
+  }
 
-  return { nodes, edges };
+  const directEdges: Edge[] = relationships
+    .filter(r => groupedChildIds.get(r.stat_id_supported_by) !== r.stat_id_supported)
+    .map(r => ({
+      id: `${r.stat_id_supported}__${r.stat_id_supported_by}`,
+      source: r.stat_id_supported,
+      target: r.stat_id_supported_by,
+      markerEnd: { type: MarkerType.ArrowClosed, color: '#475569', width: 14, height: 14 },
+      style: { stroke: '#475569', strokeWidth: 1.5 },
+    }));
+
+  const groupEdges: Edge[] = [];
+  for (const [parentId, evidenceIds] of groups) {
+    const headerId = `evgrp:${parentId}`;
+    groupEdges.push({
+      id: `${parentId}__${headerId}`,
+      source: parentId,
+      target: headerId,
+      markerEnd: { type: MarkerType.ArrowClosed, color: '#15803d', width: 14, height: 14 },
+      style: { stroke: '#15803d', strokeWidth: 1.5, strokeDasharray: '4 3' },
+    });
+    if (expandedGroups.has(parentId)) {
+      for (const eid of evidenceIds) {
+        groupEdges.push({
+          id: `${headerId}__${eid}`,
+          source: headerId,
+          target: eid,
+          markerEnd: { type: MarkerType.ArrowClosed, color: '#475569', width: 14, height: 14 },
+          style: { stroke: '#475569', strokeWidth: 1.5 },
+        });
+      }
+    }
+  }
+
+  return { nodes, edges: [...directEdges, ...groupEdges] };
 }
 
 // ── ELK layout ────────────────────────────────────────────────────────────────
@@ -287,12 +382,17 @@ function decorateNodes(
   onDescriptionPopup: (id: string) => void,
   onArgue: ((id: string) => void) | undefined,
   onAnalyse: ((id: string) => void) | undefined,
+  onToggleGroup: (parentId: string) => void,
 ): Node<StatementNodeData>[] {
   const stmtMap    = new Map(statements.map(s => [s.id, s]));
   const parentIds  = new Set(relationships.map(r => r.stat_id_supported));
   const metricsMap = new Map(metrics?.map(m => [m.id, m]) ?? []);
 
   return nodes.map(n => {
+    // Synthetic evidence-group header — not a real statement, skip the lookups below.
+    if (n.data.isGroupHeader) {
+      return { ...n, data: { ...n.data, onToggleGroup } };
+    }
     const isRes     = n.id === resolution.id;
     const stmt      = isRes ? null : stmtMap.get(n.id);
     const createdBy = isRes ? resolution.created_by : stmt?.created_by ?? null;
@@ -379,27 +479,41 @@ export default function ChamberGraph({
   const stableArgue         = useCallback((id: string) => onArgueRef.current?.(id), []);
   const stableAnalyse       = useCallback((id: string) => onAnalyseRef.current?.(id), []);
 
+  // Evidence-group expand/collapse state — parents whose evidence children are
+  // currently shown in full. Empty by default, so every debate loads with
+  // evidence collapsed into summary nodes; each one toggles independently.
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set());
+  const toggleGroupRef = useRef((parentId: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(parentId)) next.delete(parentId); else next.add(parentId);
+      return next;
+    });
+  });
+  const stableToggleGroup = useCallback((parentId: string) => toggleGroupRef.current(parentId), []);
+
   const runLayout = useCallback(() => {
-    const { nodes: raw, edges: rawEdges } = buildGraph(resolution, statements, relationships);
+    const { nodes: raw, edges: rawEdges } = buildGraph(resolution, statements, relationships, expandedGroups);
     applyElkLayout(raw, rawEdges).then(({ nodes: laid, edges: laidEdges }) => {
-      setNodes(decorateNodes(laid, statements, relationships, resolution, userIdRef.current, metricsRef.current, stableUpdate, stableRetract, stableCreateChild, stableChat, stableVote, stableDescPopup, canArgueRef.current ? stableArgue : undefined, canAnalyseRef.current ? stableAnalyse : undefined));
+      setNodes(decorateNodes(laid, statements, relationships, resolution, userIdRef.current, metricsRef.current, stableUpdate, stableRetract, stableCreateChild, stableChat, stableVote, stableDescPopup, canArgueRef.current ? stableArgue : undefined, canAnalyseRef.current ? stableAnalyse : undefined, stableToggleGroup));
       setEdges(laidEdges);
       setTimeout(() => rfRef.current?.fitView({ padding: 0.25, duration: 400 }), 60);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolution.id, statements.map(s => s.id).join(','), relationships.length]);
+  }, [resolution.id, statements.map(s => s.id).join(','), relationships.length, expandedGroups]);
 
-  // Layout: reruns when visible statement set or relationship count changes
+  // Layout: reruns when visible statement set, relationship count, or group
+  // expansion changes (expanding/collapsing changes which nodes exist).
   const statIdKey = [resolution.id, ...statements.map(s => s.id)].join(',');
   useEffect(() => {
     runLayout();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statIdKey, relationships.length]);
+  }, [statIdKey, relationships.length, expandedGroups]);
 
   // Data-sync: update labels/ownership/retracted/metrics/callbacks without re-layout
   useEffect(() => {
     setNodes(prev =>
-      decorateNodes(prev, statements, relationships, resolution, userId, metrics, stableUpdate, stableRetract, stableCreateChild, stableChat, stableVote, stableDescPopup, canArgue ? stableArgue : undefined, canAnalyse ? stableAnalyse : undefined),
+      decorateNodes(prev, statements, relationships, resolution, userId, metrics, stableUpdate, stableRetract, stableCreateChild, stableChat, stableVote, stableDescPopup, canArgue ? stableArgue : undefined, canAnalyse ? stableAnalyse : undefined, stableToggleGroup),
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statements, relationships, userId, metrics, canArgue, canAnalyse]);
