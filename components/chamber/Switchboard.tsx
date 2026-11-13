@@ -4,6 +4,10 @@ import { useState, useEffect, useRef } from 'react';
 import { SUBJECT_LABELS, SUBJECT_COLOURS } from './constants';
 import type { PublicDebate } from './types';
 
+type SocietyOption = { id: number; name: string };
+type SocietyList = { current: SocietyOption | null; public: SocietyOption[]; private: SocietyOption[] };
+const ALL_SOCIETIES = 'all';
+
 type Props = {
   currentId: string | null;
   onSelect: (id: string) => void;
@@ -17,6 +21,9 @@ export default function Switchboard({ currentId, onSelect, onClose, initialTopic
   const [fetchError, setFetchError] = useState('');
   const [filter,  setFilter]  = useState('');
   const [topic,   setTopic]   = useState('');
+  const [societies, setSocieties] = useState<SocietyList | null>(null);
+  const [societyFilter, setSocietyFilter] = useState<string>('');
+  const [switching, setSwitching] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Fetch debates once on mount
@@ -34,6 +41,18 @@ export default function Switchboard({ currentId, onSelect, onClose, initialTopic
       })
       .catch(e => setFetchError(e?.message ?? 'Could not load debates'))
       .finally(() => setLoading(false));
+  }, []);
+
+  // Societies for the filter dropdown — defaults to whichever is current.
+  useEffect(() => {
+    fetch('/api/customer/current')
+      .then(r => r.ok ? r.json() : null)
+      .then((d: SocietyList | null) => {
+        if (!d) return;
+        setSocieties(d);
+        setSocietyFilter(String(d.current?.id ?? ALL_SOCIETIES));
+      })
+      .catch(() => {});
   }, []);
 
   // Apply topic filter once both debates and initialTopic are available
@@ -54,18 +73,42 @@ export default function Switchboard({ currentId, onSelect, onClose, initialTopic
     new Set(debates.map(d => d.subject_area).filter(Boolean))
   ).sort();
 
+  const showingAll = societyFilter === ALL_SOCIETIES;
+  const societyOptions = [...(societies?.public ?? []), ...(societies?.private ?? [])];
+
   const filtered = debates.filter(d => {
+    const matchesSociety = showingAll || !societyFilter || String(d.customer_id ?? '') === societyFilter;
     const matchesTopic = !topic || d.subject_area === topic;
     const q = filter.toLowerCase();
     const matchesText = !q ||
       d.stat_title.toLowerCase().includes(q) ||
       (SUBJECT_LABELS[d.subject_area] ?? d.subject_area).toLowerCase().includes(q);
-    return matchesTopic && matchesText;
+    return matchesSociety && matchesTopic && matchesText;
   });
 
   function handleClose(e: React.MouseEvent) {
     e.stopPropagation();
     onClose();
+  }
+
+  // Picking a debate from a different society than the current one switches
+  // the visitor's active society first, so proposals/bills/new-debate etc.
+  // stay consistent with whatever debate they just jumped into.
+  async function handleSelect(d: PublicDebate) {
+    if (switching) return;
+    if (d.customer_id && societies?.current && d.customer_id !== societies.current.id) {
+      setSwitching(true);
+      try {
+        await fetch('/api/customer/switch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customer_id: d.customer_id }),
+        });
+      } finally {
+        setSwitching(false);
+      }
+    }
+    onSelect(d.id);
   }
 
   return (
@@ -108,6 +151,20 @@ export default function Switchboard({ currentId, onSelect, onClose, initialTopic
               <option key={t} value={t}>{SUBJECT_LABELS[t] ?? t}</option>
             ))}
           </select>
+          {societyOptions.length > 0 && (
+            <select
+              value={societyFilter}
+              onChange={e => setSocietyFilter(e.target.value)}
+              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-300 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value={ALL_SOCIETIES}>All Available Societies</option>
+              {societyOptions.map(s => (
+                <option key={s.id} value={s.id}>
+                  {s.name}{societies?.current?.id === s.id ? ' (current)' : ''}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto">
@@ -142,8 +199,9 @@ export default function Switchboard({ currentId, onSelect, onClose, initialTopic
               <button
                 key={d.id}
                 type="button"
-                onClick={() => onSelect(d.id)}
-                className={`w-full text-left px-5 py-4 border-b border-slate-800/60 hover:bg-slate-800/50 transition-colors flex items-start gap-3 ${d.id === currentId ? 'bg-blue-500/8' : ''}`}
+                onClick={() => handleSelect(d)}
+                disabled={switching}
+                className={`w-full text-left px-5 py-4 border-b border-slate-800/60 hover:bg-slate-800/50 transition-colors flex items-start gap-3 disabled:opacity-50 ${d.id === currentId ? 'bg-blue-500/8' : ''}`}
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-slate-100 font-medium line-clamp-2 leading-snug mb-1.5">{d.stat_title}</p>
@@ -152,7 +210,7 @@ export default function Switchboard({ currentId, onSelect, onClose, initialTopic
                     <span className={`rounded-full px-2 py-0.5 text-xs font-bold border ${SUBJECT_COLOURS[d.subject_area] ?? 'bg-slate-700 text-slate-400 border-slate-600'}`}>
                       {SUBJECT_LABELS[d.subject_area] ?? d.subject_area}
                     </span>
-                    {d.society_name && (
+                    {showingAll && d.society_name && (
                       <span className="rounded-full px-2 py-0.5 text-xs font-bold border bg-slate-800 text-slate-400 border-slate-600">
                         {d.society_name}
                       </span>

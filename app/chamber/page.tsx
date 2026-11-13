@@ -484,6 +484,20 @@ function ChamberInner() {
 
   const canArgue   = user?.tier === 'debater' || user?.tier === 'moderator' || !!user?.isSysAdmin;
   const canAnalyse = user?.plan === 'paid' || !!user?.isSysAdmin;
+  const canPurgeRetracted = !!user && (user.sub === data?.resolution.created_by || !!user.isSysAdmin);
+
+  const handlePurgeRetracted = useCallback(() => {
+    if (!resolutionParam) return;
+    const count = data?.statements.filter(s => s.retracted_at).length ?? 0;
+    if (!window.confirm(`Permanently delete ${count} retracted statement${count !== 1 ? 's' : ''}? This can't be undone.`)) return;
+    fetch(`/api/debates/${resolutionParam}/purge-retracted`, { method: 'POST' })
+      .then(async r => {
+        if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error ?? 'Failed'); }
+        return fetch(`/api/chamber/${resolutionParam}`).then(r2 => r2.json());
+      })
+      .then((d: ChamberData | null) => { if (d) setData(d); setShowRetracted(false); })
+      .catch(e => alert(e?.message ?? 'Could not delete retracted statements'));
+  }, [resolutionParam, data]);
 
   // ── Derived state
 
@@ -558,6 +572,8 @@ function ChamberInner() {
           scaleAgainst={scaleAgainst}
           selectedFlagCount={selectedFlagCount}
           onToggleRetracted={() => setShowRetracted(v => !v)}
+          canPurgeRetracted={canPurgeRetracted}
+          onPurgeRetracted={handlePurgeRetracted}
           onToggleFavourite={handleToggleFavourite}
           onOpenSwitchboard={() => setSwitchboardOpen(true)}
           onPrint={handlePrint}

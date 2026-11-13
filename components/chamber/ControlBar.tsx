@@ -23,6 +23,8 @@ type Props = {
   scaleAgainst: number;
   selectedFlagCount: number | null;
   onToggleRetracted: () => void;
+  canPurgeRetracted?: boolean;
+  onPurgeRetracted?: () => void;
   onToggleFavourite: () => void;
   onOpenSwitchboard: () => void;
   onPrint: () => void;
@@ -37,7 +39,7 @@ export default function ControlBar({
   data, showRetracted, isFavourite,
   scaleFor, scaleAgainst, selectedFlagCount,
   onToggleRetracted, onToggleFavourite, onOpenSwitchboard, onPrint, onOpenAnalysis, onFlag,
-  onOpenListSheet, onOpenMetricsSheet, canAnalyse,
+  onOpenListSheet, onOpenMetricsSheet, canAnalyse, canPurgeRetracted, onPurgeRetracted,
 }: Props) {
   const res = data?.resolution;
   const retractedCount = data?.statements.filter(s => s.retracted_at).length ?? 0;
@@ -150,6 +152,15 @@ export default function ControlBar({
                 showRetracted ? 'bg-slate-600 text-slate-200' : 'bg-slate-800 text-slate-500 hover:bg-slate-700 hover:text-slate-400'
               }`}>
               {showRetracted ? 'Hide Retracted' : `Retracted (${retractedCount})`}
+            </button>
+          )}
+
+          {/* Purge retracted — moderator only, desktop only */}
+          {retractedCount > 0 && canPurgeRetracted && onPurgeRetracted && (
+            <button onClick={onPurgeRetracted}
+              title="Permanently delete every retracted statement in this debate"
+              className="hidden sm:block rounded px-3 py-1.5 text-xs font-bold bg-rose-950/60 text-rose-400 hover:bg-rose-900/60 transition-colors">
+              Delete Retracted
             </button>
           )}
 

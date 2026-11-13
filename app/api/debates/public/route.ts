@@ -12,7 +12,7 @@ export async function GET() {
   const userId = session?.sub ?? null;
 
   const { rows } = await pool.query(
-    `SELECT s.id, s.stat_title, s.subject_area, s.forum_id,
+    `SELECT s.id, s.stat_title, s.subject_area, s.forum_id, s.customer_id,
             COALESCE(f.forum_type::text, 'public')       AS forum_type,
             COALESCE(f.forum_visibility::text, 'public') AS forum_visibility,
             f.forum_title,
@@ -30,7 +30,14 @@ export async function GET() {
      WHERE  s.stat_type = 'resolution'
        AND  s.stat_status IN ('active', 'closed')
        AND  s.stat_hidden IS NOT TRUE
-       AND  (c.is_public IS TRUE OR s.customer_id IS NULL)
+       AND  (
+              c.is_public IS TRUE
+           OR s.customer_id IS NULL
+           OR ($1::text IS NOT NULL AND EXISTS (
+                SELECT 1 FROM customer_members cmem
+                WHERE cmem.customer_id = s.customer_id AND cmem.user_id = $1::text
+              ))
+            )
        AND  (
               (s.forum_id IS NULL AND s.forum_visibility = 'public')
            OR f.forum_type = 'public'

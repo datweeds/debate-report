@@ -119,7 +119,6 @@ export default function Header() {
   const [topicsOpen,    setTopicsOpen]    = useState(false);
   const [chamberHref,   setChamberHref]   = useState('/scotparl/debates');
   const [adminRole,     setAdminRole]     = useState<AdminRole | null>(null);
-  const [siteName,      setSiteName]      = useState<string | null>(null);
   const [societies,     setSocieties]     = useState<SocietyList | null>(null);
   const [switching,     setSwitching]     = useState<number | null>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -175,14 +174,6 @@ export default function Header() {
       })
       .catch(() => {});
   }, [user]);
-
-  // Fetch public site name for header display
-  useEffect(() => {
-    fetch('/api/site')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.name) setSiteName(d.name); })
-      .catch(() => {});
-  }, []);
 
   // Fetch the current society + which public/private ones this visitor can
   // switch to. Re-fetched when auth state changes since the private list
@@ -258,9 +249,9 @@ export default function Header() {
                 new<span className="text-blue-400">.vote</span>
               </span>
             </Link>
-          ) : siteName ? (
+          ) : societies?.current ? (
             <span className="hidden sm:block absolute left-1/2 -translate-x-1/2 text-base font-semibold text-slate-200 select-none pointer-events-none truncate max-w-[40%] text-center">
-              {siteName}
+              {societies.current.name}
             </span>
           ) : null}
 

@@ -344,6 +344,9 @@ async function applyElkLayout(
       'elk.direction': 'DOWN',
       'elk.spacing.nodeNode': '60',
       'elk.layered.spacing.nodeNodeBetweenLayers': '50',
+      // Default placement left-aligns a parent over its children's span;
+      // BRANDES_KOEPF centres it instead (balanced layout).
+      'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
     },
     children: nodes.map(n => ({
       id: n.id,

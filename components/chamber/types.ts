@@ -48,4 +48,5 @@ export type PublicDebate = {
   science_count: number;
   chat_count: number;
   society_name: string | null;
+  customer_id: number | null;
 };
