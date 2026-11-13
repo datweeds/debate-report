@@ -41,7 +41,11 @@ type Debate = {
   vote_total_for: number;
   vote_total_against: number;
   child_count: number;
+  customer_id: number | null;
+  society_name: string | null;
 };
+
+type SocietyOption = { id: number; name: string };
 
 type CloseForm = {
   decision: 'for' | 'against' | 'draw' | '';
@@ -65,6 +69,13 @@ export default function ListDebatesPage() {
   const [closeSubmitting, setCloseSubmitting] = useState(false);
   const [closeError,   setCloseError]   = useState('');
 
+  // Move-to-society state
+  const [movingId,     setMovingId]     = useState<string | null>(null);
+  const [societies,    setSocieties]    = useState<SocietyOption[]>([]);
+  const [moveTarget,   setMoveTarget]   = useState<number | ''>('');
+  const [moveSubmitting, setMoveSubmitting] = useState(false);
+  const [moveError,    setMoveError]    = useState('');
+
   useEffect(() => {
     if (!loading && !user) router.push('/login?next=/dashboard/debates');
     if (!loading && user && user.tier !== 'moderator' && !user.isSysAdmin) router.push('/dashboard');
@@ -85,6 +96,16 @@ export default function ListDebatesPage() {
   }, []);
 
   useEffect(() => { fetchDebates(); }, [fetchDebates]);
+
+  // Societies to move a debate into — sysadmin sees every society (public +
+  // private) via the bypass already built into /api/customer/current.
+  useEffect(() => {
+    if (!user?.isSysAdmin) return;
+    fetch('/api/customer/current')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setSocieties([...(d.public ?? []), ...(d.private ?? [])]); })
+      .catch(() => {});
+  }, [user]);
 
   async function handleDelete(debate: Debate) {
     if (debate.child_count > 0) return;
@@ -145,6 +166,39 @@ export default function ListDebatesPage() {
     }
   }
 
+  function openMoveForm(debate: Debate) {
+    setMovingId(debate.id);
+    setMoveTarget('');
+    setMoveError('');
+  }
+
+  function cancelMove() {
+    setMovingId(null);
+    setMoveError('');
+  }
+
+  async function submitMove(debate: Debate) {
+    if (!moveTarget) { setMoveError('Please select a society'); return; }
+    setMoveSubmitting(true); setMoveError('');
+    try {
+      const res = await fetch(`/api/debates/${debate.id}/move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customer_id: moveTarget }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setMoveError(data.error ?? 'Move failed'); return; }
+      setDebates(prev => prev.map(d =>
+        d.id === debate.id ? { ...d, customer_id: Number(moveTarget), society_name: data.society_name } : d
+      ));
+      setMovingId(null);
+    } catch {
+      setMoveError('Network error');
+    } finally {
+      setMoveSubmitting(false);
+    }
+  }
+
   if (loading || !user) return null;
 
   return (
@@ -194,7 +248,7 @@ export default function ListDebatesPage() {
           <div className="space-y-3">
             {debates.map(debate => (
               <div key={debate.id}>
-                <div className={`card-dr flex items-start gap-4 p-4 ${closingId === debate.id ? 'rounded-b-none border-b-0' : ''}`}>
+                <div className={`card-dr flex items-start gap-4 p-4 ${(closingId === debate.id || movingId === debate.id) ? 'rounded-b-none border-b-0' : ''}`}>
 
                   {/* Thumbnail */}
                   {debate.image_path ? (
@@ -232,6 +286,11 @@ export default function ListDebatesPage() {
                       </span>
                       {debate.creator_handle && (
                         <span className="text-xs text-slate-600">@{debate.creator_handle}</span>
+                      )}
+                      {debate.society_name && (
+                        <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold bg-slate-700/60 text-slate-400">
+                          {debate.society_name}
+                        </span>
                       )}
                       {debate.child_count > 0 && (
                         <span className="text-xs text-amber-400/80">
@@ -273,6 +332,21 @@ export default function ListDebatesPage() {
                       >
                         <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                        </svg>
+                      </button>
+                    )}
+                    {user.isSysAdmin && (
+                      <button
+                        onClick={() => movingId === debate.id ? cancelMove() : openMoveForm(debate)}
+                        title="Move to a different society"
+                        className={`rounded-lg p-2 transition-colors ${
+                          movingId === debate.id
+                            ? 'text-violet-400 bg-violet-500/10'
+                            : 'text-slate-500 hover:text-violet-400 hover:bg-violet-500/10'
+                        }`}
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
                         </svg>
                       </button>
                     )}
@@ -323,6 +397,20 @@ export default function ListDebatesPage() {
                     onCancel={cancelClose}
                     submitting={closeSubmitting}
                     error={closeError}
+                  />
+                )}
+
+                {/* Inline move form */}
+                {movingId === debate.id && (
+                  <MovePanel
+                    debate={debate}
+                    societies={societies}
+                    target={moveTarget}
+                    onTargetChange={setMoveTarget}
+                    onSubmit={() => submitMove(debate)}
+                    onCancel={cancelMove}
+                    submitting={moveSubmitting}
+                    error={moveError}
                   />
                 )}
               </div>
@@ -452,6 +540,59 @@ function ClosePanel({
           className="rounded-xl bg-orange-600 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-500 disabled:opacity-50 transition-colors"
         >
           {submitting ? 'Closing…' : 'Close debate'}
+        </button>
+        <button
+          onClick={onCancel}
+          className="rounded-xl border border-slate-700 px-5 py-2 text-sm text-slate-400 hover:text-slate-200 hover:border-slate-600 transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function MovePanel({
+  debate, societies, target, onTargetChange, onSubmit, onCancel, submitting, error,
+}: {
+  debate: Debate;
+  societies: SocietyOption[];
+  target: number | '';
+  onTargetChange: (id: number | '') => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+  submitting: boolean;
+  error: string;
+}) {
+  return (
+    <div className="card-dr rounded-t-none border-t border-violet-500/20 bg-violet-500/5 p-5">
+      <p className="text-sm font-semibold text-slate-200 mb-1">Move to a different society</p>
+      <p className="text-xs text-slate-500 mb-4">
+        Currently in <span className="text-slate-300">{debate.society_name ?? 'no society'}</span>.
+        This also regroups which society&rsquo;s dashboard counts it towards.
+      </p>
+
+      <label className="block text-xs font-semibold text-slate-400 mb-1.5">Move to</label>
+      <select
+        value={target}
+        onChange={e => onTargetChange(e.target.value ? Number(e.target.value) : '')}
+        className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-slate-100 focus:border-violet-500/50 focus:outline-none mb-4"
+      >
+        <option value="">Select a society…</option>
+        {societies.filter(s => s.id !== debate.customer_id).map(s => (
+          <option key={s.id} value={s.id}>{s.name}</option>
+        ))}
+      </select>
+
+      {error && <p className="text-xs text-red-400 mb-3">{error}</p>}
+
+      <div className="flex gap-2">
+        <button
+          onClick={onSubmit}
+          disabled={submitting || !target}
+          className="rounded-xl bg-violet-600 px-5 py-2 text-sm font-semibold text-white hover:bg-violet-500 disabled:opacity-50 transition-colors"
+        >
+          {submitting ? 'Moving…' : 'Move debate'}
         </button>
         <button
           onClick={onCancel}

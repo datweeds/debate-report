@@ -324,6 +324,42 @@ function buildGraph(
 
 // ── ELK layout ────────────────────────────────────────────────────────────────
 
+// ELK's node-placement strategies all still bias toward the left edge of a
+// parent's children in practice, so instead of trusting an ELK option,
+// explicitly recentre each parent over the span of its own children after
+// ELK has settled everything else (ordering, spacing, no overlaps). Nodes
+// are processed layer-by-layer from the bottom up, so by the time a parent
+// is repositioned, every one of its children already has its final x.
+function centerParentsOverChildren(
+  positions: Map<string, { x: number; y: number }>,
+  edges: Edge[],
+): void {
+  const childrenOf = new Map<string, string[]>();
+  for (const e of edges) {
+    const arr = childrenOf.get(e.source) ?? [];
+    arr.push(e.target);
+    childrenOf.set(e.source, arr);
+  }
+
+  const byY = new Map<number, string[]>();
+  for (const [id, pos] of positions) {
+    const arr = byY.get(pos.y) ?? [];
+    arr.push(id);
+    byY.set(pos.y, arr);
+  }
+  const ysDeepestFirst = Array.from(byY.keys()).sort((a, b) => b - a);
+
+  for (const y of ysDeepestFirst) {
+    for (const id of byY.get(y)!) {
+      const kids = childrenOf.get(id);
+      if (!kids?.length) continue;
+      const centers = kids.map(k => positions.get(k)!.x + NODE_W / 2);
+      const mid = (Math.min(...centers) + Math.max(...centers)) / 2;
+      positions.get(id)!.x = mid - NODE_W / 2;
+    }
+  }
+}
+
 async function applyElkLayout(
   nodes: Node<StatementNodeData>[],
   edges: Edge[],
@@ -344,9 +380,6 @@ async function applyElkLayout(
       'elk.direction': 'DOWN',
       'elk.spacing.nodeNode': '60',
       'elk.layered.spacing.nodeNodeBetweenLayers': '50',
-      // Default placement left-aligns a parent over its children's span;
-      // BRANDES_KOEPF centres it instead (balanced layout).
-      'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
     },
     children: nodes.map(n => ({
       id: n.id,
@@ -359,11 +392,15 @@ async function applyElkLayout(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const layout: any = await elk.layout(elkGraph);
 
+  const positions = new Map<string, { x: number; y: number }>();
+  for (const n of nodes) {
+    const en = layout.children?.find((c: { id: string }) => c.id === n.id);
+    positions.set(n.id, { x: en?.x ?? 0, y: en?.y ?? 0 });
+  }
+  centerParentsOverChildren(positions, edges);
+
   return {
-    nodes: nodes.map(n => {
-      const en = layout.children?.find((c: { id: string }) => c.id === n.id);
-      return { ...n, position: { x: en?.x ?? 0, y: en?.y ?? 0 } };
-    }),
+    nodes: nodes.map(n => ({ ...n, position: positions.get(n.id) ?? { x: 0, y: 0 } })),
     edges,
   };
 }

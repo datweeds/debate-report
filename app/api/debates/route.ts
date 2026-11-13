@@ -16,15 +16,17 @@ export async function GET() {
             s.forum_visibility, s.image_path, s.created_at,
             s.stat_status, s.resolution_decision,
             s.vote_total_for, s.vote_total_against,
-            s.created_by,
+            s.created_by, s.customer_id,
             u.user_handle AS creator_handle,
-            COUNT(c.id)::int AS child_count
+            c.name AS society_name,
+            COUNT(ch.id)::int AS child_count
      FROM   statements s
      LEFT   JOIN users u ON u.id = s.created_by
-     LEFT   JOIN statements c ON c.resolution_id = s.id
+     LEFT   JOIN customers c ON c.id = s.customer_id
+     LEFT   JOIN statements ch ON ch.resolution_id = s.id
      WHERE  s.stat_type = 'resolution'
        AND  s.stat_status != 'deleted'
-     GROUP  BY s.id, u.user_handle
+     GROUP  BY s.id, u.user_handle, c.name
      ORDER  BY s.created_at DESC`
   );
 
