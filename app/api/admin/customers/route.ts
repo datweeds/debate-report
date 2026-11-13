@@ -10,9 +10,9 @@ export async function GET(req: NextRequest) {
     SELECT
       c.id, c.name, c.subdomain, c.status, c.hero_image, c.hero_text,
       c.contact_email, c.platform_contact_email, c.created_at, c.updated_at,
+      c.is_public, c.is_default,
       (SELECT COUNT(*)::int FROM proposals p WHERE p.tenant_id = c.id)       AS proposal_count,
-      (SELECT COUNT(*)::int FROM sp_bill_debates sbd WHERE sbd.tenant_id = c.id) AS debate_count,
-      (SELECT COUNT(*)::int FROM sp_proposal_debates spd WHERE spd.tenant_id = c.id) AS proposal_debate_count
+      (SELECT COUNT(*)::int FROM statements s WHERE s.stat_type = 'resolution' AND s.customer_id = c.id) AS debate_count
     FROM customers c
     ORDER BY c.id
   `);

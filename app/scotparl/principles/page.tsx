@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import PrinciplesPage from '@/components/scotparl/PrinciplesPage';
@@ -14,6 +15,7 @@ export default async function PrinciplesRoute() {
     pool.query<{ name: string }>(`SELECT name FROM customers WHERE id = $1`, [TENANT_ID]).catch(() => ({ rows: [] })),
   ]);
   const session  = sessionRes;
+  if (!session?.isSysAdmin) redirect('/scotparl');
   const siteName = nameRes.rows[0]?.name ?? null;
   const { canManageDebates } = await import('@/lib/roles');
   const canManage = session ? (session.isSysAdmin || await canManageDebates(session, TENANT_ID)) : false;

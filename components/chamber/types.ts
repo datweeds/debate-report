@@ -47,4 +47,5 @@ export type PublicDebate = {
   child_count: number;
   science_count: number;
   chat_count: number;
+  society_name: string | null;
 };

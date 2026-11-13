@@ -33,6 +33,7 @@ export default function HomePage() {
   const { user } = useAuth();
   const [subjectsOpen, setSubjectsOpen] = useState(false);
   const [societies, setSocieties] = useState<Society[] | null>(null);
+  const [entering, setEntering] = useState<number | null>(null);
 
   useEffect(() => {
     fetch('/api/societies')
@@ -40,6 +41,24 @@ export default function HomePage() {
       .then(setSocieties)
       .catch(() => setSocieties([]));
   }, [user]); // re-fetch when login state changes
+
+  // "Society House" makes that society the active one (so proposals/bills/
+  // principles pages and new-debate creation are scoped to it too), then
+  // lands on its own dashboard — not the all-societies overview.
+  async function enterSociety(id: number) {
+    if (entering) return;
+    setEntering(id);
+    try {
+      const r = await fetch('/api/customer/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customer_id: id }),
+      });
+      if (r.ok) window.location.href = `/scotparl?society=${id}`;
+    } finally {
+      setEntering(null);
+    }
+  }
 
   const publicSocieties  = societies?.filter(s => s.is_public)  ?? [];
   const privateSocieties = societies?.filter(s => !s.is_public) ?? [];
@@ -156,12 +175,13 @@ export default function HomePage() {
                       >
                         Debate Chamber
                       </Link>
-                      <Link
-                        href="/scotparl"
-                        className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 transition-colors"
+                      <button
+                        onClick={() => enterSociety(s.id)}
+                        disabled={entering === s.id}
+                        className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-50 transition-colors"
                       >
-                        Society House →
-                      </Link>
+                        {entering === s.id ? 'Entering…' : 'Society House →'}
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -190,9 +210,13 @@ export default function HomePage() {
                       <Link href="/chamber" className="rounded-lg border border-blue-700/40 px-3 py-1.5 text-xs font-medium text-blue-400 hover:bg-blue-500/10 transition-colors">
                         Debate Chamber
                       </Link>
-                      <Link href="/scotparl" className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 transition-colors">
-                        Society House →
-                      </Link>
+                      <button
+                        onClick={() => enterSociety(s.id)}
+                        disabled={entering === s.id}
+                        className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-50 transition-colors"
+                      >
+                        {entering === s.id ? 'Entering…' : 'Society House →'}
+                      </button>
                     </div>
                   </div>
                 ))}

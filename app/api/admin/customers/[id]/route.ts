@@ -10,33 +10,44 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   const { id } = await params;
   const body = await req.json();
-  const { name, hero_text, hero_image, contact_email, platform_contact_email, status } = body;
+  const { name, hero_text, hero_image, contact_email, platform_contact_email, status, is_public } = body;
 
   const allowed_statuses = ['active', 'paused', 'closed'];
   if (status && !allowed_statuses.includes(status)) {
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
   }
 
-  await pool.query(
-    `UPDATE customers
-     SET name = COALESCE($1, name),
-         hero_text = COALESCE($2, hero_text),
-         hero_image = COALESCE($3, hero_image),
-         contact_email = COALESCE($4, contact_email),
-         platform_contact_email = COALESCE($5, platform_contact_email),
-         status = COALESCE($6, status),
-         updated_at = now()
-     WHERE id = $7`,
-    [
-      name?.trim() || null,
-      hero_text?.trim() || null,
-      hero_image?.trim() || null,
-      contact_email?.trim() || null,
-      platform_contact_email?.trim() || null,
-      status || null,
-      id,
-    ]
-  );
+  // is_public is boolean — COALESCE-against-null (the pattern the other fields
+  // use) can't distinguish "set to false" from "not provided", so it's built
+  // into the dynamic field list only when actually present in the body.
+  const fields: string[] = [
+    'name = COALESCE($1, name)',
+    'hero_text = COALESCE($2, hero_text)',
+    'hero_image = COALESCE($3, hero_image)',
+    'contact_email = COALESCE($4, contact_email)',
+    'platform_contact_email = COALESCE($5, platform_contact_email)',
+    'status = COALESCE($6, status)',
+    'updated_at = now()',
+  ];
+  const values: unknown[] = [
+    name?.trim() || null,
+    hero_text?.trim() || null,
+    hero_image?.trim() || null,
+    contact_email?.trim() || null,
+    platform_contact_email?.trim() || null,
+    status || null,
+  ];
+
+  if (typeof is_public === 'boolean') {
+    values.push(is_public);
+    fields.push(`is_public = $${values.length}`);
+    // A society that's no longer public can't stay the default — logged-out
+    // visitors couldn't see it. Demote it from default in the same update.
+    if (!is_public) fields.push('is_default = false');
+  }
+
+  values.push(id);
+  await pool.query(`UPDATE customers SET ${fields.join(', ')} WHERE id = $${values.length}`, values);
 
   return NextResponse.json({ ok: true });
 }

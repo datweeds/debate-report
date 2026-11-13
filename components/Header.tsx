@@ -24,6 +24,9 @@ export const TOPICS = [
 
 type AdminRole = { isCustomerAdmin: boolean; isTopicOwner: boolean; isScotparlMod: boolean };
 
+type SocietyOption = { id: number; name: string };
+type SocietyList = { current: SocietyOption | null; public: SocietyOption[]; private: SocietyOption[] };
+
 function NavLabel({ children }: { children: React.ReactNode }) {
   return (
     <p className="px-3 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-widest text-slate-600 select-none">
@@ -117,6 +120,8 @@ export default function Header() {
   const [chamberHref,   setChamberHref]   = useState('/scotparl/debates');
   const [adminRole,     setAdminRole]     = useState<AdminRole | null>(null);
   const [siteName,      setSiteName]      = useState<string | null>(null);
+  const [societies,     setSocieties]     = useState<SocietyList | null>(null);
+  const [switching,     setSwitching]     = useState<number | null>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
   const navRef    = useRef<HTMLElement>(null);
 
@@ -178,6 +183,31 @@ export default function Header() {
       .then(d => { if (d?.name) setSiteName(d.name); })
       .catch(() => {});
   }, []);
+
+  // Fetch the current society + which public/private ones this visitor can
+  // switch to. Re-fetched when auth state changes since the private list
+  // depends on who's logged in.
+  useEffect(() => {
+    fetch('/api/customer/current')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setSocieties(d); })
+      .catch(() => {});
+  }, [user]);
+
+  async function switchSociety(id: number) {
+    if (switching) return;
+    setSwitching(id);
+    try {
+      const r = await fetch('/api/customer/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customer_id: id }),
+      });
+      if (r.ok) window.location.href = `/scotparl?society=${id}`;
+    } finally {
+      setSwitching(null);
+    }
+  }
 
   // Fetch scotparl admin roles for conditional menu items
   useEffect(() => {
@@ -287,9 +317,11 @@ export default function Header() {
       <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 flex border-t border-blue-900/20 bg-[#080d1a]/95 backdrop-blur-md">
         {[
           { href: '/scotparl/debates',   label: 'Debates',   icon: icons.debate },
-          { href: '/scotparl/proposals', label: 'Proposals', icon: icons.proposals },
-          { href: '/scotparl/bills',     label: 'Laws',      icon: icons.laws },
-          { href: '/scotparl/principles',label: 'Principles',icon: icons.principles },
+          ...(user?.isSysAdmin ? [
+            { href: '/scotparl/proposals', label: 'Proposals', icon: icons.proposals },
+            { href: '/scotparl/bills',     label: 'Laws',      icon: icons.laws },
+            { href: '/scotparl/principles',label: 'Principles',icon: icons.principles },
+          ] : []),
         ].map(({ href, label, icon }) => {
           const active = pathname === href || pathname.startsWith(href);
           return (
@@ -348,20 +380,48 @@ export default function Header() {
 
           <NavDivider />
 
-          {/* ── NEW SOCIETY ── */}
-          <NavLabel>New Society</NavLabel>
-          <NavLink href="/scotparl/debates" onClick={close} pathname={pathname} icon={icons.debate}>
-            Debates &amp; Votes
-          </NavLink>
-          <NavLink href="/scotparl/proposals" onClick={close} pathname={pathname} icon={icons.proposals}>
-            Proposals
-          </NavLink>
-          <NavLink href="/scotparl/bills" onClick={close} pathname={pathname} icon={icons.laws}>
-            Laws
-          </NavLink>
-          <NavLink href="/scotparl/principles" onClick={close} pathname={pathname} icon={icons.principles}>
-            Principles
-          </NavLink>
+          {/* ── PUBLIC / PRIVATE SOCIETIES — the "rooms" this visitor can switch into ── */}
+          {societies && societies.public.length > 0 && (
+            <>
+              <NavLabel>Public Societies</NavLabel>
+              {societies.public.map(s => (
+                <button
+                  key={s.id}
+                  onClick={() => switchSociety(s.id)}
+                  disabled={switching === s.id}
+                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors text-left ${
+                    societies.current?.id === s.id ? 'bg-blue-500/15 text-blue-300 font-medium' : 'text-slate-300 hover:bg-blue-500/10 hover:text-blue-300'
+                  }`}
+                >
+                  <span className={`flex-shrink-0 ${societies.current?.id === s.id ? 'text-blue-400' : 'text-slate-500'}`}>{icons.forums}</span>
+                  <span className="flex-1">{s.name}</span>
+                  {societies.current?.id === s.id && <span className="text-[10px] font-bold uppercase text-blue-400">Current</span>}
+                  {switching === s.id && <span className="text-slate-600">…</span>}
+                </button>
+              ))}
+            </>
+          )}
+
+          {societies && societies.private.length > 0 && (
+            <>
+              <NavLabel>Private Societies</NavLabel>
+              {societies.private.map(s => (
+                <button
+                  key={s.id}
+                  onClick={() => switchSociety(s.id)}
+                  disabled={switching === s.id}
+                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors text-left ${
+                    societies.current?.id === s.id ? 'bg-blue-500/15 text-blue-300 font-medium' : 'text-slate-300 hover:bg-blue-500/10 hover:text-blue-300'
+                  }`}
+                >
+                  <span className={`flex-shrink-0 ${societies.current?.id === s.id ? 'text-blue-400' : 'text-slate-500'}`}>{icons.settings}</span>
+                  <span className="flex-1">{s.name}</span>
+                  {societies.current?.id === s.id && <span className="text-[10px] font-bold uppercase text-blue-400">Current</span>}
+                  {switching === s.id && <span className="text-slate-600">…</span>}
+                </button>
+              ))}
+            </>
+          )}
 
           <NavDivider />
 
@@ -395,19 +455,23 @@ export default function Header() {
             </>
           )}
 
-          {/* ── UTILITIES ── */}
-          <NavLabel>Utilities</NavLabel>
-          <NavLink href="https://vote.new.vote/poll" onClick={close} pathname={pathname} icon={icons.poll} external>
-            Poll
-          </NavLink>
-          <NavLink href="https://vote.new.vote/elect" onClick={close} pathname={pathname} icon={icons.elect} external>
-            Elect
-          </NavLink>
-          <NavLink href="https://tasks.debate.report" onClick={close} pathname={pathname} icon={icons.task} external>
-            Share Task
-          </NavLink>
+          {/* ── UTILITIES (sysadmin only) ── */}
+          {user?.isSysAdmin && (
+            <>
+              <NavLabel>Utilities</NavLabel>
+              <NavLink href="https://vote.new.vote/poll" onClick={close} pathname={pathname} icon={icons.poll} external>
+                Poll
+              </NavLink>
+              <NavLink href="https://vote.new.vote/elect" onClick={close} pathname={pathname} icon={icons.elect} external>
+                Elect
+              </NavLink>
+              <NavLink href="https://tasks.debate.report" onClick={close} pathname={pathname} icon={icons.task} external>
+                Share Task
+              </NavLink>
 
-          <NavDivider />
+              <NavDivider />
+            </>
+          )}
 
           {/* ── ACCOUNT ── */}
           {user ? (

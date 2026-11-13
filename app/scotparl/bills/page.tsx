@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import pool, { tq } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { canManageDebates } from '@/lib/roles';
@@ -12,6 +13,7 @@ const TENANT_ID = parseInt(process.env.TENANT_ID ?? '1', 10);
 
 export default async function BillsPage() {
   const session = await getSession().catch(() => null);
+  if (!session?.isSysAdmin) redirect('/scotparl');
   const isManager = session ? await canManageDebates(session, TENANT_ID) : false;
 
   let bills: Bill[] = [];

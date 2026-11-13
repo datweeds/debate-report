@@ -29,10 +29,10 @@ async function createDebate(
 
     const { rows: [stmt] } = await client.query(
       `INSERT INTO statements
-         (stat_type, stat_title, stat_description, subject_area, forum_visibility, forum_id, created_by)
-       VALUES ('resolution', $1, $2, 'politics', 'public', $3, $4::uuid)
+         (stat_type, stat_title, stat_description, subject_area, forum_visibility, forum_id, created_by, customer_id)
+       VALUES ('resolution', $1, $2, 'politics', 'public', $3, $4::uuid, $5)
        RETURNING id`,
-      [title, description, forumId, actorId]
+      [title, description, forumId, actorId, parseInt(TENANT_ID, 10)]
     );
 
     if (entityType === 'bill') {

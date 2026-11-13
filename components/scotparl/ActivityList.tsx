@@ -13,6 +13,14 @@ const TYPE_BAR: Record<string, string> = {
   Bill:      'bg-sky-500',
   SSI:       'bg-teal-500',
   Principle: 'bg-rose-500',
+  // New debate statements — colours mirror components/chamber/constants.ts
+  Framework: 'bg-sky-500',
+  Claim:     'bg-indigo-500',
+  Warrant:   'bg-violet-500',
+  Evidence:  'bg-emerald-500',
+  Impact:    'bg-orange-500',
+  Rebuttal:  'bg-rose-500',
+  Turn:      'bg-fuchsia-500',
 };
 
 const TYPE_LABEL: Record<string, string> = {
@@ -23,6 +31,13 @@ const TYPE_LABEL: Record<string, string> = {
   Bill:      'text-sky-400',
   SSI:       'text-teal-400',
   Principle: 'text-rose-400',
+  Framework: 'text-sky-400',
+  Claim:     'text-indigo-400',
+  Warrant:   'text-violet-400',
+  Evidence:  'text-emerald-400',
+  Impact:    'text-orange-400',
+  Rebuttal:  'text-rose-400',
+  Turn:      'text-fuchsia-400',
 };
 
 function fmt(date: string | null) {

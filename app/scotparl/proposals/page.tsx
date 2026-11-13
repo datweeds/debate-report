@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import pool, { tq } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import TopicDropdown from '@/components/scotparl/TopicDropdown';
@@ -129,6 +130,7 @@ export default async function ProposalsPage({ searchParams }: Props) {
     getSession().catch(() => null),
     searchParams,
   ]);
+  if (!session?.isSysAdmin) redirect('/scotparl');
 
   const topicIdRaw = sp?.topic_id;
   const topicId = topicIdRaw ? parseInt(topicIdRaw, 10) : null;

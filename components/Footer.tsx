@@ -6,21 +6,24 @@ import { NvLogo } from './NvLogo';
 import { useAuth } from './AuthProvider';
 import FooterModals, { type FooterModal } from './FooterModals';
 
+// sysAdminOnly items are hidden from the footer for everyone else — new.vote's
+// debate/vote pages are open to the public, but Proposals/Laws/Principles and
+// the Utilities links (Poll, Elect, Share Task) are not yet.
 const SERVICES = [
-  { label: 'Law Monitor',  href: '/scotparl/bills' },
-  { label: 'Proposals',    href: '/scotparl/proposals' },
-  { label: 'Principles',   href: '/scotparl/principles' },
+  { label: 'Law Monitor',  href: '/scotparl/bills',             sysAdminOnly: true },
+  { label: 'Proposals',    href: '/scotparl/proposals',         sysAdminOnly: true },
+  { label: 'Principles',   href: '/scotparl/principles',        sysAdminOnly: true },
   { label: 'Debate',       href: '/chamber' },
   { label: 'Vote',         href: '/chamber' },
-  { label: 'Poll',         href: 'https://vote.new.vote/poll',  external: true },
-  { label: 'Elect',        href: 'https://vote.new.vote/elect', external: true },
-  { label: 'Share Task',   href: 'https://tasks.debate.report', external: true },
+  { label: 'Poll',         href: 'https://vote.new.vote/poll',  external: true, sysAdminOnly: true },
+  { label: 'Elect',        href: 'https://vote.new.vote/elect', external: true, sysAdminOnly: true },
+  { label: 'Share Task',   href: 'https://tasks.debate.report', external: true, sysAdminOnly: true },
 ];
 
 const SOCIETY = [
-  { label: 'Laws',           href: '/scotparl/bills' },
-  { label: 'Proposals',      href: '/scotparl/proposals' },
-  { label: 'Principles',     href: '/scotparl/principles' },
+  { label: 'Laws',           href: '/scotparl/bills',       sysAdminOnly: true },
+  { label: 'Proposals',      href: '/scotparl/proposals',   sysAdminOnly: true },
+  { label: 'Principles',     href: '/scotparl/principles',  sysAdminOnly: true },
   { label: 'Debate & Vote',  href: '/chamber' },
 ];
 
@@ -68,7 +71,7 @@ export default function Footer() {
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-slate-600 mb-3">Services</p>
               <ul className="space-y-2">
-                {SERVICES.map(s => (
+                {SERVICES.filter(s => !s.sysAdminOnly || user?.isSysAdmin).map(s => (
                   <li key={s.label}>
                     <FooterLink href={s.href} external={s.external}>{s.label}</FooterLink>
                   </li>
@@ -80,7 +83,7 @@ export default function Footer() {
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-slate-600 mb-3">Society</p>
               <ul className="space-y-2">
-                {SOCIETY.map(s => (
+                {SOCIETY.filter(s => !s.sysAdminOnly || user?.isSysAdmin).map(s => (
                   <li key={s.label}>
                     <FooterLink href={s.href}>{s.label}</FooterLink>
                   </li>

@@ -152,6 +152,11 @@ export default function Switchboard({ currentId, onSelect, onClose, initialTopic
                     <span className={`rounded-full px-2 py-0.5 text-xs font-bold border ${SUBJECT_COLOURS[d.subject_area] ?? 'bg-slate-700 text-slate-400 border-slate-600'}`}>
                       {SUBJECT_LABELS[d.subject_area] ?? d.subject_area}
                     </span>
+                    {d.society_name && (
+                      <span className="rounded-full px-2 py-0.5 text-xs font-bold border bg-slate-800 text-slate-400 border-slate-600">
+                        {d.society_name}
+                      </span>
+                    )}
                     {d.forum_type === 'private' && d.forum_visibility === 'apply' && (
                       <span className="rounded-full px-2 py-0.5 text-xs font-bold border bg-amber-500/15 text-amber-300 border-amber-500/30">Apply to join</span>
                     )}

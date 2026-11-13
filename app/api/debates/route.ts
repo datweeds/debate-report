@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import pool from '@/lib/db';
+import pool, { getCurrentTenantId } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 
 const ALLOWED_TIERS = new Set(['moderator', 'sysadmin']);
@@ -55,12 +55,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Please select a valid topic' }, { status: 400 });
   }
 
+  const customerId = await getCurrentTenantId();
   const { rows } = await pool.query(
     `INSERT INTO statements
-       (stat_type, stat_title, stat_description, subject_area, forum_visibility, created_by)
-     VALUES ('resolution', $1, $2, $3, 'public', $4)
+       (stat_type, stat_title, stat_description, subject_area, forum_visibility, created_by, customer_id)
+     VALUES ('resolution', $1, $2, $3, 'public', $4, $5)
      RETURNING id`,
-    [title.trim(), description?.trim() || null, subjectArea, session.sub]
+    [title.trim(), description?.trim() || null, subjectArea, session.sub, customerId]
   );
 
   return NextResponse.json({ id: rows[0].id }, { status: 201 });

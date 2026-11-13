@@ -755,7 +755,8 @@ interface CustomerRow {
   id: number; name: string; subdomain: string; status: string;
   hero_text: string | null; contact_email: string | null;
   platform_contact_email: string | null; created_at: string;
-  proposal_count: number; debate_count: number; proposal_debate_count: number;
+  proposal_count: number; debate_count: number;
+  is_public: boolean; is_default: boolean;
 }
 
 interface CustomerAdmin { user_id: string; handle: string; created_at: string; }
@@ -800,7 +801,7 @@ function CustomerAdminsPanel({ customerId }: { customerId: number }) {
 
   return (
     <div className="mt-4 pt-4 border-t border-slate-800">
-      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Customer Admins</p>
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Society Admins</p>
       {err && <p className="text-xs text-red-400 mb-2">{err}</p>}
       {admins.length === 0 ? (
         <p className="text-xs text-slate-600 mb-2">No admins assigned.</p>
@@ -810,6 +811,82 @@ function CustomerAdminsPanel({ customerId }: { customerId: number }) {
             <li key={a.user_id} className="flex items-center justify-between text-xs">
               <span className="text-slate-300 font-mono">@{a.handle}</span>
               <button onClick={() => remove(a.user_id)} className="text-rose-500 hover:text-rose-400 transition-colors">Remove</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="flex gap-2">
+        <input
+          value={handle}
+          onChange={e => setHandle(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && add()}
+          placeholder="@handle"
+          className="flex-1 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-300 focus:outline-none focus:border-blue-500"
+        />
+        <button
+          onClick={add}
+          disabled={adding || !handle.trim()}
+          className="rounded bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-500 disabled:opacity-40 transition-colors"
+        >
+          {adding ? '…' : 'Add'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Membership for a PRIVATE society — who sees it listed under "Private
+// Societies" in the nav and can switch to it. Mirrors CustomerAdminsPanel.
+function SocietyMembersPanel({ customerId }: { customerId: number }) {
+  const [members, setMembers] = useState<CustomerAdmin[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [handle, setHandle]   = useState('');
+  const [adding, setAdding]   = useState(false);
+  const [err, setErr]         = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch(`/api/admin/customers/${customerId}/members`);
+      setMembers(await r.json());
+    } finally { setLoading(false); }
+  }, [customerId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function add() {
+    if (!handle.trim()) return;
+    setAdding(true); setErr('');
+    try {
+      const r = await fetch(`/api/admin/customers/${customerId}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ handle: handle.trim() }),
+      });
+      if (!r.ok) { const d = await r.json(); setErr(d.error ?? 'Failed'); return; }
+      setHandle(''); load();
+    } finally { setAdding(false); }
+  }
+
+  async function remove(userId: string) {
+    await fetch(`/api/admin/customers/${customerId}/members/${userId}`, { method: 'DELETE' });
+    load();
+  }
+
+  if (loading) return <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent ml-1" />;
+
+  return (
+    <div className="mt-4 pt-4 border-t border-slate-800">
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Private Society Members</p>
+      {err && <p className="text-xs text-red-400 mb-2">{err}</p>}
+      {members.length === 0 ? (
+        <p className="text-xs text-slate-600 mb-2">No members yet — nobody but sysadmin can see this society.</p>
+      ) : (
+        <ul className="space-y-1 mb-3">
+          {members.map(m => (
+            <li key={m.user_id} className="flex items-center justify-between text-xs">
+              <span className="text-slate-300 font-mono">@{m.handle}</span>
+              <button onClick={() => remove(m.user_id)} className="text-rose-500 hover:text-rose-400 transition-colors">Remove</button>
             </li>
           ))}
         </ul>
@@ -875,6 +952,13 @@ function CustomersTab() {
     } finally { setSaving(false); }
   }
 
+  async function setDefault(id: number) {
+    setErr('');
+    const r = await fetch(`/api/admin/customers/${id}/set-default`, { method: 'POST' });
+    if (!r.ok) { const d = await r.json(); setErr(d.error ?? 'Failed'); return; }
+    load();
+  }
+
   async function createCustomer() {
     if (!newForm.name.trim() || !newForm.subdomain.trim()) { setErr('Name and subdomain are required'); return; }
     setNewSaving(true); setErr('');
@@ -898,16 +982,16 @@ function CustomersTab() {
       {err && <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">{err}</p>}
 
       <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-400">{customers.length} customer{customers.length !== 1 ? 's' : ''}</p>
+        <p className="text-sm text-slate-400">{customers.length} societ{customers.length !== 1 ? 'ies' : 'y'}</p>
         <button onClick={() => { setShowNew(true); setErr(''); }} className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 transition-colors">
-          + New Customer
+          + New Society
         </button>
       </div>
 
-      {/* New customer form */}
+      {/* New society form */}
       {showNew && (
         <div className="card-dr p-5 space-y-4">
-          <h3 className="text-sm font-semibold text-slate-100">New Customer</h3>
+          <h3 className="text-sm font-semibold text-slate-100">New Society</h3>
           {[
             { label: 'Name', key: 'name', placeholder: 'e.g. ScotParl' },
             { label: 'Subdomain', key: 'subdomain', placeholder: 'e.g. scotparl' },
@@ -967,6 +1051,18 @@ function CustomersTab() {
                     />
                   </div>
                 ))}
+                <label className="flex items-center gap-2 text-sm text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={editing.is_public}
+                    onChange={e => setEditing(p => p ? { ...p, is_public: e.target.checked } : p)}
+                    className="rounded border-slate-600 bg-slate-900"
+                  />
+                  Public — anyone can see and switch to this society
+                  {editing.is_default && !editing.is_public && (
+                    <span className="text-amber-400"> (will stop being the default)</span>
+                  )}
+                </label>
                 <div className="flex gap-2">
                   <button onClick={saveEdit} disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 disabled:opacity-40 transition-colors">
                     {saving ? 'Saving…' : 'Save'}
@@ -982,21 +1078,35 @@ function CustomersTab() {
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <span className="text-sm font-semibold text-slate-100">{c.name}</span>
                     <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${STATUS_CHIP[c.status] ?? STATUS_CHIP.closed}`}>{c.status}</span>
+                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${c.is_public ? 'bg-sky-500/15 text-sky-300 border-sky-500/30' : 'bg-violet-500/15 text-violet-300 border-violet-500/30'}`}>
+                      {c.is_public ? 'Public' : 'Private'}
+                    </span>
+                    {c.is_default && (
+                      <span className="rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-amber-500/15 text-amber-300 border-amber-500/30">Default</span>
+                    )}
                     <span className="text-xs text-slate-500 font-mono">{c.subdomain}</span>
                   </div>
                   {c.hero_text && <p className="text-xs text-slate-400 mb-1">{c.hero_text}</p>}
                   <div className="flex flex-wrap gap-4 mt-1.5 text-xs text-slate-500">
                     <span>{c.proposal_count} proposals</span>
-                    <span>{c.debate_count + c.proposal_debate_count} debates</span>
+                    <span>{c.debate_count} debates</span>
                     {c.contact_email && <span>Contact: {c.contact_email}</span>}
                   </div>
                 </div>
-                <button onClick={() => { setEditing(c); setErr(''); }} className="flex-shrink-0 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200 hover:border-slate-500 transition-colors">
-                  Edit
-                </button>
+                <div className="flex flex-shrink-0 gap-2">
+                  {c.is_public && !c.is_default && (
+                    <button onClick={() => setDefault(c.id)} className="rounded-lg border border-amber-700/40 px-3 py-1.5 text-xs text-amber-400 hover:border-amber-500 transition-colors">
+                      Set as default
+                    </button>
+                  )}
+                  <button onClick={() => { setEditing(c); setErr(''); }} className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200 hover:border-slate-500 transition-colors">
+                    Edit
+                  </button>
+                </div>
               </div>
             )}
             <CustomerAdminsPanel customerId={c.id} />
+            {!c.is_public && <SocietyMembersPanel customerId={c.id} />}
           </div>
         ))}
       </div>
@@ -1037,7 +1147,7 @@ export default function AdminPage() {
             { id: 'alerts',    label: 'Alerts' },
             { id: 'analytics', label: 'Analytics' },
             { id: 'blog',      label: 'Blog' },
-            { id: 'customers', label: 'Customers' },
+            { id: 'customers', label: 'Societies' },
           ] as { id: AdminTab; label: string }[]).map(t => (
             <button
               key={t.id}
