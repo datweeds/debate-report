@@ -48,6 +48,7 @@ function NavLink({
   children,
   icon,
   badge,
+  badgeClassName,
 }: {
   href: string;
   onClick: () => void;
@@ -57,6 +58,7 @@ function NavLink({
   children: React.ReactNode;
   icon: React.ReactNode;
   badge?: string;
+  badgeClassName?: string;
 }) {
   const isActive = !external && (pathname === href || (!exact && href !== '/' && pathname.startsWith(href)));
   const cls = `flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors ${
@@ -67,7 +69,7 @@ function NavLink({
       <span className={`flex-shrink-0 ${isActive ? 'text-blue-400' : 'text-slate-500'}`}>{icon}</span>
       <span className="flex-1">{children}</span>
       {badge && (
-        <span className="ml-auto rounded-full bg-blue-500/20 px-1.5 py-0.5 text-[10px] font-bold text-blue-300 leading-none">
+        <span className={`ml-auto rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${badgeClassName ?? 'bg-blue-500/20 text-blue-300'}`}>
           {badge}
         </span>
       )}
@@ -118,6 +120,7 @@ export default function Header() {
   const [menuOpen,      setMenuOpen]      = useState(false);
   const [topicsOpen,    setTopicsOpen]    = useState(false);
   const [chamberHref,   setChamberHref]   = useState('/scotparl/debates');
+  const [modCounts,     setModCounts]     = useState({ myPending: 0, joinsPending: 0 });
   const [adminRole,     setAdminRole]     = useState<AdminRole | null>(null);
   const [societies,     setSocieties]     = useState<SocietyList | null>(null);
   const [switching,     setSwitching]     = useState<number | null>(null);
@@ -163,6 +166,7 @@ export default function Header() {
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         if (!d) return;
+        setModCounts({ myPending: d.myPending ?? 0, joinsPending: d.joinsPending ?? 0 });
         const dbId: string | null = d.lastResolutionId ?? null;
         try {
           const localId = localStorage.getItem('dr_last_resolution');
@@ -487,7 +491,11 @@ export default function Header() {
                 </NavLink>
               )}
               {isMod && (
-                <NavLink href="/dashboard" onClick={close} pathname={pathname} icon={icons.task}>
+                <NavLink
+                  href="/dashboard" onClick={close} pathname={pathname} icon={icons.task}
+                  badge={modCounts.myPending + modCounts.joinsPending > 0 ? String(modCounts.myPending + modCounts.joinsPending) : undefined}
+                  badgeClassName={theme === 'dark' ? 'bg-amber-500/20 text-amber-300' : 'bg-red-500/15 text-red-600'}
+                >
                   Mod Tools
                 </NavLink>
               )}
