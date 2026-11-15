@@ -1,21 +1,21 @@
 import { NextResponse } from 'next/server';
-import pool, { getCurrentTenantId } from '@/lib/db';
+import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
-import { isSocietyAdmin } from '@/lib/roles';
+import { moderatedSocietyIds } from '@/lib/roles';
 
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
 
-  const currentSocietyId = await getCurrentTenantId();
-  if (!(await isSocietyAdmin(session, currentSocietyId))) {
+  const moderated = await moderatedSocietyIds(session.sub);
+  if (!session.isSysAdmin && !moderated.length) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   // Each row = one flag event; group by statement to show total flag counts.
-  // Filtered to the viewer's current Society unless they're SysAdmin.
-  const societyFilter = session.isSysAdmin ? '' : 'AND res.customer_id = $1';
-  const params = session.isSysAdmin ? [] : [currentSocietyId];
+  // Every Society the viewer moderates (SysAdmin: all).
+  const societyFilter = session.isSysAdmin ? '' : 'AND res.customer_id = ANY($1::int[])';
+  const params = session.isSysAdmin ? [] : [moderated];
 
   const { rows } = await pool.query(
     `SELECT

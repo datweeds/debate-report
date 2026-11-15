@@ -54,6 +54,11 @@ export default function DocumentsBrowser({ societyId }: { societyId: number }) {
   const [editing, setEditing] = useState<{ id: string; title: string; description: string; folderId: string } | null>(null);
   const [allFolders, setAllFolders] = useState<{ id: string; full_path: string }[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Moving/copying to another Society this moderator runs
+  const [targets, setTargets] = useState<{ societies: { id: number; name: string }[]; folders: { id: string; customer_id: number; full_path: string }[] } | null>(null);
+  const [sending, setSending] = useState<{ type: 'doc' | 'folder'; id: string; name: string } | null>(null);
+  const [sendTo, setSendTo] = useState({ society: '', folder: '', mode: 'copy' as 'copy' | 'move' });
+  const [notice, setNotice] = useState('');
 
   const load = useCallback(async () => {
     const r = await fetch(`${base}/documents${folder ? `?folder=${folder}` : ''}`);
@@ -62,6 +67,27 @@ export default function DocumentsBrowser({ societyId }: { societyId: number }) {
     setData(await r.json());
   }, [base, folder]);
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!data?.canModerate || targets) return;
+    fetch(`${base}/documents/transfer`).then(r => r.ok ? r.json() : null).then(d => setTargets(d ?? { societies: [], folders: [] })).catch(() => {});
+  }, [data?.canModerate, base, targets]);
+  const canSend = !!targets?.societies.length;
+
+  async function doSend(e: React.FormEvent) {
+    e.preventDefault();
+    if (!sending) return;
+    setBusy(true); setError('');
+    const r = await fetch(`${base}/documents/transfer`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: [{ type: sending.type, id: sending.id }], targetSocietyId: Number(sendTo.society), targetFolderId: sendTo.folder || null, mode: sendTo.mode }),
+    });
+    setBusy(false);
+    if (!r.ok) { setError((await r.json()).error ?? 'Could not send'); return; }
+    const where = targets?.societies.find(x => String(x.id) === sendTo.society)?.name;
+    setNotice(`${sendTo.mode === 'copy' ? 'Copied' : 'Moved'} “${sending.name}” to ${where}.`);
+    setSending(null); setTargets(null); load();
+  }
 
   const sorted = useMemo(() => {
     if (!data) return [];
@@ -198,6 +224,38 @@ export default function DocumentsBrowser({ societyId }: { societyId: number }) {
       </div>
 
       {error && <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{error}</p>}
+      {notice && <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">{notice}</p>}
+
+      {sending && targets && (
+        <form onSubmit={doSend} className="space-y-3 rounded-2xl border border-violet-500/30 bg-violet-500/5 p-4">
+          <p className="text-sm text-slate-200">Move or copy {sending.type === 'folder' ? 'the folder' : ''} “{sending.name}”{sending.type === 'folder' ? ' and everything in it' : ''}</p>
+          <div className="flex gap-2">
+            {(['copy', 'move'] as const).map(m => (
+              <button key={m} type="button" onClick={() => setSendTo(v => ({ ...v, mode: m }))}
+                className={`rounded-lg border px-3 py-1.5 text-xs font-medium ${sendTo.mode === m ? 'border-violet-500/60 bg-violet-500/15 text-violet-200' : 'border-slate-700 text-slate-400'}`}>
+                {m === 'copy' ? 'Copy (keep it here too)' : 'Move (take it from here)'}
+              </button>
+            ))}
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <select value={sendTo.society} onChange={e => setSendTo(v => ({ ...v, society: e.target.value, folder: '' }))} required className={inputCls}>
+              <option value="">To which Society?</option>
+              {targets.societies.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+            </select>
+            <select value={sendTo.folder} onChange={e => setSendTo(v => ({ ...v, folder: e.target.value }))} disabled={!sendTo.society} className={inputCls}>
+              <option value="">Documents (top level)</option>
+              {targets.folders.filter(x => String(x.customer_id) === sendTo.society).map(x => <option key={x.id} value={x.id}>{x.full_path}</option>)}
+            </select>
+          </div>
+          <p className="text-[11px] text-slate-500">Copies start with fresh open and download counts; moved items keep theirs.</p>
+          <div className="flex gap-2">
+            <button type="submit" disabled={busy || !sendTo.society} className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-500 disabled:opacity-50">
+              {busy ? 'Working…' : sendTo.mode === 'copy' ? 'Copy' : 'Move'}
+            </button>
+            <button type="button" onClick={() => setSending(null)} className="px-2 text-sm text-slate-500 hover:text-slate-300">Cancel</button>
+          </div>
+        </form>
+      )}
 
       {/* Add panels */}
       {panel === 'upload' && (
@@ -251,7 +309,7 @@ export default function DocumentsBrowser({ societyId }: { societyId: number }) {
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-800 bg-[#0c1322]">
-          <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_5rem_7rem_4rem_5.5rem_10rem] gap-3 border-b border-slate-800 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+          <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_5rem_6.5rem_3.5rem_5rem_14rem] gap-3 border-b border-slate-800 px-4 py-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
             <span>Name</span><span>Size</span><span>Added</span><span className="text-right">Opens</span><span className="text-right">Downloads</span><span />
           </div>
           <ul className="divide-y divide-slate-800/60">
@@ -268,6 +326,7 @@ export default function DocumentsBrowser({ societyId }: { societyId: number }) {
                 </button>
                 {data.canModerate && (
                   <span className="flex gap-3 text-xs">
+                    {canSend && <button onClick={() => { setSending({ type: 'folder', id: f.id, name: f.name }); setSendTo({ society: '', folder: '', mode: 'copy' }); }} className="text-violet-300 hover:text-violet-200">Move / copy</button>}
                     <button onClick={() => renameFolder(f)} className="text-slate-400 hover:text-slate-200">Rename</button>
                     <button onClick={() => deleteFolder(f)} className="text-rose-400 hover:text-rose-300">Delete</button>
                   </span>
@@ -290,7 +349,7 @@ export default function DocumentsBrowser({ societyId }: { societyId: number }) {
                     </div>
                   </div>
                 ) : (
-                  <div className="sm:grid sm:grid-cols-[minmax(0,1fr)_5rem_7rem_4rem_5.5rem_10rem] sm:items-center sm:gap-3">
+                  <div className="sm:grid sm:grid-cols-[minmax(0,1fr)_5rem_6.5rem_3.5rem_5rem_14rem] sm:items-center sm:gap-3">
                     <div className="flex min-w-0 items-center gap-3">
                       <TypeIcon item={i} />
                       <div className="min-w-0">
@@ -316,6 +375,7 @@ export default function DocumentsBrowser({ societyId }: { societyId: number }) {
                         <a href={`${base}/documents/${i.id}/file?download=1`} className="text-blue-400 hover:text-blue-300"
                           title={INLINE.has(i.mime_type ?? '') ? 'Download' : 'Download (opens as a download)'}>Download</a>
                       )}
+                      {canSend && <button onClick={() => { setSending({ type: 'doc', id: i.id, name: i.title }); setSendTo({ society: '', folder: '', mode: 'copy' }); }} className="text-violet-300 hover:text-violet-200">Move / copy</button>}
                       {canEdit(i) && <button onClick={() => startEdit(i)} className="text-slate-400 hover:text-slate-200">Edit</button>}
                       {canDelete(i) && <button onClick={() => remove(i)} className="text-rose-400 hover:text-rose-300">Delete</button>}
                     </span>

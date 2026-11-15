@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useTheme } from './ThemeProvider';
 import { useAuth } from './AuthProvider';
 import { NvLogo } from './NvLogo';
-import { SOCIETY_SECTIONS, societySectionHref } from './societies/SocietyTabs';
+import { SOCIETY_SECTIONS, societySectionHref, isSectionActive } from './societies/SocietyTabs';
 
 export const TOPICS = [
   { label: 'Culture, Identity & Social Issues', slug: 'culture' },
@@ -126,10 +126,12 @@ function NavLink({
 // One Society in the menu. Its name opens the Society; the chevron shows its
 // sections (Debate & Vote, Discussions, Documents, …). Societies the visitor
 // can't enter yet (Apply, not a member) have no sections, just the teaser.
-function SocietyNavItem({ society, isCurrent, defaultOpen, switching, onEnter, onNavigate, pathname, icon }: {
+function SocietyNavItem({ society, isCurrent, defaultOpen, switching, onEnter, onNavigate, pathname, icon, counts }: {
   society: SocietyOption; isCurrent: boolean; defaultOpen: boolean; switching: boolean;
   onEnter: (id: number) => void; onNavigate: () => void; pathname: string; icon: React.ReactNode;
+  counts?: Record<string, number>;   // new items per section since last looked
 }) {
+  const total = counts ? Object.values(counts).reduce((a, b) => a + b, 0) : 0;
   const canEnter = society.visibility === 'public' || !!society.isMember;
   const [open, setOpen] = useState(defaultOpen);
   useEffect(() => {
@@ -155,6 +157,7 @@ function SocietyNavItem({ society, isCurrent, defaultOpen, switching, onEnter, o
           <span className={`flex-shrink-0 ${isCurrent ? 'text-blue-400' : 'text-slate-500'}`}>{icon}</span>
           <span className="flex-1 truncate">{society.name}</span>
           {!canEnter && <span className="rounded border border-slate-600 px-1 text-[10px] text-slate-400">Apply</span>}
+          {total > 0 && !open && <span className="rounded-full bg-blue-500/20 px-1.5 py-0.5 text-[10px] font-bold leading-none text-blue-300">{total > 99 ? '99+' : total}</span>}
           {switching && <span className="text-slate-600">…</span>}
         </button>
         {canEnter && (
@@ -170,17 +173,14 @@ function SocietyNavItem({ society, isCurrent, defaultOpen, switching, onEnter, o
         <div className="ml-5 mt-0.5 mb-1 space-y-0.5 border-l border-blue-900/20 pl-3">
           {SOCIETY_SECTIONS.map(sec => {
             const href = societySectionHref(society.id, sec.slug);
-            const active = sec.slug ? pathname.startsWith(`/society/${society.id}/${sec.slug}`) : false;
-            return sec.slug ? (
+            const active = isSectionActive(pathname, society.id, sec.slug);
+            const n = counts?.[sec.slug || 'debates'] ?? 0;
+            return (
               <Link key={sec.label} href={href} onClick={onNavigate}
-                className={`block rounded px-2 py-1 text-xs transition-colors ${active ? 'bg-blue-500/15 text-blue-300' : 'text-slate-400 hover:bg-blue-500/10 hover:text-blue-300'}`}>
+                className={`flex items-center justify-between rounded px-2 py-1 text-xs transition-colors ${active ? 'bg-blue-500/15 text-blue-300' : 'text-slate-400 hover:bg-blue-500/10 hover:text-blue-300'}`}>
                 {sec.label}
+                {n > 0 && !active && <span className="rounded-full bg-blue-500/20 px-1.5 text-[10px] font-bold text-blue-300">{n > 99 ? '99+' : n}</span>}
               </Link>
-            ) : (
-              <button key={sec.label} onClick={() => onEnter(society.id)}
-                className="block w-full text-left rounded px-2 py-1 text-xs text-slate-400 hover:bg-blue-500/10 hover:text-blue-300">
-                {sec.label}
-              </button>
             );
           })}
         </div>
@@ -228,6 +228,8 @@ export default function Header() {
   const [topicsOpen,    setTopicsOpen]    = useState(false);
   const [modCounts,     setModCounts]     = useState({ myPending: 0, joinsPending: 0 });
   const [moderates,     setModerates]     = useState(0);   // Societies this user moderates
+  const [unread,        setUnread]        = useState<Record<string, Record<string, number>>>({});
+  const [viewedSociety, setViewedSociety] = useState<number | null>(null);
   const [societies,     setSocieties]     = useState<SocietyList | null>(null);
   const [switching,     setSwitching]     = useState<number | null>(null);
   const [guestKey,      setGuestKey]      = useState<{ label: string } | null>(null);
@@ -273,6 +275,23 @@ export default function Header() {
     return () => { document.body.style.overflow = ''; };
   }, [menuOpen]);
 
+  // New items per Society section (menu badges); refreshed on navigation and
+  // whenever a Society page records a visit
+  useEffect(() => {
+    if (!user) { setUnread({}); return; }
+    const load = () => fetch('/api/me/unread').then(r => r.ok ? r.json() : null).then(d => d && setUnread(d.societies ?? {})).catch(() => {});
+    load();
+    window.addEventListener('dr:unread-changed', load);
+    return () => window.removeEventListener('dr:unread-changed', load);
+  }, [user, pathname]);
+
+  // The Society being viewed, so its name heads the page
+  useEffect(() => {
+    const m = pathname.match(/^\/society\/(\d+)/);
+    const q = pathname === '/scotparl' ? new URLSearchParams(window.location.search).get('society') : null;
+    setViewedSociety(m ? Number(m[1]) : q ? Number(q) : null);
+  }, [pathname]);
+
   // Societies this user moderates (moderating one makes them a Moderator)
   useEffect(() => {
     if (!user) { setModerates(0); return; }
@@ -312,7 +331,7 @@ export default function Header() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customer_id: id }),
       });
-      if (r.ok) window.location.href = `/scotparl?society=${id}`;
+      if (r.ok) window.location.href = `/society/${id}`;
     } finally {
       setSwitching(null);
     }
@@ -388,7 +407,8 @@ export default function Header() {
             {/* On home: mobile-only logo; on inner pages: always show logo */}
             <Link href="/" className={`${isHomePage ? 'sm:hidden' : ''} flex items-center gap-2 select-none`}>
               <NvLogo className="w-7 h-7" />
-              <span className="text-base font-bold tracking-tight text-slate-100">
+              {/* On phones a Society's name takes the middle, so keep just the logo */}
+              <span className={`${viewedSociety ? 'hidden sm:inline' : ''} text-base font-bold tracking-tight text-slate-100`}>
                 new<span className="text-blue-400">.vote</span>
               </span>
             </Link>
@@ -402,11 +422,23 @@ export default function Header() {
                 new<span className="text-blue-400">.vote</span>
               </span>
             </Link>
-          ) : societies?.current ? (
-            <span className="hidden sm:block absolute left-1/2 -translate-x-1/2 text-base font-semibold text-slate-200 select-none pointer-events-none truncate max-w-[40%] text-center">
-              {societies.current.name}
-            </span>
-          ) : null}
+          ) : (() => {
+            // On a Society's pages its name is the page title; elsewhere, the current Society
+            const all = societies ? [...societies.public, ...societies.private] : [];
+            const viewed = viewedSociety ? all.find(x => x.id === viewedSociety) : null;
+            const title = viewed?.name ?? societies?.current?.name;
+            if (!title) return null;
+            return viewed ? (
+              <Link href={`/society/${viewed.id}`}
+                className="absolute left-1/2 -translate-x-1/2 max-w-[46%] sm:max-w-[50%] truncate text-center text-base sm:text-2xl font-bold text-slate-100 hover:text-white">
+                {title}
+              </Link>
+            ) : (
+              <span className="hidden sm:block absolute left-1/2 -translate-x-1/2 text-base font-semibold text-slate-200 select-none pointer-events-none truncate max-w-[40%] text-center">
+                {title}
+              </span>
+            );
+          })()}
 
           {/* Right: theme toggle + auth */}
           <div className="flex items-center gap-2">
@@ -584,6 +616,7 @@ export default function Header() {
                 onNavigate={close}
                 pathname={pathname}
                 icon={icon}
+                counts={unread[String(x.id)]}
               />
             );
             return (

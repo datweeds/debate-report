@@ -63,8 +63,10 @@ export async function sendBlogNewsletter({
 const CONTACT_TO   = process.env.CONTACT_TO_EMAIL   ?? 'contact@new.vote';
 const CONTACT_FROM = process.env.CONTACT_FROM_EMAIL ?? 'contact@new.vote';
 
-export async function sendContactNotification({ name, email, subject, message }: {
+export async function sendContactNotification({ name, email, subject, message, to = CONTACT_TO, context = `the contact form at ${BASE_URL}/contact` }: {
   name: string; email: string; subject: string; message: string;
+  to?: string;        // default: the site's contact address
+  context?: string;   // where the message was sent from, for the footer
 }) {
   const send = (from: string) => fetch(`${POSTMARK_API}/email`, {
     method:  'POST',
@@ -75,10 +77,10 @@ export async function sendContactNotification({ name, email, subject, message }:
     },
     body: JSON.stringify({
       From:     `${PRODUCT_NAME} contact form <${from}>`,
-      To:       CONTACT_TO,
+      To:       to,
       ReplyTo:  `${name.replace(/[<>"\r\n]/g, '')} <${email}>`,
       Subject:  `[${PRODUCT_NAME} contact] ${subject}`.slice(0, 250),
-      TextBody: `From: ${name} <${email}>\nSubject: ${subject}\n\n${message}\n\n— Sent from the contact form at ${BASE_URL}/contact`,
+      TextBody: `From: ${name} <${email}>\nSubject: ${subject}\n\n${message}\n\n— Sent from ${context}`,
       MessageStream: 'outbound',
     }),
   });

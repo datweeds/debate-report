@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { isSocietyAdmin } from '@/lib/roles';
+import { setText } from '@/lib/scanner';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -53,7 +54,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     await client.query('BEGIN');
 
     const { rows: [alert] } = await client.query(
-      `SELECT ca.content_type, ca.content_id, ca.original_content, ca.appeal_status, r.customer_id
+      `SELECT ca.content_type, COALESCE(ca.content_key, ca.content_id::text) AS content_key, ca.original_content, ca.appeal_status, COALESCE(ca.customer_id, r.customer_id) AS customer_id
        FROM content_alerts ca
        LEFT JOIN statements r ON r.id = ca.resolution_id
        WHERE ca.id = $1`,
@@ -64,7 +65,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       await client.query('ROLLBACK');
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
-    if (alert.customer_id == null || !(await isSocietyAdmin(session, alert.customer_id))) {
+    // Profile content belongs to no Society: SysAdmin only
+    if (alert.customer_id == null ? !session.isSysAdmin : !(await isSocietyAdmin(session, alert.customer_id))) {
       await client.query('ROLLBACK');
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -73,18 +75,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'No pending appeal' }, { status: 409 });
     }
 
-    if (outcome === 'unmasked' && alert.content_id && alert.original_content) {
-      switch (alert.content_type) {
-        case 'statement_title':
-          await client.query(`UPDATE statements SET stat_title = $1 WHERE id = $2`, [alert.original_content, alert.content_id]);
-          break;
-        case 'statement_description':
-          await client.query(`UPDATE statements SET stat_description = $1 WHERE id = $2`, [alert.original_content, alert.content_id]);
-          break;
-        case 'comment':
-          await client.query(`UPDATE comments SET comment_body = $1 WHERE id = $2`, [alert.original_content, alert.content_id]);
-          break;
-      }
+    if (outcome === 'unmasked' && alert.content_key && alert.original_content) {
+      await setText(client, alert.content_type, alert.content_key, alert.original_content);
       await client.query(
         `UPDATE content_alerts SET status = 'passed', appeal_status = 'unmasked', reviewed_by = $2, reviewed_at = now() WHERE id = $1`,
         [id, session.sub],

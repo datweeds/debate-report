@@ -14,7 +14,7 @@ type SocietyRow = {
 };
 
 type Detail = {
-  society: { id: number; name: string; visibility: Visibility; hero_text: string | null; hero_image: string | null; description: string | null; is_default: boolean };
+  society: { id: number; name: string; visibility: Visibility; hero_text: string | null; hero_image: string | null; description: string | null; contact_email: string | null; is_default: boolean };
   members: { user_id: string; joined_at: string; user_handle: string | null; user_full_name: string | null; is_moderator: boolean }[];
   requests: { id: string; user_id: string; message: string | null; created_at: string; user_handle: string | null; user_full_name: string | null }[];
   invites: { id: string; label: string | null; created_at: string; expires_at: string | null; revoked_at: string | null; use_count: number; last_used_at: string | null }[];
@@ -202,7 +202,7 @@ function CreateSociety({ onCreated }: { onCreated: (id: number) => void }) {
 function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void }) {
   const [data, setData] = useState<Detail | null>(null);
   const [error, setError] = useState('');
-  const [form, setForm] = useState({ name: '', visibility: 'public' as Visibility, hero_text: '', description: '' });
+  const [form, setForm] = useState({ name: '', visibility: 'public' as Visibility, hero_text: '', description: '', contact_email: '' });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [newLink, setNewLink] = useState<string | null>(null);
@@ -216,7 +216,7 @@ function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void })
     if (!r.ok) { setError('You don\'t moderate this Society.'); return; }
     const d: Detail = await r.json();
     setData(d);
-    setForm({ name: d.society.name, visibility: d.society.visibility, hero_text: d.society.hero_text ?? '', description: d.society.description ?? '' });
+    setForm({ name: d.society.name, visibility: d.society.visibility, hero_text: d.society.hero_text ?? '', description: d.society.description ?? '', contact_email: d.society.contact_email ?? '' });
   }, [id]);
   useEffect(() => { load(); }, [load]);
 
@@ -287,7 +287,7 @@ function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void })
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-slate-100">{s.name}</h2>
         <div className="flex items-center gap-3 text-xs">
-          <Link href={`/scotparl?society=${s.id}`} className="text-blue-400 hover:underline">View dashboard →</Link>
+          <Link href={`/society/${s.id}`} className="text-blue-400 hover:underline">View Society →</Link>
           <button onClick={openSettings} className="text-blue-400 hover:underline">Topics, groups &amp; site settings →</button>
         </div>
       </div>
@@ -314,6 +314,10 @@ function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void })
             <div>
               <label className="block text-xs text-slate-400 mb-1">Description</label>
               <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={6} className={inputCls} />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Contact email <span className="text-slate-600">(messages from the About page go here; never shown publicly)</span></label>
+              <input value={form.contact_email} onChange={e => setForm(f => ({ ...f, contact_email: e.target.value }))} type="email" className={inputCls} placeholder="e.g. hello@yoursociety.org" />
             </div>
             <SocietyImageField endpoint={`/api/manage/societies/${id}/image`} value={s.hero_image} onChange={() => load()} />
             <button type="submit" disabled={saving}

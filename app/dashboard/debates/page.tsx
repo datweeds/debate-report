@@ -77,6 +77,9 @@ export default function ListDebatesPage() {
   const [moveTarget,   setMoveTarget]   = useState<number | ''>('');
   const [moveSubmitting, setMoveSubmitting] = useState(false);
   const [moveError,    setMoveError]    = useState('');
+  const [moveMode,     setMoveMode]     = useState<'move' | 'copy'>('copy');
+  const [moveVotes,    setMoveVotes]    = useState(true);
+  const [moveChat,     setMoveChat]     = useState(true);
 
   // Visibility (Public/Apply/Invite) state
   const [visibilityId, setVisibilityId] = useState<string | null>(null);
@@ -178,6 +181,7 @@ export default function ListDebatesPage() {
     setMovingId(debate.id);
     setMoveTarget('');
     setMoveError('');
+    setMoveMode('copy'); setMoveVotes(true); setMoveChat(true);
   }
 
   function cancelMove() {
@@ -187,18 +191,19 @@ export default function ListDebatesPage() {
 
   async function submitMove(debate: Debate) {
     if (!moveTarget) { setMoveError('Please select a society'); return; }
+    if (moveMode === 'move' && (!moveVotes || !moveChat)
+        && !confirm(`Moving without ${[!moveVotes && 'votes', !moveChat && 'chat'].filter(Boolean).join(' or ')} permanently deletes this debate's ${[!moveVotes && 'votes', !moveChat && 'chat'].filter(Boolean).join(' and ')}. Continue?`)) return;
     setMoveSubmitting(true); setMoveError('');
     try {
-      const res = await fetch(`/api/debates/${debate.id}/move`, {
+      const res = await fetch(`/api/debates/${debate.id}/transfer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customer_id: moveTarget }),
+        body: JSON.stringify({ targetSocietyId: moveTarget, mode: moveMode, includeVotes: moveVotes, includeChat: moveChat }),
       });
       const data = await res.json();
-      if (!res.ok) { setMoveError(data.error ?? 'Move failed'); return; }
-      setDebates(prev => prev.map(d =>
-        d.id === debate.id ? { ...d, customer_id: Number(moveTarget), society_name: data.society_name } : d
-      ));
+      if (!res.ok) { setMoveError(data.error ?? `${moveMode === 'move' ? 'Move' : 'Copy'} failed`); return; }
+      // A copy adds a new debate to the list; a move changes this one
+      await fetchDebates();
       setMovingId(null);
     } catch {
       setMoveError('Network error');
@@ -422,7 +427,7 @@ export default function ListDebatesPage() {
                     {societies.length > 1 && (
                       <button
                         onClick={() => movingId === debate.id ? cancelMove() : openMoveForm(debate)}
-                        title="Move to a different society"
+                        title="Move or copy to another society"
                         className={`rounded-lg p-2 transition-colors ${
                           movingId === debate.id
                             ? 'text-violet-400 bg-violet-500/10'
@@ -495,6 +500,9 @@ export default function ListDebatesPage() {
                     onCancel={cancelMove}
                     submitting={moveSubmitting}
                     error={moveError}
+                    mode={moveMode} onModeChange={setMoveMode}
+                    includeVotes={moveVotes} onVotesChange={setMoveVotes}
+                    includeChat={moveChat} onChatChange={setMoveChat}
                   />
                 )}
 
@@ -737,6 +745,7 @@ function VisibilityPanel({
 
 function MovePanel({
   debate, societies, target, onTargetChange, onSubmit, onCancel, submitting, error,
+  mode, onModeChange, includeVotes, onVotesChange, includeChat, onChatChange,
 }: {
   debate: Debate;
   societies: SocietyOption[];
@@ -746,26 +755,50 @@ function MovePanel({
   onCancel: () => void;
   submitting: boolean;
   error: string;
+  mode: 'move' | 'copy'; onModeChange: (m: 'move' | 'copy') => void;
+  includeVotes: boolean; onVotesChange: (v: boolean) => void;
+  includeChat: boolean; onChatChange: (v: boolean) => void;
 }) {
+  const losing = mode === 'move' && (!includeVotes || !includeChat);
   return (
     <div className="card-dr rounded-t-none border-t border-violet-500/20 bg-violet-500/5 p-5">
-      <p className="text-sm font-semibold text-slate-200 mb-1">Move to a different society</p>
+      <p className="text-sm font-semibold text-slate-200 mb-1">Move or copy to another society</p>
       <p className="text-xs text-slate-500 mb-4">
         Currently in <span className="text-slate-300">{debate.society_name ?? 'no society'}</span>.
-        This also regroups which society&rsquo;s dashboard counts it towards.
+        Every statement, reference, link and analysis goes with it; choose whether votes and chat do too.
       </p>
 
-      <label className="block text-xs font-semibold text-slate-400 mb-1.5">Move to</label>
+      <div className="mb-4 flex gap-2">
+        {(['copy', 'move'] as const).map(m => (
+          <button key={m} type="button" onClick={() => onModeChange(m)}
+            className={`flex-1 rounded-xl border px-4 py-2 text-left text-sm ${mode === m ? 'border-violet-500/60 bg-violet-500/15 text-violet-200' : 'border-slate-700 text-slate-400 hover:border-slate-500'}`}>
+            <span className="font-semibold">{m === 'copy' ? 'Copy' : 'Move'}</span>
+            <span className="block text-xs opacity-75">{m === 'copy' ? 'Keep this debate here and add a copy there' : 'Take this debate out of this society'}</span>
+          </button>
+        ))}
+      </div>
+
+      <label className="block text-xs font-semibold text-slate-400 mb-1.5">To</label>
       <select
         value={target}
         onChange={e => onTargetChange(e.target.value ? Number(e.target.value) : '')}
         className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-slate-100 focus:border-violet-500/50 focus:outline-none mb-4"
       >
         <option value="">Select a society…</option>
-        {societies.filter(s => s.id !== debate.customer_id).map(s => (
-          <option key={s.id} value={s.id}>{s.name}</option>
+        {societies.filter(s => mode === 'copy' || s.id !== debate.customer_id).map(s => (
+          <option key={s.id} value={s.id}>{s.name}{s.id === debate.customer_id ? ' (this society)' : ''}</option>
         ))}
       </select>
+
+      <div className="mb-3 flex flex-wrap gap-5 text-sm text-slate-300">
+        <label className="flex items-center gap-2"><input type="checkbox" checked={includeVotes} onChange={e => onVotesChange(e.target.checked)} className="accent-violet-500" /> Include votes</label>
+        <label className="flex items-center gap-2"><input type="checkbox" checked={includeChat} onChange={e => onChatChange(e.target.checked)} className="accent-violet-500" /> Include chat</label>
+      </div>
+      {losing && (
+        <p className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+          Moving without {[!includeVotes && 'votes', !includeChat && 'chat'].filter(Boolean).join(' or ')} permanently deletes this debate&apos;s {[!includeVotes && 'votes', !includeChat && 'chat'].filter(Boolean).join(' and ')}. Copy instead to keep the original intact.
+        </p>
+      )}
 
       {error && <p className="text-xs text-red-400 mb-3">{error}</p>}
 
@@ -775,7 +808,7 @@ function MovePanel({
           disabled={submitting || !target}
           className="rounded-xl bg-violet-600 px-5 py-2 text-sm font-semibold text-white hover:bg-violet-500 disabled:opacity-50 transition-colors"
         >
-          {submitting ? 'Moving…' : 'Move debate'}
+          {submitting ? (mode === 'copy' ? 'Copying…' : 'Moving…') : mode === 'copy' ? 'Copy debate' : 'Move debate'}
         </button>
         <button
           onClick={onCancel}

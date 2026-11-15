@@ -982,11 +982,83 @@ function AccessKeysTab() {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-type AdminTab = 'analytics' | 'blog' | 'customers' | 'keys' | 'moderators' | 'library';
+type AdminTab = 'analytics' | 'blog' | 'customers' | 'keys' | 'moderators' | 'library' | 'scanning';
+
+// ── Abuse scanning ───────────────────────────────────────────────────────────
+type ScanRun = { id: string; kind: string; started_at: string; finished_at: string | null; items_scanned: number; alerts_raised: number; error: string | null; started_by: string | null };
+
+function ScanningTab() {
+  const [data, setData] = useState<{ runs: ScanRun[]; totals: { scanned: number; pending: number; alerts: number }; byType: { content_type: string; n: number }[]; configured: boolean } | null>(null);
+  const [starting, setStarting] = useState(false);
+  const load = useCallback(async () => {
+    const r = await fetch('/api/admin/scan');
+    if (r.ok) setData(await r.json());
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  // Refresh while a run is in progress
+  useEffect(() => {
+    if (!data?.runs.some(r => !r.finished_at)) return;
+    const t = setInterval(load, 3000);
+    return () => clearInterval(t);
+  }, [data, load]);
+
+  async function start(full: boolean) {
+    if (full && !confirm('Rescan all text on the site? This can take a few minutes.')) return;
+    setStarting(true);
+    await fetch('/api/admin/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ full }) });
+    setTimeout(() => { setStarting(false); load(); }, 1500);
+  }
+
+  if (!data) return <div className="h-24 rounded-xl bg-slate-800/40 animate-pulse" />;
+  const fmt = (d: string) => new Date(d).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  const running = data.runs.some(r => !r.finished_at);
+  return (
+    <div className="space-y-5">
+      <p className="text-sm text-slate-400">
+        All text people write (debates, chat, discussions, documents, events, principles, projects, Society pages and profiles) is checked by the abuse scanner in the background:
+        new and changed text every 15 minutes, with a daily safety-net pass at 03:00. Nobody waits for it. Use “Rescan everything” after the scanner’s rules change. Flagged content goes to the Alert Review queue of the Society&apos;s moderators (profiles to SysAdmin).
+      </p>
+      {!data.configured && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">The scanner service isn&apos;t configured on this server.</p>}
+      <div className="grid grid-cols-3 gap-3">
+        {[['Items scanned', data.totals.scanned], ['Alerts pending', data.totals.pending], ['Alerts in total', data.totals.alerts]].map(([l, n]) => (
+          <div key={l as string} className="rounded-xl border border-slate-800 bg-[#0c1322] px-4 py-3">
+            <p className="text-[11px] uppercase tracking-wider text-slate-500">{l}</p>
+            <p className="text-2xl font-bold tabular-nums text-slate-100">{n}</p>
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <button onClick={() => start(false)} disabled={starting || running} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50">
+          {running ? 'Scan running…' : 'Scan new & changed now'}
+        </button>
+        <button onClick={() => start(true)} disabled={starting || running} className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:border-slate-500 disabled:opacity-50">Rescan everything</button>
+        <a href="/dashboard/scanner" className="px-2 py-2 text-sm text-blue-400 hover:underline">Open Alert Review →</a>
+      </div>
+      <div className="overflow-hidden rounded-xl border border-slate-800">
+        <table className="w-full text-left text-xs">
+          <thead className="bg-slate-900/60 text-slate-500"><tr><th className="px-3 py-2">Started</th><th className="px-3 py-2">Kind</th><th className="px-3 py-2 text-right">Scanned</th><th className="px-3 py-2 text-right">Alerts</th><th className="px-3 py-2">Result</th></tr></thead>
+          <tbody className="divide-y divide-slate-800">
+            {data.runs.length === 0 ? (
+              <tr><td colSpan={5} className="px-3 py-4 text-center text-slate-500">No scans yet. The first runs a minute after the server starts.</td></tr>
+            ) : data.runs.map(r => (
+              <tr key={r.id} className="text-slate-300">
+                <td className="px-3 py-2">{fmt(r.started_at)}</td>
+                <td className="px-3 py-2">{r.kind === 'interval' ? 'Every 15 min' : r.kind === 'daily' ? 'Daily (full)' : `Manual${r.started_by ? ` · @${r.started_by}` : ''}`}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{r.items_scanned}</td>
+                <td className={`px-3 py-2 text-right tabular-nums ${r.alerts_raised ? 'text-amber-300' : ''}`}>{r.alerts_raised}</td>
+                <td className="px-3 py-2">{!r.finished_at ? <span className="text-blue-300">Running…</span> : r.error ? <span className="text-rose-300">{r.error}</span> : <span className="text-emerald-300">Done</span>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 // ── Principles library ───────────────────────────────────────────────────────
 // The general-purpose principles Moderators can copy into their Societies.
-type LibraryPrinciple = PrincipleFields & { id: string };
+type LibraryPrinciple = PrincipleFields & { id: string; library: string };
 
 function PrinciplesLibraryTab() {
   const [rows, setRows] = useState<LibraryPrinciple[] | null>(null);
@@ -1006,38 +1078,49 @@ function PrinciplesLibraryTab() {
   }
 
   if (rows === null) return <div className="h-24 rounded-xl bg-slate-800/40 animate-pulse" />;
+  const libraries = [...new Set(rows.map(r => r.library))];
+  const sections = [...new Set(rows.map(r => r.section).filter(Boolean))] as string[];
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-slate-400">A starting set Moderators can copy into their Societies. Societies keep their own copies, so changes here don&apos;t alter principles already copied.</p>
+        <p className="text-sm text-slate-400">Starting sets Moderators can copy into their Societies, in libraries and sections. Societies keep their own copies, so changes here don&apos;t alter principles already copied.</p>
         <button onClick={() => setAdding(true)} className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-500">+ Add principle</button>
       </div>
-      {adding && <PrincipleForm saveLabel="Add to library" onCancel={() => setAdding(false)}
+      {adding && <PrincipleForm saveLabel="Add to library" libraries={libraries} sections={sections} onCancel={() => setAdding(false)}
         onSave={async v => { const err = await send('/api/admin/principle-library', 'POST', v); if (!err) setAdding(false); return err; }} />}
-      <ol className="space-y-2">
-        {rows.map((p, i) => (
-          <li key={p.id} className="rounded-xl border border-slate-800 bg-[#0c1322] p-4">
-            {editing === p.id ? (
-              <PrincipleForm initial={p} onCancel={() => setEditing(null)}
-                onSave={async v => { const err = await send(`/api/admin/principle-library/${p.id}`, 'PATCH', v); if (!err) setEditing(null); return err; }} />
-            ) : (
-              <div className="flex items-start gap-3">
-                <span className="w-6 text-right text-sm font-bold text-slate-500">{i + 1}.</span>
-                <div className="min-w-0 flex-1">
-                  <span className={`mr-2 rounded border px-1.5 py-0.5 text-[10px] font-semibold ${CATEGORY_META[p.category].cls}`}>{CATEGORY_META[p.category].label}</span>
-                  <span className="text-sm font-semibold text-slate-100">{p.title}</span>
-                  <p className="mt-1 text-sm text-slate-300">{p.body}</p>
-                  {p.grounding && <p className="mt-1 text-xs text-slate-500">Why: {p.grounding}</p>}
-                </div>
-                <div className="flex flex-col items-end gap-1 text-xs">
-                  <button onClick={() => setEditing(p.id)} className="text-slate-400 hover:text-slate-200">Edit</button>
-                  <button onClick={() => { if (confirm(`Delete "${p.title}" from the library?`)) send(`/api/admin/principle-library/${p.id}`, 'DELETE'); }} className="text-rose-400 hover:text-rose-300">Delete</button>
-                </div>
-              </div>
-            )}
-          </li>
-        ))}
-      </ol>
+      {libraries.map(lib => (
+        <div key={lib} className="space-y-3">
+          <h3 className="text-base font-semibold text-slate-100">{lib} library</h3>
+          {[...new Set(rows.filter(r => r.library === lib).map(r => r.section || 'Other'))].map(sec => (
+            <div key={sec}>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">{sec}</p>
+              <ol className="space-y-2">
+                {rows.filter(r => r.library === lib && (r.section || 'Other') === sec).map(p => (
+                  <li key={p.id} className="rounded-xl border border-slate-800 bg-[#0c1322] p-4">
+                    {editing === p.id ? (
+                      <PrincipleForm initial={{ ...p, section: p.section ?? '' }} libraries={libraries} sections={sections} onCancel={() => setEditing(null)}
+                        onSave={async v => { const err = await send(`/api/admin/principle-library/${p.id}`, 'PATCH', v); if (!err) setEditing(null); return err; }} />
+                    ) : (
+                      <div className="flex items-start gap-3">
+                        <div className="min-w-0 flex-1">
+                          <span className={`mr-2 rounded border px-1.5 py-0.5 text-[10px] font-semibold ${CATEGORY_META[p.category].cls}`}>{CATEGORY_META[p.category].label}</span>
+                          <span className="text-sm font-semibold text-slate-100">{p.title}</span>
+                          <p className="mt-1 text-sm text-slate-300">{p.body}</p>
+                          {p.grounding && <p className="mt-1 text-xs text-slate-500">Why: {p.grounding}</p>}
+                        </div>
+                        <div className="flex flex-col items-end gap-1 text-xs">
+                          <button onClick={() => setEditing(p.id)} className="text-slate-400 hover:text-slate-200">Edit</button>
+                          <button onClick={() => { if (confirm(`Delete "${p.title}" from the library?`)) send(`/api/admin/principle-library/${p.id}`, 'DELETE'); }} className="text-rose-400 hover:text-rose-300">Delete</button>
+                        </div>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }
@@ -1115,7 +1198,7 @@ export default function AdminPage() {
   // ?tab=customers (e.g. "Edit society" on a society dashboard) opens that tab.
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get('tab');
-    if (t === 'analytics' || t === 'blog' || t === 'customers' || t === 'keys' || t === 'moderators' || t === 'library') setTab(t);
+    if (t === 'analytics' || t === 'blog' || t === 'customers' || t === 'keys' || t === 'moderators' || t === 'library' || t === 'scanning') setTab(t);
   }, []);
 
   useEffect(() => {
@@ -1144,6 +1227,7 @@ export default function AdminPage() {
             { id: 'keys',      label: 'Access Keys' },
             { id: 'moderators', label: 'Moderators' },
             { id: 'library',    label: 'Principles library' },
+            { id: 'scanning',   label: 'Scanning' },
           ] as { id: AdminTab; label: string }[]).map(t => (
             <button
               key={t.id}
@@ -1178,6 +1262,7 @@ export default function AdminPage() {
         {tab === 'keys'      && <AccessKeysTab />}
         {tab === 'moderators' && <ModeratorRequestsTab />}
         {tab === 'library'    && <PrinciplesLibraryTab />}
+        {tab === 'scanning'   && <ScanningTab />}
 
         <div className="text-center mt-10">
           <Link href="/" className="text-xs text-slate-600 hover:text-slate-400 transition-colors">

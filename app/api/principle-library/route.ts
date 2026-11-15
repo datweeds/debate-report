@@ -7,7 +7,7 @@ export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
   const { rows } = await pool.query(
-    'SELECT id, sort_order, category, title, body, grounding FROM principle_library ORDER BY sort_order, created_at',
+    'SELECT id, library, section, sort_order, category, title, body, grounding FROM principle_library ORDER BY library, sort_order, created_at',
   );
   return NextResponse.json({ principles: rows });
 }

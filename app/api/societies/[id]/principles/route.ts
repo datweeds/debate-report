@@ -18,7 +18,7 @@ export async function GET(req: NextRequest, { params }: Params) {
   const version = versions.find(v => wanted ? v.version === wanted : v.is_current) ?? null;
 
   const { rows: principles } = version ? await pool.query(
-    `SELECT p.id, p.lineage_id, p.sort_order, p.category, p.title, p.body, p.grounding,
+    `SELECT p.id, p.lineage_id, p.sort_order, p.category, p.section, p.title, p.body, p.grounding,
             l.thread_id, l.resolution_id,
             r.vote_total_for, r.vote_total_against,
             (SELECT COUNT(*)::int FROM discussion_posts dp WHERE dp.thread_id = l.thread_id AND dp.deleted_at IS NULL) AS post_count,
@@ -47,10 +47,10 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (!p.ok) return NextResponse.json({ error: p.error }, { status: 400 });
   const v = await ensureCurrentVersion(a.societyId, a.session!.sub);
   const { rows: [row] } = await pool.query(
-    `INSERT INTO society_principles (version_id, sort_order, category, title, body, grounding)
-     VALUES ($1, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM society_principles WHERE version_id = $1), $2, $3, $4, $5)
+    `INSERT INTO society_principles (version_id, sort_order, category, section, title, body, grounding)
+     VALUES ($1, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM society_principles WHERE version_id = $1), $2, $6, $3, $4, $5)
      RETURNING id`,
-    [v.id, p.category, p.title, p.body, p.grounding],
+    [v.id, p.category, p.title, p.body, p.grounding, p.section],
   );
   return NextResponse.json({ id: row.id }, { status: 201 });
 }

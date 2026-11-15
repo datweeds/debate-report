@@ -11,11 +11,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!session?.isSysAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const { libId } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(libId)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  const p = readPrinciple(await req.json().catch(() => ({})));
+  const body = await req.json().catch(() => ({}));
+  const p = readPrinciple(body);
   if (!p.ok) return NextResponse.json({ error: p.error }, { status: 400 });
+  const library = typeof body.library === 'string' && body.library.trim() ? body.library.trim().slice(0, 60) : null;
   await pool.query(
-    'UPDATE principle_library SET category = $1, title = $2, body = $3, grounding = $4, updated_at = now() WHERE id = $5',
-    [p.category, p.title, p.body, p.grounding, libId],
+    'UPDATE principle_library SET category = $1, title = $2, body = $3, grounding = $4, section = $6, library = COALESCE($7, library), updated_at = now() WHERE id = $5',
+    [p.category, p.title, p.body, p.grounding, libId, p.section, library],
   );
   return NextResponse.json({ ok: true });
 }

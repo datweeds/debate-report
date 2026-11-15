@@ -13,7 +13,7 @@ type Principle = PrincipleFields & {
 };
 type Version = { id: string; version: number; change_note: string | null; is_current: boolean; created_at: string; created_by: string | null };
 type Data = { version: Version | null; versions: Version[]; principles: Principle[]; canPost: boolean; canModerate: boolean };
-type LibraryItem = PrincipleFields & { id: string };
+type LibraryItem = PrincipleFields & { id: string; library: string };
 
 const inputCls = 'w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:border-blue-500 focus:outline-none';
 const day = (d: string) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -34,6 +34,7 @@ export default function SocietyPrinciples({ societyId }: { societyId: number }) 
   const [changeNote, setChangeNote] = useState('');
   const [library, setLibrary] = useState<LibraryItem[] | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [libraryName, setLibraryName] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -69,7 +70,9 @@ export default function SocietyPrinciples({ societyId }: { societyId: number }) 
   async function openLibrary() {
     setPicked(new Set());
     const r = await fetch('/api/principle-library');
-    setLibrary(r.ok ? (await r.json()).principles : []);
+    const items: LibraryItem[] = r.ok ? (await r.json()).principles : [];
+    setLibrary(items);
+    setLibraryName(items[0]?.library ?? '');
   }
 
   if (!data) return error ? <p className="text-sm text-rose-400">{error}</p> : <div className="h-40 rounded-2xl bg-slate-800/40 animate-pulse" />;
@@ -77,6 +80,16 @@ export default function SocietyPrinciples({ societyId }: { societyId: number }) 
   const isCurrent = !data.version || data.version.is_current;
   const canEdit = data.canModerate && isCurrent;
   const shown = data.principles.filter(p => filter === 'all' || p.category === filter);
+  // Sections in the order their first principle appears; unsectioned ones last, as "Other"
+  const sectionNames = [...new Set(data.principles.map(p => p.section).filter(Boolean))] as string[];
+  const groups = [...sectionNames, ''].map(name => ({ name, items: shown.filter(p => (p.section || '') === name) })).filter(g => g.items.length);
+
+  async function renameSection(from: string) {
+    const to = prompt(from ? `Rename the section “${from}” to:` : 'Put these principles in a section named:', from);
+    if (to === null || to.trim() === from) return;
+    const err = await send(`${base}/sections`, 'PATCH', { from, to });
+    if (err) setError(err); else load();
+  }
 
   return (
     <div className="space-y-4">
@@ -125,33 +138,56 @@ export default function SocietyPrinciples({ societyId }: { societyId: number }) 
       )}
 
       {adding && (
-        <PrincipleForm saveLabel="Add principle" onCancel={() => setAdding(false)}
+        <PrincipleForm saveLabel="Add principle" sections={sectionNames} onCancel={() => setAdding(false)}
           onSave={async p => { const err = await send(base, 'POST', p); if (!err) { setAdding(false); load(); } return err; }} />
       )}
 
       {library && (
         <div className="rounded-2xl border border-slate-700 bg-[#0c1322] p-4 space-y-3">
           <p className="text-sm text-slate-200">Copy from the general library</p>
-          <p className="text-xs text-slate-500">Copied principles become this Society&apos;s own: edit them freely afterwards.</p>
-          <ul className="max-h-[50vh] space-y-2 overflow-y-auto">
-            {library.map(l => (
-              <li key={l.id}>
-                <label className="flex cursor-pointer gap-3 rounded-lg border border-slate-800 p-3 hover:border-slate-600">
-                  <input type="checkbox" checked={picked.has(l.id)} className="mt-1 accent-blue-500"
-                    onChange={() => setPicked(s => { const n = new Set(s); if (n.has(l.id)) n.delete(l.id); else n.add(l.id); return n; })} />
-                  <span className="min-w-0">
-                    <span className={`mr-2 rounded border px-1.5 py-0.5 text-[10px] font-semibold ${CATEGORY_META[l.category].cls}`}>{CATEGORY_META[l.category].label}</span>
-                    <span className="text-sm font-medium text-slate-100">{l.title}</span>
-                    <span className="mt-1 block text-xs text-slate-400">{l.body}</span>
-                  </span>
-                </label>
-              </li>
+          <p className="text-xs text-slate-500">Choose whole sections or single principles. Copies keep their section and become this Society&apos;s own to edit.</p>
+          <div className="flex flex-wrap gap-2">
+            {[...new Set(library.map(l => l.library))].map(name => (
+              <button key={name} type="button" onClick={() => setLibraryName(name)}
+                className={`rounded-full border px-3 py-1 text-xs font-medium ${libraryName === name ? 'border-blue-500/60 bg-blue-500/15 text-blue-200' : 'border-slate-700 text-slate-400 hover:text-slate-200'}`}>
+                {name} library
+              </button>
             ))}
-          </ul>
+          </div>
+          <div className="max-h-[55vh] space-y-4 overflow-y-auto">
+            {[...new Set(library.filter(l => l.library === libraryName).map(l => l.section || 'Other'))].map(sec => {
+              const items = library.filter(l => l.library === libraryName && (l.section || 'Other') === sec);
+              const all = items.every(l => picked.has(l.id));
+              return (
+                <div key={sec}>
+                  <label className="mb-1.5 flex cursor-pointer items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    <input type="checkbox" checked={all} className="accent-blue-500"
+                      onChange={() => setPicked(s => { const n = new Set(s); items.forEach(l => all ? n.delete(l.id) : n.add(l.id)); return n; })} />
+                    {sec} <span className="font-normal normal-case tracking-normal text-slate-600">· whole section ({items.length})</span>
+                  </label>
+                  <ul className="space-y-2">
+                    {items.map(l => (
+                      <li key={l.id}>
+                        <label className="flex cursor-pointer gap-3 rounded-lg border border-slate-800 p-3 hover:border-slate-600">
+                          <input type="checkbox" checked={picked.has(l.id)} className="mt-1 accent-blue-500"
+                            onChange={() => setPicked(s => { const n = new Set(s); if (n.has(l.id)) n.delete(l.id); else n.add(l.id); return n; })} />
+                          <span className="min-w-0">
+                            <span className={`mr-2 rounded border px-1.5 py-0.5 text-[10px] font-semibold ${CATEGORY_META[l.category].cls}`}>{CATEGORY_META[l.category].label}</span>
+                            <span className="text-sm font-medium text-slate-100">{l.title}</span>
+                            <span className="mt-1 block text-xs text-slate-400">{l.body}</span>
+                          </span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
           <div className="flex flex-wrap gap-2">
             <button onClick={async () => { const err = await send(`${base}/copy`, 'POST', { libraryIds: [...picked] }); if (err) setError(err); else { setLibrary(null); load(); } }}
               disabled={!picked.size} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50">Copy {picked.size || ''} selected</button>
-            <button onClick={() => setPicked(new Set(library.map(l => l.id)))} className="px-2 text-sm text-slate-400 hover:text-slate-200">Select all</button>
+            <button onClick={() => setPicked(s => new Set([...s, ...library.filter(l => l.library === libraryName).map(l => l.id)]))} className="px-2 text-sm text-slate-400 hover:text-slate-200">Select whole library</button>
             <button onClick={() => setLibrary(null)} className="px-2 text-sm text-slate-500 hover:text-slate-300">Cancel</button>
           </div>
         </div>
@@ -174,13 +210,23 @@ export default function SocietyPrinciples({ societyId }: { societyId: number }) 
           No principles yet.{canEdit ? ' Add your own, or copy a starting set from the library.' : ''}
         </div>
       ) : (
-        <ol className="space-y-3">
-          {shown.map(p => {
+        <div className="space-y-8">
+          {groups.map(g => (
+            <section key={g.name || 'other'}>
+              <div className="mb-3 flex items-center gap-3 border-b border-slate-800 pb-2">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-300">{g.name || (sectionNames.length ? 'Other' : 'Principles')}</h3>
+                <span className="text-xs text-slate-600">{g.items.length}</span>
+                {canEdit && (g.name || sectionNames.length > 0) && (
+                  <button onClick={() => renameSection(g.name)} className="ml-auto text-xs text-slate-500 hover:text-slate-300">{g.name ? 'Rename section' : 'Put in a section'}</button>
+                )}
+              </div>
+          <ol className="space-y-3">
+          {g.items.map(p => {
             const n = data.principles.indexOf(p) + 1;
             return (
               <li key={p.id} className="rounded-2xl border border-slate-800 bg-[#0c1322] p-4">
                 {editing === p.id ? (
-                  <PrincipleForm initial={p} onCancel={() => setEditing(null)}
+                  <PrincipleForm initial={{ ...p, section: p.section ?? '' }} sections={sectionNames} onCancel={() => setEditing(null)}
                     onSave={async v => { const err = await send(`${base}/${p.id}`, 'PATCH', v); if (!err) { setEditing(null); load(); } return err; }} />
                 ) : (
                   <>
@@ -257,7 +303,10 @@ export default function SocietyPrinciples({ societyId }: { societyId: number }) 
               </li>
             );
           })}
-        </ol>
+          </ol>
+            </section>
+          ))}
+        </div>
       )}
     </div>
   );

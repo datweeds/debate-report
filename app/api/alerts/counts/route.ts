@@ -1,16 +1,18 @@
 import { NextResponse } from 'next/server';
-import pool, { getCurrentTenantId } from '@/lib/db';
+import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
-import { isSocietyAdmin } from '@/lib/roles';
+import { moderatedSocietyIds } from '@/lib/roles';
 
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
 
-  const currentSocietyId = await getCurrentTenantId();
-  const canReviewAlerts  = await isSocietyAdmin(session, currentSocietyId);
-  const alertSocietyFilter = session.isSysAdmin ? '' : 'AND r.customer_id = $1';
-  const alertParams = session.isSysAdmin ? [] : [currentSocietyId];
+  // Alerts and flags across every Society the viewer moderates (SysAdmin: all)
+  const moderated = await moderatedSocietyIds(session.sub);
+  const canReviewAlerts  = session.isSysAdmin || moderated.length > 0;
+  const alertSocietyFilter = session.isSysAdmin ? '' : 'AND COALESCE(ca.customer_id, r.customer_id) = ANY($1::int[])';
+  const flagSocietyFilter = session.isSysAdmin ? '' : 'AND r.customer_id = ANY($1::int[])';
+  const alertParams = session.isSysAdmin ? [] : [moderated];
 
   const [scanRow, flagRow, joinRow, inviteRow, userRow] = await Promise.all([
     // Pending auto-detected content alerts — only meaningful for an admin
@@ -29,7 +31,7 @@ export async function GET() {
           `SELECT COUNT(*)::int AS n FROM stat_flags sf
            LEFT JOIN statements s   ON s.id = sf.stat_id
            LEFT JOIN statements r   ON r.id = s.resolution_id
-           WHERE 1=1 ${alertSocietyFilter}`,
+           WHERE 1=1 ${flagSocietyFilter}`,
           alertParams,
         )
       : Promise.resolve({ rows: [{ n: 0 }] }),

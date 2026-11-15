@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import pool, { getCurrentTenantId } from '@/lib/db';
+import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
-import { isSocietyAdmin } from '@/lib/roles';
+import { moderatedSocietyIds } from '@/lib/roles';
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -10,11 +10,11 @@ export async function GET(req: NextRequest) {
   const url  = new URL(req.url);
   const mine = url.searchParams.get('mine') === 'true';
 
-  // The moderation review queue (!mine) is Society Admin/SysAdmin only, and
-  // filtered to the viewer's current Society unless they're SysAdmin — "mine"
-  // (a user's own masked content, to appeal) stays open to anyone logged in.
-  const currentSocietyId = await getCurrentTenantId();
-  if (!mine && !(await isSocietyAdmin(session, currentSocietyId))) {
+  // The review queue (!mine) covers every Society the viewer moderates
+  // (SysAdmin: everything, including profiles, which belong to no Society).
+  // "mine" (a user's own flagged content, to appeal) is open to anyone logged in.
+  const moderated = await moderatedSocietyIds(session.sub);
+  if (!mine && !session.isSysAdmin && !moderated.length) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -26,19 +26,20 @@ export async function GET(req: NextRequest) {
   // Build the filter clause and its params from scratch each time, rather
   // than juggling shared positional placeholders across branches.
   let filterClause = 'ca.status = $1';
-  const filterParams: (string | number)[] = [status];
+  const filterParams: (string | number | number[])[] = [status];
   if (mine) {
     filterClause += ` AND ca.author_id = $${filterParams.length + 1}`;
     filterParams.push(session.sub);
   } else if (!session.isSysAdmin) {
-    filterClause += ` AND r.customer_id = $${filterParams.length + 1}`;
-    filterParams.push(currentSocietyId);
+    filterClause += ` AND COALESCE(ca.customer_id, r.customer_id) = ANY($${filterParams.length + 1}::int[])`;
+    filterParams.push(moderated);
   }
 
   const [{ rows: alerts }, { rows: [{ total }] }] = await Promise.all([
     pool.query(
       `SELECT
-         ca.id, ca.content_type, ca.content_id, ca.resolution_id,
+         ca.id, ca.content_type, ca.content_id, ca.resolution_id, ca.content_href,
+         soc.name        AS society_name,
          ca.flagged_text, ca.flags, ca.status, ca.created_at, ca.reviewed_at,
          ca.appeal_body, ca.appeal_at, ca.appeal_status,
          u.user_handle   AS author_handle,
@@ -54,6 +55,7 @@ export async function GET(req: NextRequest) {
        LEFT JOIN statements s     ON s.id     = ca.content_id
        LEFT JOIN statements r     ON r.id     = ca.resolution_id
        LEFT JOIN users      owner ON owner.id = r.created_by
+       LEFT JOIN customers  soc   ON soc.id   = COALESCE(ca.customer_id, r.customer_id)
        WHERE ${filterClause}
        ORDER BY ca.created_at DESC
        LIMIT $${filterParams.length + 1} OFFSET $${filterParams.length + 2}`,

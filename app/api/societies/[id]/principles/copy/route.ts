@@ -17,10 +17,10 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
   const v = await ensureCurrentVersion(a.societyId, a.session!.sub);
   const { rowCount } = await pool.query(
-    `INSERT INTO society_principles (version_id, sort_order, category, title, body, grounding)
+    `INSERT INTO society_principles (version_id, sort_order, category, section, title, body, grounding)
      SELECT $1, (SELECT COALESCE(MAX(sort_order), 0) FROM society_principles WHERE version_id = $1)
                 + ROW_NUMBER() OVER (ORDER BY l.sort_order),
-            l.category, l.title, l.body, l.grounding
+            l.category, l.section, l.title, l.body, l.grounding
      FROM principle_library l WHERE l.id = ANY($2::uuid[])`,
     [v.id, libraryIds],
   );

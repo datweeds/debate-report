@@ -5,12 +5,15 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import MyFlags from '@/components/dashboard/MyFlags';
+import { CONTENT_LABELS as SCAN_LABELS } from '@/lib/scanTargets';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type MyAlert = {
   id: string;
-  content_type: 'statement_title' | 'statement_description' | 'comment';
+  content_type: string;
+  content_href?: string | null;
+  society_name?: string | null;
   content_id: string | null;
   resolution_id: string | null;
   flagged_text: string;
@@ -39,11 +42,8 @@ const FLAG_LABELS: Record<string, string> = {
   pii:         'Personal Data',
 };
 
-const CONTENT_LABELS: Record<string, string> = {
-  statement_title:       'Statement Title',
-  statement_description: 'Description',
-  comment:               'Comment',
-};
+// Labels for every kind of scanned content (debates, discussions, documents, …)
+const CONTENT_LABELS: Record<string, string> = SCAN_LABELS;
 
 function timeAgo(d: string) {
   const mins = Math.floor((Date.now() - new Date(d).getTime()) / 60000);

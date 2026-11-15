@@ -28,8 +28,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       [a.societyId, cur.version + 1, changeNote.trim().slice(0, 2000), a.session!.sub],
     );
     await client.query(
-      `INSERT INTO society_principles (version_id, lineage_id, sort_order, category, title, body, grounding)
-       SELECT $1, lineage_id, sort_order, category, title, body, grounding FROM society_principles WHERE version_id = $2`,
+      `INSERT INTO society_principles (version_id, lineage_id, sort_order, category, section, title, body, grounding)
+       SELECT $1, lineage_id, sort_order, category, section, title, body, grounding FROM society_principles WHERE version_id = $2`,
       [nv.id, cur.id],
     );
     await client.query('COMMIT');

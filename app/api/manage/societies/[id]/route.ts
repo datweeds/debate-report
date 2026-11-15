@@ -10,7 +10,7 @@ export async function GET(req: NextRequest, { params }: Params) {
   if (!ctx) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const [{ rows: [society] }, { rows: members }, { rows: requests }, { rows: invites }] = await Promise.all([
     pool.query(
-      `SELECT id, name, visibility, hero_text, hero_image, description, subdomain, is_default
+      `SELECT id, name, visibility, hero_text, hero_image, description, contact_email, subdomain, is_default
        FROM customers WHERE id = $1`, [ctx.id]),
     pool.query(
       `SELECT m.user_id, m.joined_at, u.user_handle, u.user_full_name,
@@ -48,6 +48,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
   if (typeof body.hero_text === 'string') set('hero_text', body.hero_text.trim().slice(0, 300) || null);
   if (typeof body.description === 'string') set('description', body.description.trim() || null);
+  if (typeof body.contact_email === 'string') {
+    const e = body.contact_email.trim();
+    if (e && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) return NextResponse.json({ error: 'Enter a valid contact email, or leave it blank' }, { status: 400 });
+    set('contact_email', e || null);
+  }
   if (!sets.length) return NextResponse.json({ ok: true });
 
   values.push(ctx.id);

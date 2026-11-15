@@ -28,7 +28,7 @@ export async function ensureCurrentVersion(customerId: number, userId: string, q
 }
 
 export function readPrinciple(body: Record<string, unknown>):
-  { ok: true; category: Category; title: string; body: string; grounding: string | null } | { ok: false; error: string } {
+  { ok: true; category: Category; title: string; body: string; grounding: string | null; section: string | null } | { ok: false; error: string } {
   const title = typeof body.title === 'string' ? body.title.trim() : '';
   const text = typeof body.body === 'string' ? body.body.trim() : '';
   if (!title) return { ok: false, error: 'A title is required' };
@@ -37,6 +37,7 @@ export function readPrinciple(body: Record<string, unknown>):
   return {
     ok: true, category, title: title.slice(0, 200), body: text.slice(0, 5000),
     grounding: typeof body.grounding === 'string' && body.grounding.trim() ? body.grounding.trim().slice(0, 3000) : null,
+    section: typeof body.section === 'string' && body.section.trim() ? body.section.trim().slice(0, 80) : null,
   };
 }
 

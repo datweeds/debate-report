@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { isSocietyAdmin } from '@/lib/roles';
+import { currentText, setText, MASK } from '@/lib/scanner';
 
 type Params = { params: Promise<{ id: string }> };
 
-const MASK = '*** content masked by scanning protection ***';
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await getSession();
@@ -24,7 +24,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     await client.query('BEGIN');
 
     const { rows: [alert] } = await client.query(
-      `SELECT ca.content_type, ca.content_id, ca.original_content, r.customer_id
+      `SELECT ca.content_type, COALESCE(ca.content_key, ca.content_id::text) AS content_key, ca.original_content, COALESCE(ca.customer_id, r.customer_id) AS customer_id
        FROM content_alerts ca
        LEFT JOIN statements r ON r.id = ca.resolution_id
        WHERE ca.id = $1`,
@@ -34,37 +34,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       await client.query('ROLLBACK');
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
-    if (alert.customer_id == null || !(await isSocietyAdmin(session, alert.customer_id))) {
+    // Profile content belongs to no Society: SysAdmin only
+    if (alert.customer_id == null ? !session.isSysAdmin : !(await isSocietyAdmin(session, alert.customer_id))) {
       await client.query('ROLLBACK');
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    if (status === 'masked' && alert.content_id) {
+    if (status === 'masked' && alert.content_key) {
       // Fetch the current content to save as original before masking
-      let currentContent: string | null = null;
-      switch (alert.content_type) {
-        case 'statement_title': {
-          const { rows: [row] } = await client.query(
-            `SELECT stat_title AS txt FROM statements WHERE id = $1`, [alert.content_id],
-          );
-          currentContent = row?.txt ?? null;
-          break;
-        }
-        case 'statement_description': {
-          const { rows: [row] } = await client.query(
-            `SELECT stat_description AS txt FROM statements WHERE id = $1`, [alert.content_id],
-          );
-          currentContent = row?.txt ?? null;
-          break;
-        }
-        case 'comment': {
-          const { rows: [row] } = await client.query(
-            `SELECT comment_body AS txt FROM comments WHERE id = $1`, [alert.content_id],
-          );
-          currentContent = row?.txt ?? null;
-          break;
-        }
-      }
+      const currentContent = await currentText(client, alert.content_type, alert.content_key);
 
       // Save original and apply mask
       await client.query(
@@ -72,32 +50,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         [currentContent, id],
       );
 
-      switch (alert.content_type) {
-        case 'statement_title':
-          await client.query(`UPDATE statements SET stat_title = $1 WHERE id = $2`, [MASK, alert.content_id]);
-          break;
-        case 'statement_description':
-          await client.query(`UPDATE statements SET stat_description = $1 WHERE id = $2`, [MASK, alert.content_id]);
-          break;
-        case 'comment':
-          await client.query(`UPDATE comments SET comment_body = $1 WHERE id = $2`, [MASK, alert.content_id]);
-          break;
-      }
+      await setText(client, alert.content_type, alert.content_key, MASK);
     }
 
-    if (status === 'unmasked' && alert.content_id && alert.original_content) {
+    if (status === 'unmasked' && alert.content_key && alert.original_content) {
       // Restore original content and close the appeal
-      switch (alert.content_type) {
-        case 'statement_title':
-          await client.query(`UPDATE statements SET stat_title = $1 WHERE id = $2`, [alert.original_content, alert.content_id]);
-          break;
-        case 'statement_description':
-          await client.query(`UPDATE statements SET stat_description = $1 WHERE id = $2`, [alert.original_content, alert.content_id]);
-          break;
-        case 'comment':
-          await client.query(`UPDATE comments SET comment_body = $1 WHERE id = $2`, [alert.original_content, alert.content_id]);
-          break;
-      }
+      await setText(client, alert.content_type, alert.content_key, alert.original_content);
       await client.query(
         `UPDATE content_alerts SET status = 'passed', appeal_status = 'unmasked', reviewed_by = $2, reviewed_at = now() WHERE id = $1`,
         [id, session.sub],

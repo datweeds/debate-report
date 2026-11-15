@@ -32,8 +32,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const v = readPrinciple(body);
   if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 });
   await pool.query(
-    `UPDATE society_principles SET category = $1, title = $2, body = $3, grounding = $4, updated_at = now() WHERE id = $5`,
-    [v.category, v.title, v.body, v.grounding, p.id],
+    `UPDATE society_principles SET category = $1, title = $2, body = $3, grounding = $4, section = $6, updated_at = now() WHERE id = $5`,
+    [v.category, v.title, v.body, v.grounding, p.id, v.section],
   );
   return NextResponse.json({ ok: true });
 }

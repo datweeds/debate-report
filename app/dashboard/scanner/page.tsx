@@ -3,12 +3,15 @@
 import { useAuth } from '@/components/AuthProvider';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
+import { CONTENT_LABELS as SCAN_LABELS } from '@/lib/scanTargets';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type ContentAlert = {
   id: string;
-  content_type: 'statement_title' | 'statement_description' | 'comment';
+  content_type: string;
+  content_href?: string | null;
+  society_name?: string | null;
   content_id: string | null;
   resolution_id: string | null;
   flagged_text: string;
@@ -193,11 +196,8 @@ const REASON_LABELS: Record<string, string> = {
   personal_data: 'Personal Data',
 };
 
-const CONTENT_LABELS: Record<string, string> = {
-  statement_title:       'Statement Title',
-  statement_description: 'Description',
-  comment:               'Comment',
-};
+// Labels for every kind of scanned content (debates, discussions, documents, …)
+const CONTENT_LABELS: Record<string, string> = SCAN_LABELS;
 
 function timeAgo(d: string) {
   const mins = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
@@ -338,6 +338,10 @@ function ScannerCard({ alert, onAction }: { alert: ContentAlert; onAction: (id: 
 
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
         {alert.author_handle && <span>By <span className="text-slate-400">@{alert.author_handle}</span></span>}
+        {alert.society_name && <span>Society: <span className="text-slate-400">{alert.society_name}</span></span>}
+        {!alert.resolution_title && alert.content_href && (
+          <a href={alert.content_href} target="_blank" className="text-blue-400 hover:text-blue-300 transition-colors">View where it appears</a>
+        )}
         {alert.resolution_title && (
           <span>
             Debate:{' '}
