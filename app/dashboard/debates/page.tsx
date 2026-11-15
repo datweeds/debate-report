@@ -31,7 +31,7 @@ type Debate = {
   id: string;
   stat_title: string;
   subject_area: string;
-  forum_visibility: string;
+  debate_visibility: string;
   image_path: string | null;
   created_at: string;
   creator_handle: string | null;
@@ -43,6 +43,8 @@ type Debate = {
   child_count: number;
   customer_id: number | null;
   society_name: string | null;
+  society_is_public: boolean | null;
+  can_set_visibility: boolean;
 };
 
 type SocietyOption = { id: number; name: string };
@@ -76,9 +78,16 @@ export default function ListDebatesPage() {
   const [moveSubmitting, setMoveSubmitting] = useState(false);
   const [moveError,    setMoveError]    = useState('');
 
+  // Visibility (Public/Apply/Invite) state
+  const [visibilityId, setVisibilityId] = useState<string | null>(null);
+  const [inviteHandle,  setInviteHandle] = useState('');
+  const [visSubmitting, setVisSubmitting] = useState(false);
+  const [visError,      setVisError]      = useState('');
+  const [visNotice,     setVisNotice]     = useState('');
+
   useEffect(() => {
     if (!loading && !user) router.push('/login?next=/dashboard/debates');
-    if (!loading && user && user.tier !== 'moderator' && !user.isSysAdmin) router.push('/dashboard');
+    if (!loading && user && user.tier !== 'moderator') router.push('/scotparl');
   }, [loading, user, router]);
 
   const fetchDebates = useCallback(async () => {
@@ -97,13 +106,12 @@ export default function ListDebatesPage() {
 
   useEffect(() => { fetchDebates(); }, [fetchDebates]);
 
-  // Societies to move a debate into — sysadmin sees every society (public +
-  // private) via the bypass already built into /api/customer/current.
+  // Societies a debate can be moved between: the ones this moderator moderates
   useEffect(() => {
-    if (!user?.isSysAdmin) return;
-    fetch('/api/customer/current')
+    if (!user) return;
+    fetch('/api/me/roles')
       .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d) setSocieties([...(d.public ?? []), ...(d.private ?? [])]); })
+      .then(d => { if (d) setSocieties(d.moderatedSocieties ?? []); })
       .catch(() => {});
   }, [user]);
 
@@ -199,6 +207,57 @@ export default function ListDebatesPage() {
     }
   }
 
+  function openVisibilityForm(debate: Debate) {
+    setVisibilityId(debate.id);
+    setInviteHandle('');
+    setVisError('');
+    setVisNotice('');
+  }
+
+  function cancelVisibility() {
+    setVisibilityId(null);
+    setVisError('');
+    setVisNotice('');
+  }
+
+  async function submitVisibility(debate: Debate, visibility: string) {
+    setVisSubmitting(true); setVisError(''); setVisNotice('');
+    try {
+      const res = await fetch(`/api/debates/${debate.id}/visibility`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ visibility }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setVisError(data.error ?? 'Update failed'); return; }
+      setDebates(prev => prev.map(d => d.id === debate.id ? { ...d, debate_visibility: visibility } : d));
+    } catch {
+      setVisError('Network error');
+    } finally {
+      setVisSubmitting(false);
+    }
+  }
+
+  async function submitInvite(debate: Debate) {
+    if (!inviteHandle.trim()) { setVisError('Enter a handle'); return; }
+    setVisSubmitting(true); setVisError(''); setVisNotice('');
+    try {
+      const res = await fetch(`/api/debates/${debate.id}/invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ handle: inviteHandle.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setVisError(data.error ?? 'Invite failed'); return; }
+      setVisNotice(`Invited @${inviteHandle.trim()}.`);
+      setInviteHandle('');
+    } catch {
+      setVisError('Network error');
+    } finally {
+      setVisSubmitting(false);
+    }
+  }
+
   if (loading || !user) return null;
 
   return (
@@ -248,7 +307,7 @@ export default function ListDebatesPage() {
           <div className="space-y-3">
             {debates.map(debate => (
               <div key={debate.id}>
-                <div className={`card-dr flex items-start gap-4 p-4 ${(closingId === debate.id || movingId === debate.id) ? 'rounded-b-none border-b-0' : ''}`}>
+                <div className={`card-dr flex items-start gap-4 p-4 ${(closingId === debate.id || movingId === debate.id || visibilityId === debate.id) ? 'rounded-b-none border-b-0' : ''}`}>
 
                   {/* Thumbnail */}
                   {debate.image_path ? (
@@ -292,6 +351,15 @@ export default function ListDebatesPage() {
                           {debate.society_name}
                         </span>
                       )}
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                        debate.debate_visibility === 'public'
+                          ? 'bg-emerald-500/10 text-emerald-400'
+                          : debate.debate_visibility === 'apply'
+                          ? 'bg-amber-500/10 text-amber-400'
+                          : 'bg-violet-500/10 text-violet-400'
+                      }`}>
+                        {debate.debate_visibility}
+                      </span>
                       {debate.child_count > 0 && (
                         <span className="text-xs text-amber-400/80">
                           {debate.child_count} statement{debate.child_count !== 1 ? 's' : ''}
@@ -320,7 +388,7 @@ export default function ListDebatesPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
                       </svg>
                     </Link>
-                    {debate.stat_status === 'active' && (debate.created_by === user.sub || user.isSysAdmin) && (
+                    {debate.stat_status === 'active' && debate.can_set_visibility && (
                       <button
                         onClick={() => closingId === debate.id ? cancelClose() : openCloseForm(debate)}
                         title="Close debate"
@@ -335,7 +403,23 @@ export default function ListDebatesPage() {
                         </svg>
                       </button>
                     )}
-                    {user.isSysAdmin && (
+                    {debate.can_set_visibility && (
+                      <button
+                        onClick={() => visibilityId === debate.id ? cancelVisibility() : openVisibilityForm(debate)}
+                        title="Debate visibility"
+                        className={`rounded-lg p-2 transition-colors ${
+                          visibilityId === debate.id
+                            ? 'text-amber-400 bg-amber-500/10'
+                            : 'text-slate-500 hover:text-amber-400 hover:bg-amber-500/10'
+                        }`}
+                      >
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                        </svg>
+                      </button>
+                    )}
+                    {societies.length > 1 && (
                       <button
                         onClick={() => movingId === debate.id ? cancelMove() : openMoveForm(debate)}
                         title="Move to a different society"
@@ -411,6 +495,21 @@ export default function ListDebatesPage() {
                     onCancel={cancelMove}
                     submitting={moveSubmitting}
                     error={moveError}
+                  />
+                )}
+
+                {/* Inline visibility form */}
+                {visibilityId === debate.id && (
+                  <VisibilityPanel
+                    debate={debate}
+                    inviteHandle={inviteHandle}
+                    onInviteHandleChange={setInviteHandle}
+                    onSetVisibility={v => submitVisibility(debate, v)}
+                    onInvite={() => submitInvite(debate)}
+                    onCancel={cancelVisibility}
+                    submitting={visSubmitting}
+                    error={visError}
+                    notice={visNotice}
                   />
                 )}
               </div>
@@ -548,6 +647,90 @@ function ClosePanel({
           Cancel
         </button>
       </div>
+    </div>
+  );
+}
+
+function VisibilityPanel({
+  debate, inviteHandle, onInviteHandleChange, onSetVisibility, onInvite, onCancel, submitting, error, notice,
+}: {
+  debate: Debate;
+  inviteHandle: string;
+  onInviteHandleChange: (v: string) => void;
+  onSetVisibility: (v: string) => void;
+  onInvite: () => void;
+  onCancel: () => void;
+  submitting: boolean;
+  error: string;
+  notice: string;
+}) {
+  const OPTIONS = [
+    { value: 'public', label: 'Public', hint: 'Visible to everyone.', disabled: !debate.society_is_public },
+    { value: 'apply',  label: 'Apply',  hint: 'Society members can see it listed and request access.' },
+    { value: 'invite', label: 'Invite', hint: "Only visible to members who've been invited." },
+  ];
+
+  return (
+    <div className="card-dr rounded-t-none border-t border-amber-500/20 bg-amber-500/5 p-5">
+      <p className="text-sm font-semibold text-slate-200 mb-1">Debate visibility</p>
+      <p className="text-xs text-slate-500 mb-4">
+        {debate.society_is_public
+          ? 'This debate’s Society is public — all three options are available.'
+          : 'This debate’s Society is private — it can only ever be Apply or Invite.'}
+      </p>
+
+      <div className="flex gap-2 mb-4">
+        {OPTIONS.map(opt => (
+          <button
+            key={opt.value}
+            onClick={() => !opt.disabled && onSetVisibility(opt.value)}
+            disabled={submitting || opt.disabled}
+            title={opt.disabled ? 'Not available — this Society is private' : opt.hint}
+            className={`flex-1 rounded-xl border px-3 py-2.5 text-sm font-semibold transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
+              debate.debate_visibility === opt.value
+                ? 'border-amber-500 bg-amber-500/10 text-amber-300'
+                : 'border-slate-700 text-slate-500 hover:border-slate-600 hover:text-slate-400'
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
+      {debate.debate_visibility === 'invite' && (
+        <div className="mb-4">
+          <label className="block text-xs font-semibold text-slate-400 mb-1.5">Invite a Society member by handle</label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={inviteHandle}
+              onChange={e => onInviteHandleChange(e.target.value)}
+              placeholder="handle"
+              className="flex-1 rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-sm text-slate-100 placeholder-slate-600 focus:border-amber-500/50 focus:outline-none"
+            />
+            <button
+              onClick={onInvite}
+              disabled={submitting || !inviteHandle.trim()}
+              className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-500 disabled:opacity-50 transition-colors"
+            >
+              Invite
+            </button>
+          </div>
+          <p className="text-xs text-slate-600 mt-1.5">
+            Must already be a member of this debate&rsquo;s Society. They&rsquo;ll see it in their Invitations list.
+          </p>
+        </div>
+      )}
+
+      {notice && <p className="text-xs text-emerald-400 mb-3">{notice}</p>}
+      {error && <p className="text-xs text-red-400 mb-3">{error}</p>}
+
+      <button
+        onClick={onCancel}
+        className="rounded-xl border border-slate-700 px-5 py-2 text-sm text-slate-400 hover:text-slate-200 hover:border-slate-600 transition-colors"
+      >
+        Done
+      </button>
     </div>
   );
 }

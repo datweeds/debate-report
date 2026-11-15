@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPartyFromRequest, lookupExternalAuthor } from '@/lib/apiParties';
+import { getPartyFromRequest, lookupExternalAuthor, partyDebateAccess, PRIVATE_DEBATE_ERROR } from '@/lib/apiParties';
 import { getStatementForOwnershipCheck, updateStatementText, retractStatementCascade } from '@/lib/statements';
+import { statementWarnings } from '@/lib/quality/report';
 
 type Params = { params: Promise<{ id: string }> };
+
+const UUID = /^[0-9a-f-]{36}$/i;
 
 // Both PATCH and DELETE need to know which of this party's users is acting —
 // ownership is "that external user's mapped local user must be the statement's
@@ -29,15 +32,19 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const author = await identifyActingAuthor(party.id, externalUserId);
   if (!author.ok) return NextResponse.json({ error: author.error }, { status: author.status });
 
-  const stmt = await getStatementForOwnershipCheck(id);
+  const stmt = UUID.test(id) ? await getStatementForOwnershipCheck(id) : null;
   if (!stmt) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (stmt.created_by !== author.userId) {
     return NextResponse.json({ error: 'You can only edit statements your own external user created' }, { status: 403 });
   }
+  if (await partyDebateAccess(party.id, stmt.resolution_id ?? id) === 'forbidden') {
+    return NextResponse.json({ error: PRIVATE_DEBATE_ERROR }, { status: 403 });
+  }
 
   const result = await updateStatementText(id, body.title ?? '', body.description ?? null, stmt.resolution_id ?? id, author.userId);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
-  return NextResponse.json(result.data);
+  const warnings = await statementWarnings(stmt.resolution_id, id).catch(() => []);
+  return NextResponse.json({ ...result.data, warnings });
 }
 
 // DELETE /api/v1/statements/:id?external_user_id=... (or JSON body) — soft-deletes
@@ -53,10 +60,13 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   const author = await identifyActingAuthor(party.id, externalUserId);
   if (!author.ok) return NextResponse.json({ error: author.error }, { status: author.status });
 
-  const stmt = await getStatementForOwnershipCheck(id);
+  const stmt = UUID.test(id) ? await getStatementForOwnershipCheck(id) : null;
   if (!stmt) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (stmt.created_by !== author.userId) {
     return NextResponse.json({ error: 'You can only retract statements your own external user created' }, { status: 403 });
+  }
+  if (await partyDebateAccess(party.id, stmt.resolution_id ?? id) === 'forbidden') {
+    return NextResponse.json({ error: PRIVATE_DEBATE_ERROR }, { status: 403 });
   }
 
   const retracted = await retractStatementCascade(id);

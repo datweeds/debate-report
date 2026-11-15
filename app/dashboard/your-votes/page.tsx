@@ -14,7 +14,7 @@ type Vote = {
   stat_title: string;
   stat_type: string;
   stat_direction: string | null;
-  forum_title: string | null;
+  society_name: string | null;
   resolution_title: string;
   resolution_id: string;
   author_handle: string | null;
@@ -91,7 +91,7 @@ export default function YourVotesPage() {
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="bg-slate-800/60 text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                <th className="px-3 py-3 text-left">Forum</th>
+                <th className="px-3 py-3 text-left">Society</th>
                 <th className="px-3 py-3 text-left">Resolution</th>
                 <th className="px-3 py-3 text-left">Statement</th>
                 <th className="px-3 py-3 text-left">Type</th>
@@ -106,8 +106,8 @@ export default function YourVotesPage() {
             <tbody className="divide-y divide-slate-800/60">
               {votes.map(v => (
                 <tr key={v.id} className="bg-[#0c1322] hover:bg-slate-800/30 transition-colors">
-                  <td className="px-3 py-3 text-slate-400 text-xs max-w-[120px] truncate" title={v.forum_title ?? ''}>
-                    {v.forum_title ?? <span className="text-slate-600">—</span>}
+                  <td className="px-3 py-3 text-slate-400 text-xs max-w-[120px] truncate" title={v.society_name ?? ''}>
+                    {v.society_name ?? <span className="text-slate-600">—</span>}
                   </td>
                   <td className="px-3 py-3 text-xs max-w-[160px]">
                     <a

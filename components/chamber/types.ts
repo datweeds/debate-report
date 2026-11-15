@@ -7,7 +7,10 @@ export type Resolution = {
   stat_title: string;
   stat_description: string | null;
   subject_area: string;
-  forum_visibility: string;
+  customer_id: number | null;
+  debate_visibility: string; // 'public' | 'apply' | 'invite'
+  society_is_public: boolean | null;
+  can_set_visibility: boolean;
   image_path: string | null;
   created_at: string;
   created_by: string | null;
@@ -38,10 +41,7 @@ export type PublicDebate = {
   id: string;
   stat_title: string;
   subject_area: string;
-  forum_id: string | null;
-  forum_type: string;       // 'public' | 'private'
-  forum_visibility: string; // 'public' | 'invite' | 'apply'
-  forum_title: string | null;
+  debate_visibility: string; // 'public' | 'apply' | 'invite'
   vote_for: number;
   vote_against: number;
   child_count: number;

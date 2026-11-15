@@ -33,10 +33,10 @@ export default function StripeSuccessPage() {
             Go to the Chamber
           </Link>
           <Link
-            href="/dashboard/forums"
+            href="/dashboard/debates"
             className="rounded-xl border border-slate-700 px-6 py-3 text-sm font-medium text-slate-300 hover:border-slate-600 hover:text-slate-100 transition-colors"
           >
-            Manage your forums
+            Manage your debates
           </Link>
         </div>
         <p className="mt-8 text-xs text-slate-600">

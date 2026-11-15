@@ -29,7 +29,7 @@ type Debate = {
   stat_description: string | null;
   subject_area: string;
   image_path: string | null;
-  forum_visibility: string;
+  debate_visibility: string;
   child_count: number;
 };
 
@@ -53,7 +53,7 @@ export default function EditDebatePage() {
 
   useEffect(() => {
     if (!loading && !user) router.push(`/login?next=/dashboard/debates/${id}/edit`);
-    if (!loading && user && user.tier !== 'moderator' && !user.isSysAdmin) router.push('/dashboard');
+    if (!loading && user && user.tier !== 'moderator') router.push('/scotparl');
   }, [loading, user, router, id]);
 
   useEffect(() => {

@@ -5,10 +5,8 @@ import {
   createToken, sessionCookie,
 } from '@/lib/auth';
 
-const DEBATER_TIERS = new Set(['debater', 'moderator', 'sysadmin']);
-
 export async function POST(req: NextRequest) {
-  const { userHandle, email, password, tier, plan, incognito, inviteToken } = await req.json();
+  const { userHandle, email, password, tier, plan, incognito } = await req.json();
 
   if (!userHandle || userHandle.trim().length < 3) {
     return NextResponse.json({ error: 'Username must be at least 3 characters' }, { status: 400 });
@@ -62,45 +60,6 @@ export async function POST(req: NextRequest) {
       ]
     );
     const user = result.rows[0];
-
-    // Auto-create system-allocated private forum for debater-tier users
-    if (DEBATER_TIERS.has(user.user_tier)) {
-      const forumTitle = `${user.user_handle}'s Forum`;
-      const { rows: [forum] } = await client.query(
-        `INSERT INTO debate_forums
-           (created_by, forum_owner, forum_title, forum_type, forum_visibility, forum_status, is_system_forum)
-         VALUES ($1, $1, $2, 'private', 'invite', 'active', TRUE)
-         RETURNING id`,
-        [user.id, forumTitle]
-      );
-      // Add owner as active member of their own forum
-      await client.query(
-        `INSERT INTO forum_members (forum_id, user_id, member_role, member_status)
-         VALUES ($1, $2, 'debater', 'active')`,
-        [forum.id, user.id]
-      );
-    }
-
-    // Process invite token if present
-    if (inviteToken) {
-      const { rows: [inv] } = await client.query(
-        `SELECT id, forum_id FROM invitations
-         WHERE token = $1 AND invitation_status = 'open'`,
-        [inviteToken]
-      );
-      if (inv) {
-        await client.query(
-          `UPDATE invitations SET invitation_status = 'accepted', updated_at = NOW() WHERE id = $1`,
-          [inv.id]
-        );
-        await client.query(
-          `INSERT INTO forum_members (forum_id, user_id, member_role, member_status)
-           VALUES ($1, $2, 'debater', 'active')
-           ON CONFLICT (forum_id, user_id) DO UPDATE SET member_status = 'active', updated_at = NOW()`,
-          [inv.forum_id, user.id]
-        );
-      }
-    }
 
     await client.query('COMMIT');
 

@@ -89,7 +89,8 @@ function AboutContent() {
       </Section>
       <Section title="Our Principles">
         <ul className="space-y-1.5 list-disc pl-4">
-          <li>Arguments are judged on logic and evidence, not on who made them.</li>
+          <li>Arguments are judged on logic and evidence, impact and credibility.</li>
+          <li>Support For and Against a resolution is determined by voting on individual statements.</li>
           <li>Both sides of every debate are represented and weighted fairly.</li>
           <li>Sources must be cited; unsupported assertions are not permitted.</li>
           <li>Personal attacks, misinformation and bad-faith participation are removed.</li>

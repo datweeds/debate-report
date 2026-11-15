@@ -122,10 +122,13 @@ function MobileListSheet({ resolution, statements, selectedId, initialMetrics, m
 // ── Mobile bottom sheet ───────────────────────────────────────────────────────
 
 type MobileDetailSheetProps = {
+  statements?: FullStatement[];
+  onSelectStatement?: (id: string) => void;
   statement: FullStatement | Resolution;
   user: ReturnType<typeof useAuth>['user'];
   rightPanel: RightPanel;
   flagRefreshSignal: number;
+  scienceRefreshSignal: number;
   canAnalyse: boolean;
   onClose: () => void;
   onMetricsRefresh: () => void;
@@ -133,7 +136,7 @@ type MobileDetailSheetProps = {
   onAnalyse?: (id: string) => void;
 };
 
-function MobileDetailSheet({ statement, user, rightPanel, flagRefreshSignal, canAnalyse, onClose, onMetricsRefresh, onOpenFlagModal, onAnalyse }: MobileDetailSheetProps) {
+function MobileDetailSheet({ statement, user, rightPanel, flagRefreshSignal, scienceRefreshSignal, canAnalyse, onClose, onMetricsRefresh, onOpenFlagModal, onAnalyse, statements, onSelectStatement }: MobileDetailSheetProps) {
   const [entered,  setEntered]  = useState(false);
   const [leaving,  setLeaving]  = useState(false);
   const [dragY,    setDragY]    = useState(0);
@@ -215,10 +218,13 @@ function MobileDetailSheet({ statement, user, rightPanel, flagRefreshSignal, can
             openSection={rightPanel!.section}
             openSectionV={rightPanel!.sectionV}
             flagRefreshSignal={flagRefreshSignal}
+            scienceRefreshSignal={scienceRefreshSignal}
             onClose={dismiss}
             onMetricsRefresh={onMetricsRefresh}
             onOpenFlagModal={onOpenFlagModal}
             onAnalyse={canAnalyse ? onAnalyse : undefined}
+            statements={statements}
+            onSelectStatement={onSelectStatement}
           />
         </div>
       </div>
@@ -247,6 +253,11 @@ function ChamberInner() {
     typeof window !== 'undefined' && window.innerWidth < 640 ? 0 : 1
   );
   const [detailOpen,     setDetailOpen]     = useState(false);
+  // Detail panel pin: 'open' keeps it open, 'closed' stops node clicks from
+  // opening it. Remembered per browser.
+  const [detailPin,      setDetailPinState] = useState<'none' | 'open' | 'closed'>('none');
+  const detailPinRef = useRef(detailPin);
+  detailPinRef.current = detailPin;
   const [switchboardOpen, setSwitchboardOpen] = useState(false);
   // Switchboard shows whenever there's no loaded debate, OR when user explicitly opens it
   const showSwitchboard = !resolutionParam || switchboardOpen;
@@ -256,8 +267,9 @@ function ChamberInner() {
   const [showAnalysis,   setShowAnalysis]   = useState(false);
   const [descPopupId,    setDescPopupId]    = useState<string | null>(null);
   const [showFlagModal,  setShowFlagModal]  = useState(false);
-  const [forum403,       setForum403]       = useState<{ forumVisibility: string; forumId: string } | null>(null);
+  const [access403,      setAccess403]      = useState<{ debateVisibility: string } | null>(null);
   const [flagRefreshSignal, setFlagRefreshSignal] = useState(0);
+  const [scienceRefreshSignal, setScienceRefreshSignal] = useState(0);
   const [updateTarget,        setUpdateTarget]        = useState<string | null>(null);
   const [createTarget,        setCreateTarget]        = useState<string | null>(null);
   const [createTargetType,    setCreateTargetType]    = useState<string | null>(null);
@@ -276,14 +288,14 @@ function ChamberInner() {
       setSwitchboardOpen(true);
       return;
     }
-    setLoading(true); setError(''); setForum403(null);
+    setLoading(true); setError(''); setAccess403(null);
     setSelectedId(null); setRightPanel(null); setDetailOpen(false);
     setMetrics(null); setIsFavourite(false);
     fetch(`/api/chamber/${resolutionParam}`)
       .then(async r => {
         const d = await r.json();
-        if (r.status === 403 && d.forumVisibility) {
-          setForum403({ forumVisibility: d.forumVisibility, forumId: d.forumId });
+        if (r.status === 403 && d.debateVisibility) {
+          setAccess403({ debateVisibility: d.debateVisibility });
           return;
         }
         if (!r.ok) throw new Error(d.error ?? 'Not found');
@@ -309,7 +321,7 @@ function ChamberInner() {
     if (!exists) return;
     setSelectedId(statementParam);
     setRightPanel({ id: statementParam, sectionV: 0 });
-    setDetailOpen(true);
+    openDetail();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, statementParam]);
 
@@ -335,14 +347,30 @@ function ChamberInner() {
       .catch(() => {});
   }, [resolutionParam, user]);
 
+  // ── Detail panel pin — lasts for this page visit only; every page load starts unpinned
+  const setDetailPin = useCallback((pin: 'none' | 'open' | 'closed') => {
+    setDetailPinState(pin);
+  }, []);
+  // Every "show this in the detail panel" path goes through here, so a panel
+  // pinned closed stays closed (the selection still happens).
+  const openDetail = useCallback(() => {
+    if (detailPinRef.current !== 'closed') setDetailOpen(true);
+  }, []);
+  // Pinned open with nothing selected yet: show the resolution.
+  useEffect(() => {
+    if (detailPin !== 'open' || !data) return;
+    setRightPanel(prev => prev ?? { id: data.resolution.id, sectionV: 0 });
+    setDetailOpen(true);
+  }, [detailPin, data]);
+
   // ── Handlers
 
   const handleNodeClick = useCallback((id: string) => {
     if (!id) { setSelectedId(null); return; }
     setSelectedId(id);
     setRightPanel(prev => prev ? { ...prev, id } : { id, sectionV: 0 });
-    setDetailOpen(true);
-  }, []);
+    openDetail();
+  }, [openDetail]);
 
   const handleSelectDebate = useCallback((id: string) => {
     setSwitchboardOpen(false);
@@ -380,19 +408,22 @@ function ChamberInner() {
   const handleChat = useCallback((id: string) => {
     setSelectedId(id);
     setRightPanel(prev => ({ id, section: 'chat', sectionV: (prev?.sectionV ?? 0) + 1 }));
-    setDetailOpen(true);
-  }, []);
+    openDetail();
+  }, [openDetail]);
 
   const handleVote = useCallback((id: string) => {
     setSelectedId(id);
     setRightPanel(prev => ({ id, section: 'vote', sectionV: (prev?.sectionV ?? 0) + 1 }));
-    setDetailOpen(true);
-  }, []);
+    openDetail();
+  }, [openDetail]);
 
   const handleClosePanel = useCallback(() => {
     setRightPanel(null);
     setDetailOpen(false);
-  }, []);
+    // Closing a panel that was pinned open unpins it (otherwise it would
+    // immediately reopen on the resolution).
+    if (detailPinRef.current === 'open') setDetailPin('none');
+  }, [setDetailPin]);
 
   const handleToggleMetrics = useCallback(() => {
     setListStage(prev => prev >= 2 ? 1 : 2);
@@ -427,6 +458,11 @@ function ChamberInner() {
       .then(d => setMetrics(d.metrics ?? []))
       .catch(() => {});
   }, [resolutionParam]);
+
+  const handleAnalysisComplete = useCallback(() => {
+    refreshMetrics();
+    setScienceRefreshSignal(v => v + 1);
+  }, [refreshMetrics]);
 
   const handleStatementCreated = useCallback((
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -482,9 +518,10 @@ function ChamberInner() {
     });
   }, []);
 
-  const canArgue   = user?.tier === 'debater' || user?.tier === 'moderator' || !!user?.isSysAdmin;
+  const canArgue   = user?.tier === 'debater' || user?.tier === 'moderator';
   const canAnalyse = user?.plan === 'paid' || !!user?.isSysAdmin;
-  const canPurgeRetracted = !!user && (user.sub === data?.resolution.created_by || !!user.isSysAdmin);
+  // can_set_visibility = the viewer moderates this debate's Society
+  const canPurgeRetracted = !!data?.resolution.can_set_visibility;
 
   const handlePurgeRetracted = useCallback(() => {
     if (!resolutionParam) return;
@@ -498,6 +535,21 @@ function ChamberInner() {
       .then((d: ChamberData | null) => { if (d) setData(d); setShowRetracted(false); })
       .catch(e => alert(e?.message ?? 'Could not delete retracted statements'));
   }, [resolutionParam, data]);
+
+  const handleSetVisibility = useCallback((visibility: string) => {
+    if (!resolutionParam) return;
+    fetch(`/api/debates/${resolutionParam}/visibility`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ visibility }),
+    })
+      .then(async r => {
+        if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error ?? 'Failed'); }
+        return fetch(`/api/chamber/${resolutionParam}`).then(r2 => r2.json());
+      })
+      .then((d: ChamberData | null) => { if (d) setData(d); })
+      .catch(e => alert(e?.message ?? 'Could not update visibility'));
+  }, [resolutionParam]);
 
   // ── Derived state
 
@@ -513,6 +565,11 @@ function ChamberInner() {
       visibleIds.has(r.stat_id_supported) && visibleIds.has(r.stat_id_supported_by)
     );
   }, [data, graphStatements]);
+
+  // The debate in the shape the quality rules take, for live warnings while writing
+  const qualityDebate = useMemo(() => data
+    ? { resolution: data.resolution, statements: data.statements, relationships: data.relationships }
+    : null, [data]);
 
   const rightPanelStatement = useMemo<FullStatement | Resolution | null>(() => {
     if (!rightPanel || !data) return null;
@@ -562,7 +619,7 @@ function ChamberInner() {
 
   return (
     <>
-      <div className="fixed inset-0 top-16 z-40 bg-[#080d1a] flex flex-col overflow-hidden" style={{ bottom: 28 }}>
+      <div className="dr-pin-shift fixed inset-0 top-16 z-40 bg-[#080d1a] flex flex-col overflow-hidden" style={{ bottom: 28 }}>
 
         <ControlBar
           data={data}
@@ -574,6 +631,7 @@ function ChamberInner() {
           onToggleRetracted={() => setShowRetracted(v => !v)}
           canPurgeRetracted={canPurgeRetracted}
           onPurgeRetracted={handlePurgeRetracted}
+          onSetVisibility={handleSetVisibility}
           onToggleFavourite={handleToggleFavourite}
           onOpenSwitchboard={() => setSwitchboardOpen(true)}
           onPrint={handlePrint}
@@ -587,7 +645,7 @@ function ChamberInner() {
         <div className="flex-1 flex overflow-hidden min-h-0">
 
           {/* Left strip + list panel */}
-          <div className="flex flex-shrink-0">
+          <div className="flex flex-shrink-0 h-full">
             <div className={`relative w-6 bg-[#050a15] border-r border-slate-800 flex-shrink-0 ${listStage === 0 ? 'hidden sm:flex' : ''}`}>
               <button
                 onClick={() => setListStage(prev => prev > 0 ? 0 : 1)}
@@ -602,7 +660,7 @@ function ChamberInner() {
                 </svg>
               </button>
             </div>
-            <div className={`overflow-hidden transition-all duration-300 ${
+            <div className={`h-full overflow-hidden transition-all duration-300 ${
               listStage === 0 ? 'w-0' : listStage === 1 ? 'w-80' : 'w-[820px]'
             }`}>
               {data && (
@@ -626,25 +684,28 @@ function ChamberInner() {
                 <p className="text-slate-500 text-sm">Loading debate…</p>
               </div>
             )}
-            {forum403 && (
+            {access403 && (
               <div className="absolute inset-0 flex items-center justify-center px-6">
                 <div className="text-center max-w-xs">
-                  {forum403.forumVisibility === 'apply' ? (
+                  {access403.debateVisibility === 'apply' ? (
                     <>
                       <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-amber-500/10 flex items-center justify-center">
                         <svg className="h-6 w-6 text-amber-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" />
                         </svg>
                       </div>
-                      <p className="text-slate-200 font-semibold text-sm mb-1">Private forum — Apply to join</p>
-                      <p className="text-slate-500 text-xs mb-4">This debate is in a private forum. Apply to join to participate.</p>
+                      <p className="text-slate-200 font-semibold text-sm mb-1">Apply to join this debate</p>
+                      <p className="text-slate-500 text-xs mb-4">This debate is restricted to Society members who apply and are approved.</p>
                       <button
                         onClick={() => {
-                          // POST join request
-                          fetch(`/api/forums/${forum403.forumId}/join-requests`, { method: 'POST' })
+                          fetch(`/api/debates/${resolutionParam}/apply`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({}),
+                          })
                             .then(r => r.json())
-                            .then(() => setError('Your request to join has been submitted.'));
-                          setForum403(null);
+                            .then(d => setError(d.error ?? 'Your request to join has been submitted.'));
+                          setAccess403(null);
                         }}
                         className="rounded-xl bg-amber-600 px-5 py-2 text-sm font-semibold text-white hover:bg-amber-500 transition-colors mr-2"
                       >
@@ -658,17 +719,17 @@ function ChamberInner() {
                           <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
                         </svg>
                       </div>
-                      <p className="text-slate-200 font-semibold text-sm mb-1">Private forum — Invite only</p>
-                      <p className="text-slate-500 text-xs mb-4">This debate is in an invite-only forum. Ask the forum owner for an invitation link.</p>
+                      <p className="text-slate-200 font-semibold text-sm mb-1">Invite only</p>
+                      <p className="text-slate-500 text-xs mb-4">This debate is only visible to members who&apos;ve been invited. Check your Invitations in the dashboard, or ask a Society Admin.</p>
                     </>
                   )}
-                  <button onClick={() => { setForum403(null); setSwitchboardOpen(true); }} className="text-xs text-blue-400 hover:underline">
+                  <button onClick={() => { setAccess403(null); setSwitchboardOpen(true); }} className="text-xs text-blue-400 hover:underline">
                     Choose a different debate →
                   </button>
                 </div>
               </div>
             )}
-            {error && !forum403 && (
+            {error && !access403 && (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center">
                   <p className="text-red-400 text-sm mb-3">{error}</p>
@@ -678,7 +739,7 @@ function ChamberInner() {
                 </div>
               </div>
             )}
-            {!loading && !error && !forum403 && !data && (
+            {!loading && !error && !access403 && !data && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
                 <div className="h-16 w-16 rounded-full bg-blue-500/10 flex items-center justify-center">
                   <svg className="h-8 w-8 text-blue-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
@@ -694,7 +755,7 @@ function ChamberInner() {
                 </button>
               </div>
             )}
-            {!loading && !error && !forum403 && data && (
+            {!loading && !error && !access403 && data && (
               <ChamberGraph
                 onMounted={h => { graphHandle.current = h; }}
                 resolution={data.resolution}
@@ -732,20 +793,50 @@ function ChamberInner() {
                   openSection={rightPanel!.section}
                   openSectionV={rightPanel!.sectionV}
                   flagRefreshSignal={flagRefreshSignal}
+                  scienceRefreshSignal={scienceRefreshSignal}
                   onClose={handleClosePanel}
                   onMetricsRefresh={refreshMetrics}
                   onOpenFlagModal={() => setShowFlagModal(true)}
                   onAnalyse={canAnalyse ? handleAnalyse : undefined}
+                  statements={data?.statements}
+                  onSelectStatement={handleNodeClick}
                 />
               )}
             </div>
             {data && (
-              <div className="relative w-6 bg-[#050a15] border-l border-slate-800 flex-shrink-0">
+              <div className="flex w-6 flex-col bg-[#050a15] border-l border-slate-800 flex-shrink-0">
+                {/* Pin: pins the panel in its current state; click again to unpin */}
                 <button
-                  onClick={() => rightPanel && setDetailOpen(prev => !prev)}
+                  onClick={() => {
+                    if (detailPin !== 'none') setDetailPin('none');
+                    else if (detailOpen && rightPanel) setDetailPin('open');
+                    else { setDetailOpen(false); setDetailPin('closed'); }
+                  }}
+                  title={
+                    detailPin === 'open'   ? 'Detail panel pinned open — click to unpin'
+                    : detailPin === 'closed' ? 'Detail panel pinned closed (clicking a node won\'t open it) — click to unpin'
+                    : detailOpen && rightPanel ? 'Pin detail panel open'
+                    : 'Pin detail panel closed — clicking a node won\'t open it'
+                  }
+                  className={`flex h-9 flex-shrink-0 items-center justify-center border-b border-slate-800 transition-colors hover:bg-slate-800/60 ${
+                    detailPin !== 'none' ? 'text-amber-400' : 'text-slate-500 hover:text-slate-200'
+                  }`}
+                >
+                  <svg className="h-3.5 w-3.5" fill={detailPin !== 'none' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 17v5M9 3h6l-1 6 3 3v2H7v-2l3-3-1-6Z" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => {
+                    if (!rightPanel) return;
+                    const next = !detailOpen;
+                    setDetailOpen(next);
+                    // While pinned, the pin follows the state chosen here.
+                    if (detailPin !== 'none') setDetailPin(next ? 'open' : 'closed');
+                  }}
                   disabled={!rightPanel}
                   title={detailOpen ? 'Collapse detail' : 'Expand detail'}
-                  className="absolute inset-0 flex items-center justify-center text-slate-500 hover:text-slate-200 hover:bg-slate-800/60 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                  className="flex flex-1 items-center justify-center text-slate-500 hover:text-slate-200 hover:bg-slate-800/60 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
                 >
                   <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                     {detailOpen
@@ -767,11 +858,14 @@ function ChamberInner() {
           user={user}
           rightPanel={rightPanel}
           flagRefreshSignal={flagRefreshSignal}
+          scienceRefreshSignal={scienceRefreshSignal}
           canAnalyse={canAnalyse}
           onClose={handleClosePanel}
           onMetricsRefresh={refreshMetrics}
           onOpenFlagModal={() => setShowFlagModal(true)}
           onAnalyse={canAnalyse ? handleAnalyse : undefined}
+          statements={data?.statements}
+          onSelectStatement={handleNodeClick}
         />
       )}
 
@@ -789,7 +883,7 @@ function ChamberInner() {
       )}
 
       {/* Thin footer strip */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 h-7 border-t border-slate-800/60 bg-[#04060b] flex items-center justify-between px-4 text-xs text-slate-600">
+      <div className="dr-pin-shift fixed bottom-0 left-0 right-0 z-40 h-7 border-t border-slate-800/60 bg-[#04060b] flex items-center justify-between px-4 text-xs text-slate-600">
         <span>© new.vote {new Date().getFullYear()}</span>
         <nav className="flex items-center gap-4">
           {(['about', 'contact', 'terms', 'privacy'] as FooterModal[]).map(k => (
@@ -890,7 +984,7 @@ function ChamberInner() {
           <ScienceModal
             statement={analyseStmt}
             onClose={() => setAnalyseTargetId(null)}
-            onAnalysisComplete={refreshMetrics}
+            onAnalysisComplete={handleAnalysisComplete}
           />
         ) : null;
       })()}
@@ -903,6 +997,7 @@ function ChamberInner() {
           hasChildren={statementsWithChildren.has(updateTarget)}
           onSave={handleUpdateSave}
           onClose={() => setUpdateTarget(null)}
+          debate={qualityDebate}
         />
       )}
 
@@ -918,6 +1013,7 @@ function ChamberInner() {
           onCreated={handleStatementCreated}
           onRelationshipLinked={handleRelationshipLinked}
           onClose={() => { setCreateTarget(null); setCreateTargetType(null); setCreateTargetDirection(undefined); }}
+          debate={qualityDebate}
         />
       )}
     </>
@@ -929,7 +1025,7 @@ function ChamberInner() {
 export default function ChamberPage() {
   return (
     <Suspense fallback={
-      <div className="fixed inset-0 top-16 z-40 bg-[#080d1a] flex items-center justify-center">
+      <div className="dr-pin-shift fixed inset-0 top-16 z-40 bg-[#080d1a] flex items-center justify-center">
         <p className="text-slate-500 text-sm">Loading chamber…</p>
       </div>
     }>

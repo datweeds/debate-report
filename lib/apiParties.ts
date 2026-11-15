@@ -33,7 +33,31 @@ export async function getPartyFromRequest(req: NextRequest): Promise<ApiParty | 
   return rows[0] ?? null;
 }
 
-type ResolveResult = { ok: true; userId: string } | { ok: false; status: number; error: string };
+// Can this party read/write the given debate? Public debates: yes. Apply/Invite
+// debates: only if a SysAdmin has granted this party that debate.
+export async function partyDebateAccess(
+  partyId: string,
+  resolutionId: unknown,
+): Promise<'ok' | 'not_found' | 'forbidden'> {
+  if (typeof resolutionId !== 'string' || !/^[0-9a-f-]{36}$/i.test(resolutionId)) return 'not_found';
+  const { rows } = await pool.query(
+    `SELECT r.debate_visibility, COALESCE(c.visibility, 'public') AS society_visibility,
+            EXISTS (SELECT 1 FROM api_party_debates g
+                    WHERE g.api_party_id = $1 AND g.resolution_id = r.id) AS granted
+     FROM   statements r
+     LEFT   JOIN customers c ON c.id = r.customer_id
+     WHERE  r.id = $2 AND r.stat_type = 'resolution'`,
+    [partyId, resolutionId],
+  );
+  if (!rows[0]) return 'not_found';
+  const isPublic = rows[0].debate_visibility === 'public' && rows[0].society_visibility === 'public';
+  return isPublic || rows[0].granted ? 'ok' : 'forbidden';
+}
+
+export const PRIVATE_DEBATE_ERROR =
+  'This debate is private and this token has not been granted access to it';
+
+type ResolveResult ={ ok: true; userId: string } | { ok: false; status: number; error: string };
 
 // Finds the local user already mapped to this (party, externalUserId) pair.
 // Does NOT create one — used by edit/delete, where the author must already exist.

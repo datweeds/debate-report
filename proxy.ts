@@ -65,7 +65,9 @@ export async function proxy(req: NextRequest) {
       !pathname.startsWith('/profile') &&
       !pathname.startsWith('/dashboard') &&
       !pathname.startsWith('/admin') &&
-      !pathname.startsWith('/sso')
+      !pathname.startsWith('/sso') &&
+      !pathname.startsWith('/key') &&
+      !pathname.startsWith('/join')
     ) {
       const url = req.nextUrl.clone();
       url.pathname = `/scotparl${pathname}`;

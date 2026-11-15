@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { getDebateAccess } from '@/lib/debateAccess';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -10,12 +11,13 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   // Verify debate exists
   const { rows: [res] } = await pool.query(
-    `SELECT id, forum_visibility FROM statements WHERE id = $1 AND stat_type = 'resolution'`,
+    `SELECT id, customer_id, created_by, debate_visibility FROM statements WHERE id = $1 AND stat_type = 'resolution'`,
     [id],
   );
   if (!res) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (res.forum_visibility !== 'public' && !session) {
-    return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+  const access = await getDebateAccess(session, res);
+  if (!access.viewable) {
+    return NextResponse.json({ error: session ? 'Access denied' : 'Unauthorised' }, { status: session ? 403 : 401 });
   }
 
   const userId = session?.sub ?? null;

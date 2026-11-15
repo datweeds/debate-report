@@ -3,8 +3,8 @@ import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { isSocietyModerator } from '@/lib/roles';
 
-const ALLOWED_TIERS = new Set(['moderator', 'sysadmin']);
 
 const VALID_SUBJECTS = new Set([
   'culture', 'economics', 'education', 'environment', 'future',
@@ -22,7 +22,7 @@ type Params = { params: Promise<{ id: string }> };
 async function getDebate(id: string) {
   const { rows } = await pool.query(
     `SELECT s.id, s.stat_title, s.stat_description, s.subject_area,
-            s.forum_visibility, s.image_path, s.created_at, s.created_by,
+            s.customer_id, s.debate_visibility, s.image_path, s.created_at, s.created_by,
             u.user_handle AS creator_handle,
             COUNT(c.id)::int AS child_count
      FROM   statements s
@@ -38,13 +38,12 @@ async function getDebate(id: string) {
 export async function GET(_req: NextRequest, { params }: Params) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
-  if (!ALLOWED_TIERS.has(session.tier)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
 
   const { id } = await params;
   const debate = await getDebate(id);
-  if (!debate) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!debate || !await isSocietyModerator(session, debate.customer_id)) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
 
   return NextResponse.json(debate);
 }
@@ -52,14 +51,11 @@ export async function GET(_req: NextRequest, { params }: Params) {
 export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
-  if (!ALLOWED_TIERS.has(session.tier)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
 
   const { id } = await params;
   const debate = await getDebate(id);
   if (!debate) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (debate.created_by !== session.sub && !session.isSysAdmin) {
+  if (!await isSocietyModerator(session, debate.customer_id)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -121,14 +117,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
-  if (!ALLOWED_TIERS.has(session.tier)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
 
   const { id } = await params;
   const debate = await getDebate(id);
   if (!debate) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (debate.created_by !== session.sub && !session.isSysAdmin) {
+  if (!await isSocietyModerator(session, debate.customer_id)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

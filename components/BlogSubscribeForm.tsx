@@ -121,7 +121,7 @@ export default function BlogSubscribeForm({ compact = false }: { compact?: boole
           disabled={state === 'sending'}
           className="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-semibold transition-colors"
         >
-          {state === 'sending' ? 'Subscribing…' : 'Subscribe to blog'}
+          {state === 'sending' ? 'Subscribing…' : 'Subscribe to newsletter'}
         </button>
       </form>
     </div>

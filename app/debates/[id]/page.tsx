@@ -1,6 +1,8 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import pool from '@/lib/db';
+import { getSession } from '@/lib/auth';
+import { getDebateAccess } from '@/lib/debateAccess';
 
 const SUBJECT_LABELS: Record<string, string> = {
   culture:     'Culture, Identity & Social Issues',
@@ -38,7 +40,9 @@ type Debate = {
   stat_description: string | null;
   subject_area: string;
   image_path: string | null;
-  forum_visibility: string;
+  debate_visibility: string;
+  customer_id: number | null;
+  created_by: string | null;
   created_at: string;
   creator_handle: string | null;
 };
@@ -46,7 +50,7 @@ type Debate = {
 async function getDebate(id: string): Promise<Debate | null> {
   const { rows } = await pool.query<Debate>(
     `SELECT s.id, s.stat_title, s.stat_description, s.subject_area,
-            s.image_path, s.forum_visibility, s.created_at,
+            s.image_path, s.debate_visibility, s.customer_id, s.created_by, s.created_at,
             u.user_handle AS creator_handle
      FROM   statements s
      LEFT   JOIN users u ON u.id = s.created_by
@@ -64,7 +68,8 @@ export default async function DebatePage({
   const { id } = await params;
   const debate = await getDebate(id);
 
-  if (!debate) notFound();
+  // Same gate as the Chamber — Apply/Invite debates 404 for anyone who can't open them.
+  if (!debate || !(await getDebateAccess(await getSession(), debate)).viewable) notFound();
 
   const subjectLabel  = SUBJECT_LABELS[debate.subject_area]  ?? debate.subject_area;
   const subjectColour = SUBJECT_COLOURS[debate.subject_area] ?? 'bg-slate-500/10 text-slate-300 border-slate-600/30';
@@ -126,11 +131,11 @@ export default async function DebatePage({
             </span>
           )}
           <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-            debate.forum_visibility === 'public'
+            debate.debate_visibility === 'public'
               ? 'bg-emerald-500/10 text-emerald-400'
               : 'bg-amber-500/10 text-amber-400'
           }`}>
-            {debate.forum_visibility} forum
+            {debate.debate_visibility}
           </span>
         </div>
 

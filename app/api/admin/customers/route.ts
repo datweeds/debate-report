@@ -8,9 +8,9 @@ export async function GET(req: NextRequest) {
 
   const { rows } = await pool.query(`
     SELECT
-      c.id, c.name, c.subdomain, c.status, c.hero_image, c.hero_text,
+      c.id, c.name, c.subdomain, c.status, c.hero_image, c.hero_text, c.description,
       c.contact_email, c.platform_contact_email, c.created_at, c.updated_at,
-      c.is_public, c.is_default,
+      c.is_public, c.visibility, c.is_default,
       (SELECT COUNT(*)::int FROM proposals p WHERE p.tenant_id = c.id)       AS proposal_count,
       (SELECT COUNT(*)::int FROM statements s WHERE s.stat_type = 'resolution' AND s.customer_id = c.id) AS debate_count
     FROM customers c

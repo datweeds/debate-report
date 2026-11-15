@@ -17,14 +17,14 @@ export async function GET() {
        s.stat_title,
        s.stat_type,
        s.stat_direction,
-       COALESCE(s.forum_title_cache, f.forum_title) AS forum_title,
+       c.name                                        AS society_name,
        COALESCE(r.stat_title, s.stat_title)         AS resolution_title,
        COALESCE(s.resolution_id, s.id)              AS resolution_id,
        u.user_handle                                AS author_handle
      FROM stat_votes sv
      JOIN statements s   ON s.id  = sv.statement_id
      LEFT JOIN statements r ON r.id = s.resolution_id
-     LEFT JOIN debate_forums f ON f.id = COALESCE(s.forum_id, r.forum_id)
+     LEFT JOIN customers c ON c.id = COALESCE(s.customer_id, r.customer_id)
      LEFT JOIN users u   ON u.id  = s.created_by
      WHERE sv.created_by = $1
      ORDER BY sv.updated_at DESC`,

@@ -10,6 +10,7 @@ export type StatType =
 
 export type StatementNodeData = {
   label: string;
+  statRef?: string | null;
   statType: StatType;
   direction: 'for' | 'against' | null;
   isRetracted: boolean;
@@ -33,14 +34,10 @@ export type StatementNodeData = {
   onDescriptionPopup: (id: string) => void;
   onArgue?:   (id: string) => void;
   onAnalyse?: (id: string) => void;
-  // Synthetic "N evidence" summary node — collapses a parent's evidence
-  // children into one expandable node so a heavily-evidenced leg doesn't
-  // clutter the graph. Only set on synthetic group-header nodes.
-  isGroupHeader?: boolean;
-  groupCount?: number;
-  groupExpanded?: boolean;
-  groupParentId?: string;
-  onToggleGroup?: (parentId: string) => void;
+  // Progressive disclosure: how many statements sit beneath this node in the
+  // full tree, and whether its direct children are currently shown.
+  descendantCount?: number;
+  treeExpanded?: boolean;
 };
 
 export const NODE_W = 260;
@@ -48,7 +45,7 @@ export const BTN_H  = 40;
 
 const CHARS_PER_LINE = 30;
 const LINE_H         = 20;
-const BASE_H         = 72;
+const BASE_H         = 76;
 const MAX_LINES      = 4;
 
 export function computeNodeH(label: string): number {
@@ -257,11 +254,6 @@ function StatementNode({ id, data, selected }: NodeProps & { data: StatementNode
     e.preventDefault();
     data.onDescriptionPopup(id);
   }, [id, data]);
-  const handleToggleGroup = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (data.groupParentId) data.onToggleGroup?.(data.groupParentId);
-  }, [data]);
-
   const stripCls = !hasButtons
     ? 'opacity-0 pointer-events-none'
     : selected || lockedStep !== null
@@ -278,55 +270,18 @@ function StatementNode({ id, data, selected }: NodeProps & { data: StatementNode
     : data.direction === 'against' ? 'bg-[#180a0a]'
     : 'bg-[#0c1322]';
 
-  // Border based on selection + direction
-  const nodeBorder = data.isRetracted ? 'border-slate-500/50'
+  // Border based on selection + direction — wider by default so each
+  // statement type's colour reads clearly, thicker still when selected so
+  // the active node stays unmistakable against the rest of the graph.
+  const nodeBorder = data.isRetracted ? 'border-[3px] border-slate-500/50'
     : selected
-    ? data.direction === 'for' ? 'border-emerald-400 shadow-emerald-500/20'
-      : data.direction === 'against' ? 'border-rose-400 shadow-rose-500/20'
-      : 'border-blue-400 shadow-blue-500/20'
-    : isResolution ? 'border-blue-600/60'
-    : data.direction === 'for' ? 'border-emerald-700/50'
-    : data.direction === 'against' ? 'border-rose-700/50'
-    : 'border-slate-700/80';
-
-  if (data.isGroupHeader) {
-    const count    = data.groupCount ?? 0;
-    const expanded = !!data.groupExpanded;
-    return (
-      <>
-        <Handle
-          type="target"
-          position={Position.Top}
-          className="!bg-slate-600 !border-slate-500"
-          style={{ width: 8, height: 8 }}
-        />
-        <div
-          onClick={handleToggleGroup}
-          style={{ width: NODE_W }}
-          className={`flex items-center gap-2 rounded-xl border-2 border-dashed px-3 py-2.5 shadow-xl transition-all cursor-pointer ${
-            selected
-              ? 'border-emerald-400 bg-emerald-900/50 shadow-emerald-500/30'
-              : 'border-emerald-700/60 bg-emerald-950/40 hover:bg-emerald-900/40 hover:border-emerald-500/70'
-          }`}
-          title={expanded ? 'Collapse this evidence' : 'Expand to view this evidence'}
-        >
-          <span className="text-emerald-300 text-sm">{expanded ? '▾' : '▸'}</span>
-          <span className="flex-1 text-sm font-medium text-emerald-200">
-            {count} piece{count === 1 ? '' : 's'} of evidence
-          </span>
-          <span className="rounded px-1.5 py-0.5 text-[10px] font-bold border bg-emerald-500/20 text-emerald-300 border-emerald-500/40">
-            {expanded ? 'Collapse' : 'Expand'}
-          </span>
-        </div>
-        <Handle
-          type="source"
-          position={Position.Bottom}
-          className="!bg-slate-600 !border-slate-500"
-          style={{ width: 8, height: 8 }}
-        />
-      </>
-    );
-  }
+    ? data.direction === 'for' ? 'border-[5px] border-emerald-400 shadow-emerald-500/20'
+      : data.direction === 'against' ? 'border-[5px] border-rose-400 shadow-rose-500/20'
+      : 'border-[5px] border-blue-400 shadow-blue-500/20'
+    : isResolution ? 'border-[3px] border-blue-600/60'
+    : data.direction === 'for' ? 'border-[3px] border-emerald-700/50'
+    : data.direction === 'against' ? 'border-[3px] border-rose-700/50'
+    : 'border-[3px] border-slate-700/80';
 
   return (
     <>
@@ -376,31 +331,34 @@ function StatementNode({ id, data, selected }: NodeProps & { data: StatementNode
         {/* ── Visible node box ── */}
         <div
           style={{ height: nodeH, padding: '10px 12px' }}
-          className={`rounded-xl border-2 shadow-xl transition-all ${nodeBg} ${nodeBorder}`}
+          className={`flex flex-col rounded-xl shadow-xl transition-all ${nodeBg} ${nodeBorder}`}
           onMouseEnter={openTooltip}
           onMouseLeave={closeTooltip}
         >
           <p className={`text-sm leading-snug font-medium mb-2 line-clamp-4 ${
             data.isRetracted ? 'text-slate-500 line-through decoration-slate-500' : 'text-slate-100'
           }`}>
+            {data.statRef && (
+              <span className="mr-1.5 font-mono text-[12px] font-semibold text-slate-400">{data.statRef}</span>
+            )}
             {data.label}
           </p>
 
-          {/* Type + direction badges + metrics on one row */}
-          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+          {/* Type + direction badges + metrics, pinned to the bottom of the node */}
+          <div className="mt-auto flex flex-wrap items-center justify-between gap-x-1.5 gap-y-1">
             {data.isRetracted ? (
-              <span className="rounded px-1.5 py-0.5 text-[10px] font-bold border bg-slate-700/40 text-slate-500 border-slate-600/30">
+              <span className="rounded px-1.5 py-0.5 text-[12px] font-bold border bg-slate-700/40 text-slate-500 border-slate-600/30">
                 Retracted
               </span>
             ) : (
               <>
-                <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold border ${
+                <span className={`rounded px-1.5 py-0.5 text-[12px] font-bold border ${
                   STAT_BADGE[data.statType] ?? 'bg-slate-500/30 text-slate-200 border-slate-400/30'
                 }`}>
                   {STAT_LABEL[data.statType] ?? data.statType}
                 </span>
                 {data.direction && (
-                  <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold border ${
+                  <span className={`rounded px-1.5 py-0.5 text-[12px] font-bold border ${
                     data.direction === 'for'
                       ? 'bg-blue-500/20 text-blue-200 border-blue-500/40'
                       : 'bg-rose-500/20 text-rose-200 border-rose-500/40'
@@ -408,13 +366,25 @@ function StatementNode({ id, data, selected }: NodeProps & { data: StatementNode
                     {data.direction === 'for' ? 'For' : 'Against'}
                   </span>
                 )}
+                {(data.descendantCount ?? 0) > 0 && (
+                  <span
+                    className={`rounded px-1.5 py-0.5 text-[12px] font-bold border ${
+                      data.treeExpanded
+                        ? 'bg-slate-600/40 text-slate-200 border-slate-500/50'
+                        : 'bg-amber-500/20 text-amber-200 border-amber-500/50'
+                    }`}
+                    title={`${data.descendantCount} statement${data.descendantCount === 1 ? '' : 's'} below — click the node to ${data.treeExpanded ? 'collapse' : 'expand'}`}
+                  >
+                    {data.treeExpanded ? '▾' : '▸'} {data.descendantCount}
+                  </span>
+                )}
                 {data.hasAnalysis && (
-                  <span className="rounded px-1.5 py-0.5 text-[10px] font-bold border bg-emerald-500/20 text-emerald-300 border-emerald-500/40" title="Science analysis available">
+                  <span className="rounded px-1.5 py-0.5 text-[12px] font-bold border bg-emerald-500/20 text-emerald-300 border-emerald-500/40" title="Science analysis available">
                     Sci ✓
                   </span>
                 )}
                 {data.isFlagged && (
-                  <span className="rounded px-1.5 py-0.5 text-[10px] font-bold border bg-red-600/30 text-red-300 border-red-500/50" title="This statement has been flagged">
+                  <span className="rounded px-1.5 py-0.5 text-[12px] font-bold border bg-red-600/30 text-red-300 border-red-500/50" title="This statement has been flagged">
                     🚩 Flagged
                   </span>
                 )}
@@ -424,22 +394,22 @@ function StatementNode({ id, data, selected }: NodeProps & { data: StatementNode
                   <>
                     {totalVotes > 0 && (
                       <>
-                        <span className="text-slate-600 text-[10px]">·</span>
-                        <span className="text-emerald-400 font-mono text-[10px]">✓{data.agreeCount}</span>
-                        <span className="text-rose-400 font-mono text-[10px]">✗{data.disagreeCount}</span>
+                        <span className="text-slate-600 text-[12px]">·</span>
+                        <span className="text-emerald-400 font-mono text-[12px]">✓{data.agreeCount}</span>
+                        <span className="text-rose-400 font-mono text-[12px]">✗{data.disagreeCount}</span>
                       </>
                     )}
                     {(data.totalFor > 0 || data.totalAgainst > 0) && (
                       <>
-                        <span className="text-slate-600 text-[10px]">·</span>
-                        <span className="text-blue-300 font-mono text-[10px]">F:{data.totalFor}</span>
-                        <span className="text-orange-300 font-mono text-[10px]">A:{data.totalAgainst}</span>
+                        <span className="text-slate-600 text-[12px]">·</span>
+                        <span className="text-blue-300 font-mono text-[12px]">F:{data.totalFor}</span>
+                        <span className="text-orange-300 font-mono text-[12px]">A:{data.totalAgainst}</span>
                       </>
                     )}
                     {data.chatCount > 0 && (
                       <>
-                        <span className="text-slate-600 text-[10px]">·</span>
-                        <span className="text-violet-300 font-mono text-[10px]">💬{data.chatCount}</span>
+                        <span className="text-slate-600 text-[12px]">·</span>
+                        <span className="text-violet-300 font-mono text-[12px]">💬{data.chatCount}</span>
                       </>
                     )}
                   </>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { STAT_BADGE, STAT_LABEL } from './constants';
 import type { FullStatement, Resolution } from './types';
 
@@ -43,6 +43,24 @@ export default function ListPanel({
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
+  // When a statement is selected elsewhere (e.g. clicking its node in the
+  // graph), bring it to the middle of the list. Skipped when the click came
+  // from the list itself, so the row you just clicked doesn't jump away.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const listClickedIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selectedId) return;
+    if (listClickedIdRef.current === selectedId) { listClickedIdRef.current = null; return; }
+    listClickedIdRef.current = null;
+    const container = scrollRef.current;
+    const row = container?.querySelector<HTMLElement>(`[data-stmt-id="${CSS.escape(selectedId)}"]`);
+    if (!container || !row) return;
+    container.scrollTo({
+      top: row.offsetTop - container.clientHeight / 2 + row.offsetHeight / 2,
+      behavior: 'smooth',
+    });
+  }, [selectedId]);
+
   const metricsMap = useMemo(() => {
     if (!metrics) return null;
     return new Map(metrics.map(m => [m.id, m]));
@@ -52,10 +70,12 @@ export default function ListPanel({
     {
       id: resolution.id, stat_type: 'resolution', stat_title: resolution.stat_title,
       stat_direction: null as string | null, retracted_at: null as string | null,
+      stat_ref: null as string | null,
     },
     ...statements.map(s => ({
       id: s.id, stat_type: s.stat_type, stat_title: s.stat_title,
       stat_direction: s.stat_direction, retracted_at: s.retracted_at,
+      stat_ref: s.stat_ref ?? null,
     })),
   ], [resolution, statements]);
 
@@ -71,7 +91,8 @@ export default function ListPanel({
 
   const sorted = useMemo(() => {
     let items = filter
-      ? allItems.filter(s => s.stat_title.toLowerCase().includes(filter.toLowerCase()))
+      ? allItems.filter(s => s.stat_title.toLowerCase().includes(filter.toLowerCase())
+        || s.stat_ref?.toLowerCase() === filter.trim().toLowerCase())
       : [...allItems];
 
     if (!sortKey) return items;
@@ -104,7 +125,7 @@ export default function ListPanel({
     <div
       className={inline
         ? 'flex flex-col h-full overflow-hidden bg-[#080d1a]'
-        : `flex-shrink-0 flex flex-col border-r border-slate-800 bg-[#080d1a] overflow-hidden transition-all duration-300 ${metricsMode ? 'w-[820px]' : 'w-80'}`
+        : `flex-shrink-0 flex flex-col h-full border-r border-slate-800 bg-[#080d1a] overflow-hidden transition-all duration-300 ${metricsMode ? 'w-[820px]' : 'w-80'}`
       }
       style={inline && metricsMode ? { minWidth: '820px' } : undefined}
     >
@@ -162,13 +183,14 @@ export default function ListPanel({
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto" style={inline ? { overscrollBehavior: 'none' } : undefined}>
+      <div ref={scrollRef} className="relative flex-1 overflow-y-auto" style={inline ? { overscrollBehavior: 'none' } : undefined}>
         {sorted.map(s => {
           const m = metricsMap?.get(s.id);
           return (
             <button
               key={s.id}
-              onClick={() => onSelect(s.id)}
+              data-stmt-id={s.id}
+              onClick={() => { listClickedIdRef.current = s.id; onSelect(s.id); }}
               className={`w-full text-left border-b border-slate-800/60 transition-colors ${
                 s.id === selectedId
                   ? 'bg-blue-500/10 border-l-2 border-l-blue-500'
@@ -178,7 +200,8 @@ export default function ListPanel({
               {metricsMode ? (
                 <div className="grid gap-1 items-center"
                   style={{ gridTemplateColumns: GRID_METRICS }}>
-                  <span className={`text-sm truncate leading-snug ${s.retracted_at ? 'text-slate-500 line-through' : 'text-slate-200'}`}>
+                  <span title={s.stat_title} className={`text-sm truncate leading-snug ${s.retracted_at ? 'text-slate-500 line-through' : 'text-slate-200'}`}>
+                    {s.stat_ref && <span className="mr-1.5 font-mono text-xs text-slate-500">{s.stat_ref}</span>}
                     {s.stat_title}
                   </span>
                   <span className={`rounded px-1 py-0.5 text-xs font-bold border ${STAT_BADGE[s.stat_type] ?? STAT_BADGE.claim}`}>
@@ -209,7 +232,8 @@ export default function ListPanel({
                 </div>
               ) : (
                 <div className="grid items-center gap-2" style={{ gridTemplateColumns: GRID_SIMPLE }}>
-                  <span className={`text-sm truncate leading-snug min-w-0 ${s.retracted_at ? 'text-slate-500 line-through' : 'text-slate-200'}`}>
+                  <span title={s.stat_title} className={`text-sm truncate leading-snug min-w-0 ${s.retracted_at ? 'text-slate-500 line-through' : 'text-slate-200'}`}>
+                    {s.stat_ref && <span className="mr-1.5 font-mono text-xs text-slate-500">{s.stat_ref}</span>}
                     {s.stat_title}
                   </span>
                   <span className={`rounded px-1.5 py-0.5 text-xs font-bold border flex-shrink-0 ${STAT_BADGE[s.stat_type] ?? STAT_BADGE.claim}`}>

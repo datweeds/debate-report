@@ -39,12 +39,12 @@ function UnsubscribeContent() {
         </div>
         <h1 className="text-2xl font-bold text-slate-100 mb-3">You&apos;ve been unsubscribed</h1>
         <p className="text-slate-400 text-sm mb-8">
-          You won&apos;t receive any more blog emails from new.vote.
+          You won&apos;t receive any more newsletter emails from new.vote.
           You can resubscribe any time from the{' '}
-          <Link href="/blog" className="text-blue-400 hover:text-blue-300 underline underline-offset-2">blog page</Link>.
+          <Link href="/blog" className="text-blue-400 hover:text-blue-300 underline underline-offset-2">newsletter page</Link>.
         </p>
         <Link href="/blog" className="text-blue-400 hover:text-blue-300 text-sm transition-colors">
-          Back to blog →
+          Back to newsletter →
         </Link>
       </>
     );

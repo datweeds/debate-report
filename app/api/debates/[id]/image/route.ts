@@ -3,8 +3,8 @@ import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { isSocietyModerator } from '@/lib/roles';
 
-const ALLOWED_TIERS = new Set(['moderator', 'sysadmin']);
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 const ALLOWED_TYPES: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -18,21 +18,18 @@ export async function POST(
 ) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
-  if (!ALLOWED_TIERS.has(session.tier)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
 
   const { id } = await params;
 
-  // Verify the debate belongs to this user (or they are sysadmin)
+  // Only a moderator of the debate's Society may change its image
   const debate = await pool.query(
-    `SELECT id, created_by FROM statements WHERE id = $1 AND stat_type = 'resolution'`,
+    `SELECT id, created_by, customer_id FROM statements WHERE id = $1 AND stat_type = 'resolution'`,
     [id]
   );
   if (!debate.rows.length) {
     return NextResponse.json({ error: 'Debate not found' }, { status: 404 });
   }
-  if (debate.rows[0].created_by !== session.sub && !session.isSysAdmin) {
+  if (!await isSocietyModerator(session, debate.rows[0].customer_id)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

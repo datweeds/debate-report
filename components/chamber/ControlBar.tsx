@@ -33,6 +33,7 @@ type Props = {
   onOpenListSheet?: () => void;
   onOpenMetricsSheet?: () => void;
   canAnalyse?: boolean;
+  onSetVisibility?: (visibility: string) => void;
 };
 
 export default function ControlBar({
@@ -40,6 +41,7 @@ export default function ControlBar({
   scaleFor, scaleAgainst, selectedFlagCount,
   onToggleRetracted, onToggleFavourite, onOpenSwitchboard, onPrint, onOpenAnalysis, onFlag,
   onOpenListSheet, onOpenMetricsSheet, canAnalyse, canPurgeRetracted, onPurgeRetracted,
+  onSetVisibility,
 }: Props) {
   const res = data?.resolution;
   const retractedCount = data?.statements.filter(s => s.retracted_at).length ?? 0;
@@ -61,16 +63,18 @@ export default function ControlBar({
         </div>
 
         {/* Resolution title */}
-        <div className="flex-1 px-3 sm:px-5 min-w-0 flex items-center gap-2 h-12">
+        <div className="flex-1 px-3 sm:px-5 min-w-0 flex items-center gap-2.5 h-12">
           {res ? (
             <>
+              {/* Highlight bar — same accent colour as a selected statement in the list, to anchor and lift the title */}
+              <span className="w-1 self-stretch my-2 rounded-full bg-blue-500 flex-shrink-0" />
               {isClosed && (
                 <span className="flex-shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-orange-500/15 text-orange-400 border border-orange-500/30">
                   Closed
                 </span>
               )}
-              <p className="text-sm text-slate-300 truncate">
-                <span className="text-slate-500 mr-1.5 hidden sm:inline">Resolution:</span>
+              <p className="text-sm text-slate-200 font-medium truncate">
+                <span className="text-slate-500 mr-1.5 hidden sm:inline font-normal">Resolution:</span>
                 {res.stat_title}
               </p>
             </>
@@ -205,9 +209,22 @@ export default function ControlBar({
             </span>
           </span>
           <span className="text-slate-700">|</span>
-          <span>Forum: <span className="text-slate-400">House Public Debates</span></span>
-          <span className="text-slate-700">|</span>
-          <span>View: <span className="text-slate-400 capitalize">{res.forum_visibility}</span></span>
+          {res.can_set_visibility && onSetVisibility ? (
+            <span className="flex items-center gap-1.5">
+              <span>Visibility:</span>
+              <select
+                value={res.debate_visibility}
+                onChange={e => onSetVisibility(e.target.value)}
+                className="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-slate-300 text-xs capitalize focus:outline-none focus:border-blue-500/50"
+              >
+                {res.society_is_public && <option value="public">Public</option>}
+                <option value="apply">Apply</option>
+                <option value="invite">Invite</option>
+              </select>
+            </span>
+          ) : (
+            <span>Visibility: <span className="text-slate-400 capitalize">{res.debate_visibility}</span></span>
+          )}
         </div>
       )}
 

@@ -6,19 +6,11 @@ type Params = { params: Promise<{ id: string }> };
 
 const TENANT_ID = process.env.TENANT_ID ?? '1';
 
-async function getScotparlForum(): Promise<string | null> {
-  const { rows: [f] } = await pool.query(
-    `SELECT id FROM debate_forums WHERE is_system_forum = true AND forum_title = 'ScotParl Debates' LIMIT 1`
-  );
-  return f?.id ?? null;
-}
-
 async function createDebate(
   entityType: string,
   entityId: number,
   title: string,
   description: string,
-  forumId: string,
   actorId: string,
   groupId: number | null = null
 ): Promise<string> {
@@ -29,10 +21,10 @@ async function createDebate(
 
     const { rows: [stmt] } = await client.query(
       `INSERT INTO statements
-         (stat_type, stat_title, stat_description, subject_area, forum_visibility, forum_id, created_by, customer_id)
-       VALUES ('resolution', $1, $2, 'politics', 'public', $3, $4::uuid, $5)
+         (stat_type, stat_title, stat_description, subject_area, created_by, customer_id)
+       VALUES ('resolution', $1, $2, 'politics', $3::uuid, $4)
        RETURNING id`,
-      [title, description, forumId, actorId, parseInt(TENANT_ID, 10)]
+      [title, description, actorId, parseInt(TENANT_ID, 10)]
     );
 
     if (entityType === 'bill') {
@@ -101,13 +93,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         return NextResponse.json({ error: 'debate_title and debate_description required' }, { status: 400 });
       }
 
-      const forumId = await getScotparlForum();
-      if (!forumId) return NextResponse.json({ error: 'ScotParl forum not found — run migration 023' }, { status: 503 });
-
       const resolutionId = await createDebate(
         r.entity_type, r.entity_id,
         debate_title.trim(), debate_description.trim(),
-        forumId, session.sub, group_id ? parseInt(String(group_id), 10) : null
+        session.sub, group_id ? parseInt(String(group_id), 10) : null
       );
 
       await client.query(`UPDATE sp_debate_requests SET status = 'moved' WHERE id = $1`, [id]);

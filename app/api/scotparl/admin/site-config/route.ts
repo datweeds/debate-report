@@ -33,7 +33,9 @@ export async function PATCH(req: NextRequest) {
          hero_image           = COALESCE($3, hero_image),
          contact_email        = COALESCE($4, contact_email),
          description          = COALESCE($5, description),
-         is_public            = COALESCE($6, is_public),
+         visibility           = CASE WHEN $6::boolean IS NULL THEN visibility
+                                     WHEN $6::boolean THEN 'public'
+                                     WHEN visibility = 'public' THEN 'invite' ELSE visibility END,
          updated_at           = now()
      WHERE id = $7`,
     [

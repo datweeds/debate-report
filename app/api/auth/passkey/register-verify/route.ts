@@ -44,9 +44,8 @@ export async function POST(req: NextRequest) {
   const hashedCode  = await hashAccessCode(plainCode);
 
   const tier = chal.tier || 'follower';
-  const DEBATER_TIERS = new Set(['debater', 'moderator', 'sysadmin']);
 
-  // Atomically create user + passkey + system forum
+  // Atomically create user + passkey
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -82,43 +81,6 @@ export async function POST(req: NextRequest) {
         transports,
       ]
     );
-
-    // Auto-create system forum for debater-tier users
-    if (DEBATER_TIERS.has(user.user_tier)) {
-      const { rows: [forum] } = await client.query(
-        `INSERT INTO debate_forums
-           (created_by, forum_owner, forum_title, forum_type, forum_visibility, forum_status, is_system_forum)
-         VALUES ($1, $1, $2, 'private', 'invite', 'active', TRUE)
-         RETURNING id`,
-        [user.id, `${user.user_handle}'s Forum`]
-      );
-      await client.query(
-        `INSERT INTO forum_members (forum_id, user_id, member_role, member_status)
-         VALUES ($1, $2, 'debater', 'active')`,
-        [forum.id, user.id]
-      );
-    }
-
-    // Process invite token if present
-    if (chal.inviteToken) {
-      const { rows: [inv] } = await client.query(
-        `SELECT id, forum_id FROM invitations
-         WHERE token = $1 AND invitation_status = 'open'`,
-        [chal.inviteToken]
-      );
-      if (inv) {
-        await client.query(
-          `UPDATE invitations SET invitation_status = 'accepted', updated_at = NOW() WHERE id = $1`,
-          [inv.id]
-        );
-        await client.query(
-          `INSERT INTO forum_members (forum_id, user_id, member_role, member_status)
-           VALUES ($1, $2, 'debater', 'active')
-           ON CONFLICT (forum_id, user_id) DO UPDATE SET member_status = 'active', updated_at = NOW()`,
-          [inv.forum_id, user.id]
-        );
-      }
-    }
 
     await client.query('COMMIT');
 

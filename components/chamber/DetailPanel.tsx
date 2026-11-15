@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { STAT_BADGE, STAT_LABEL } from './constants';
 import type { FullStatement, Resolution } from './types';
@@ -36,13 +36,40 @@ export type Props = {
   openSection?: 'chat' | 'vote';
   openSectionV?: number;
   flagRefreshSignal?: number;
+  scienceRefreshSignal?: number;
   onClose:           () => void;
   onMetricsRefresh?: () => void;
   onOpenFlagModal?:  () => void;
   onAnalyse?:        (id: string) => void;
+  // Debate's statements, so references in the text (CF2, RB1, E14…) can link to them
+  statements?:       FullStatement[];
+  onSelectStatement?: (id: string) => void;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+// Statement references as assigned by the database (see migration 039)
+const REF_SPLIT = /\b((?:CF|CA|FW|RB|[CWEIT])\d+)\b/;
+
+// Turns references in description text into links to those statements.
+function linkRefs(text: string, refToId: Map<string, string> | null, onSelect?: (id: string) => void) {
+  if (!refToId?.size || !onSelect) return text;
+  return text.split(REF_SPLIT).map((part, i) => {
+    const id = i % 2 === 1 ? refToId.get(part) : undefined;
+    if (!id) return part;
+    return (
+      <button
+        key={i}
+        type="button"
+        onClick={e => { e.stopPropagation(); onSelect(id); }}
+        className="font-mono font-semibold text-blue-400 hover:text-blue-300 hover:underline"
+        title={`Go to ${part}`}
+      >
+        {part}
+      </button>
+    );
+  });
+}
 
 function buildTree(msgs: ChatMessage[]): TreeNode[] {
   const byId = new Map<string, TreeNode>();
@@ -204,9 +231,16 @@ function SectionHeader({
 
 export default function DetailPanel({
   statement, userId, userHandle, userTier,
-  openSection, openSectionV, flagRefreshSignal,
+  openSection, openSectionV, flagRefreshSignal, scienceRefreshSignal,
   onClose, onMetricsRefresh, onOpenFlagModal, onAnalyse,
+  statements, onSelectStatement,
 }: Props) {
+
+  const refToId = useMemo(
+    () => new Map((statements ?? []).filter(s => s.stat_ref).map(s => [s.stat_ref as string, s.id])),
+    [statements],
+  );
+  const statRef = statement && 'stat_ref' in statement ? statement.stat_ref ?? null : null;
 
   // Section open/close
   const [voteOpen, setVoteOpen] = useState(openSection === 'vote');
@@ -227,7 +261,7 @@ export default function DetailPanel({
       .then(r => r.json())
       .then(d => setScienceDate(d.analysis?.created_at ?? null))
       .catch(() => {});
-  }, [statement?.id]);
+  }, [statement?.id, scienceRefreshSignal]);
 
   // Vote state — fetched immediately on statement change
   const [voteData,   setVoteData]   = useState<VoteData | null>(null);
@@ -457,6 +491,11 @@ export default function DetailPanel({
 
           {/* Type + direction badges */}
           <div className="flex flex-wrap gap-2">
+            {statRef && (
+              <span className="rounded px-2 py-0.5 text-xs font-mono font-bold border bg-slate-700/30 text-slate-300 border-slate-500/40" title="Statement reference: cite it in other statements">
+                {statRef}
+              </span>
+            )}
             {isRetracted && (
               <span className="rounded px-2 py-0.5 text-xs font-bold border bg-slate-700/40 text-slate-500 border-slate-600/30">
                 Retracted
@@ -492,9 +531,9 @@ export default function DetailPanel({
             <div>
               <p
                 ref={descRef}
-                className={`text-sm text-slate-300 leading-relaxed ${!descExpanded ? 'line-clamp-5' : ''}`}
+                className={`text-sm text-slate-300 leading-relaxed whitespace-pre-line ${!descExpanded ? 'line-clamp-5' : ''}`}
               >
-                {statement.stat_description}
+                {linkRefs(statement.stat_description, refToId, onSelectStatement)}
               </p>
               {descOverflows && (
                 <button
@@ -536,7 +575,7 @@ export default function DetailPanel({
               <span className="text-xs font-semibold text-slate-300">Science Analysis</span>
               {scienceDate ? (
                 <span className="text-[10px] text-slate-500">
-                  · {new Date(scienceDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  · Run {new Date(scienceDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                 </span>
               ) : (
                 <span className="text-[10px] text-slate-600 italic">· not yet run</span>

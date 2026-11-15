@@ -22,6 +22,14 @@ type PartyUser = {
   statement_count: number;
 };
 
+type PrivateDebate = {
+  id: string;
+  title: string;
+  visibility: 'apply' | 'invite';
+  society: string | null;
+  granted: boolean;
+};
+
 export default function ApiPartiesPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -37,6 +45,10 @@ export default function ApiPartiesPage() {
 
   const [expanded, setExpanded]     = useState<string | null>(null);
   const [partyUsers, setPartyUsers] = useState<Record<string, PartyUser[]>>({});
+  const [partyDebates, setPartyDebates] = useState<Record<string, PrivateDebate[]>>({});
+  const [debatesSaving, setDebatesSaving] = useState<string | null>(null);
+  const [debatesSaved, setDebatesSaved]   = useState<string | null>(null);
+  const [debatesError, setDebatesError]   = useState('');
 
   useEffect(() => {
     if (!loading && !user) router.push('/login?next=/dashboard/api-parties');
@@ -94,6 +106,35 @@ export default function ApiPartiesPage() {
       const res = await fetch(`/api/admin/api-parties/${id}/users`);
       const d = await res.json();
       setPartyUsers(prev => ({ ...prev, [id]: d.users ?? [] }));
+    }
+    if (!partyDebates[id]) {
+      const res = await fetch(`/api/admin/api-parties/${id}/debates`);
+      const d = await res.json();
+      setPartyDebates(prev => ({ ...prev, [id]: d.debates ?? [] }));
+    }
+  };
+
+  const toggleDebate = (partyId: string, debateId: string) => {
+    setDebatesSaved(null);
+    setPartyDebates(prev => ({
+      ...prev,
+      [partyId]: prev[partyId].map(d => d.id === debateId ? { ...d, granted: !d.granted } : d),
+    }));
+  };
+
+  const saveDebates = async (partyId: string) => {
+    setDebatesSaving(partyId); setDebatesError('');
+    try {
+      const res = await fetch(`/api/admin/api-parties/${partyId}/debates`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resolutionIds: partyDebates[partyId].filter(d => d.granted).map(d => d.id) }),
+      });
+      if (!res.ok) { setDebatesError((await res.json()).error ?? 'Could not save'); return; }
+      setDebatesSaved(partyId);
+      setTimeout(() => setDebatesSaved(s => (s === partyId ? null : s)), 3000);
+    } finally {
+      setDebatesSaving(null);
     }
   };
 
@@ -174,6 +215,48 @@ export default function ApiPartiesPage() {
                       ))}
                     </div>
                   )}
+
+                  <div className="mt-4 border-t border-slate-800 pt-3">
+                    <p className="text-xs font-semibold text-slate-300">Private debates</p>
+                    <p className="text-xs text-slate-600 mt-0.5 mb-2">
+                      Public debates are always open to this token. Tick the Apply/Invite debates it may also read and write.
+                    </p>
+                    {!partyDebates[p.id] ? (
+                      <p className="text-xs text-slate-600">Loading…</p>
+                    ) : partyDebates[p.id].length === 0 ? (
+                      <p className="text-xs text-slate-600 italic">There are no private debates.</p>
+                    ) : (
+                      <>
+                        <div className="space-y-1.5">
+                          {partyDebates[p.id].map(d => (
+                            <label key={d.id} className="flex items-start gap-2 text-xs cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={d.granted}
+                                onChange={() => toggleDebate(p.id, d.id)}
+                                className="mt-0.5 accent-lime-500"
+                              />
+                              <span className="text-slate-300">
+                                {d.title}
+                                <span className="text-slate-600"> · {d.visibility === 'invite' ? 'Invite' : 'Apply'}{d.society ? ` · ${d.society}` : ''}</span>
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                        <div className="mt-3 flex items-center gap-3">
+                          <button
+                            onClick={() => saveDebates(p.id)}
+                            disabled={debatesSaving === p.id}
+                            className="rounded-lg bg-lime-500/15 border border-lime-700/40 text-lime-300 px-3 py-1.5 text-xs font-medium hover:bg-lime-500/25 transition-colors disabled:opacity-50"
+                          >
+                            {debatesSaving === p.id ? 'Saving…' : 'Save access'}
+                          </button>
+                          {debatesSaved === p.id && <span className="text-xs text-emerald-400">✓ Saved</span>}
+                          {debatesError && expanded === p.id && <span className="text-xs text-rose-400">{debatesError}</span>}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

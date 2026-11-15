@@ -22,9 +22,7 @@ export const TOPICS = [
   { label: 'Science & Technology',              slug: 'science' },
 ];
 
-type AdminRole = { isCustomerAdmin: boolean; isTopicOwner: boolean; isScotparlMod: boolean };
-
-type SocietyOption = { id: number; name: string };
+type SocietyOption = { id: number; name: string; visibility?: string; isMember?: boolean };
 type SocietyList = { current: SocietyOption | null; public: SocietyOption[]; private: SocietyOption[] };
 
 function NavLabel({ children }: { children: React.ReactNode }) {
@@ -37,6 +35,44 @@ function NavLabel({ children }: { children: React.ReactNode }) {
 
 function NavDivider() {
   return <div className="my-1 border-t border-blue-900/15" />;
+}
+
+// A menu section that collapses under its label. Open/closed is remembered per
+// section on this device; collapsed sections still show a count badge.
+function NavSection({ id, label, defaultOpen = false, badge, children }: {
+  id: string; label: string; defaultOpen?: boolean; badge?: number; children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(`dr_nav_${id}`);
+      if (v === '1' || v === '0') setOpen(v === '1');
+    } catch {}
+  }, [id]);
+  function toggle() {
+    setOpen(o => {
+      try { localStorage.setItem(`dr_nav_${id}`, o ? '0' : '1'); } catch {}
+      return !o;
+    });
+  }
+  return (
+    <>
+      <button
+        onClick={toggle}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 rounded-lg px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-600 hover:text-slate-400 select-none"
+      >
+        <span className="flex-1 text-left">{label}</span>
+        {!open && !!badge && (
+          <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold leading-none text-amber-300 normal-case tracking-normal">{badge}</span>
+        )}
+        <svg className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="m19 9-7 7-7-7" />
+        </svg>
+      </button>
+      {open && <div className="space-y-0.5">{children}</div>}
+    </>
+  );
 }
 
 function NavLink({
@@ -105,11 +141,15 @@ const icons = {
   profile:   <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>,
   settings:  <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>,
   help:      <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" /></svg>,
+  news:      <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 0 1-2.25 2.25M16.5 7.5V18a2.25 2.25 0 0 0 2.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 0 0 2.25 2.25h13.5M6 7.5h3v3H6v-3Z" /></svg>,
   contact:   <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" /></svg>,
   topics:    <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" /></svg>,
   login:     <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75" /></svg>,
   signup:    <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" /></svg>,
   logout:    <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" /></svg>,
+  statements:<svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>,
+  quality:   <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.746 3.746 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.746 3.746 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z" /></svg>,
+  key:       <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 0 1 21.75 8.25Z" /></svg>,
   home:      <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /></svg>,
 };
 
@@ -119,17 +159,24 @@ export default function Header() {
   const pathname = usePathname();
   const [menuOpen,      setMenuOpen]      = useState(false);
   const [topicsOpen,    setTopicsOpen]    = useState(false);
-  const [chamberHref,   setChamberHref]   = useState('/scotparl/debates');
   const [modCounts,     setModCounts]     = useState({ myPending: 0, joinsPending: 0 });
-  const [adminRole,     setAdminRole]     = useState<AdminRole | null>(null);
+  const [moderates,     setModerates]     = useState(0);   // Societies this user moderates
   const [societies,     setSocieties]     = useState<SocietyList | null>(null);
   const [switching,     setSwitching]     = useState<number | null>(null);
+  const [guestKey,      setGuestKey]      = useState<{ label: string } | null>(null);
+  const [guestWelcome,  setGuestWelcome]  = useState<{ id: string; label: string; debateCount: number } | null>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
   const navRef    = useRef<HTMLElement>(null);
 
   const isHomePage = pathname === '/';
 
-  const isMod = user?.tier === 'moderator' || user?.isSysAdmin;
+  // Role sections are cumulative: Moderator ⊃ Debater ⊃ Voter. SysAdmin is a
+  // separate, system-only role (a person can be both, as tiers are independent).
+  const tier = user?.tier;
+  const isModerator = tier === 'moderator' || moderates > 0;
+  const isDebater   = isModerator || tier === 'debater';
+  const isVoter     = isDebater || tier === 'voter';
+  const modBadge    = modCounts.myPending + modCounts.joinsPending;
 
   // Scroll active nav item into view when drawer opens
   useEffect(() => {
@@ -159,22 +206,22 @@ export default function Header() {
     return () => { document.body.style.overflow = ''; };
   }, [menuOpen]);
 
-  // Fetch chamber last-viewed + alert counts
+  // Societies this user moderates (moderating one makes them a Moderator)
+  useEffect(() => {
+    if (!user) { setModerates(0); return; }
+    fetch('/api/me/roles')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setModerates(d?.moderatedSocieties?.length ?? 0))
+      .catch(() => {});
+  }, [user]);
+
+  // Alert / join-request counts for the Moderator section badges
   useEffect(() => {
     if (!user) return;
     fetch('/api/alerts/counts')
       .then(r => r.ok ? r.json() : null)
       .then(d => {
-        if (!d) return;
-        setModCounts({ myPending: d.myPending ?? 0, joinsPending: d.joinsPending ?? 0 });
-        const dbId: string | null = d.lastResolutionId ?? null;
-        try {
-          const localId = localStorage.getItem('dr_last_resolution');
-          const id = localId ?? dbId;
-          if (id) setChamberHref(`/chamber?resolution=${id}`);
-        } catch {
-          if (dbId) setChamberHref(`/chamber?resolution=${dbId}`);
-        }
+        if (d) setModCounts({ myPending: d.myPending ?? 0, joinsPending: d.joinsPending ?? 0 });
       })
       .catch(() => {});
   }, [user]);
@@ -204,20 +251,55 @@ export default function Header() {
     }
   }
 
-  // Fetch scotparl admin roles for conditional menu items
+  // Access Key guest (no account): show a "Guest access" chip with an End button.
   useEffect(() => {
-    if (!user) { setAdminRole(null); return; }
-    fetch('/api/scotparl/admin/me')
+    if (user) { setGuestKey(null); return; }
+    fetch('/api/access-key')
       .then(r => r.ok ? r.json() : null)
       .then(d => {
-        if (d) setAdminRole({ isCustomerAdmin: !!d.isCustomerAdmin, isTopicOwner: !!d.isTopicOwner, isScotparlMod: !!d.isScotparlMod });
+        setGuestKey(d ? { label: d.label } : null);
+        // First visit with this key on this device: show the welcome message once
+        if (d) {
+          let seen = false;
+          try { seen = localStorage.getItem('dr_key_welcomed') === d.id; } catch {}
+          if (!seen) setGuestWelcome({ id: d.id, label: d.label, debateCount: d.debates?.length ?? 1 });
+        }
       })
       .catch(() => {});
-  }, [user]);
+  }, [user, pathname]);
+
+  function closeGuestWelcome() {
+    if (guestWelcome) {
+      try { localStorage.setItem('dr_key_welcomed', guestWelcome.id); } catch {}
+    }
+    setGuestWelcome(null);
+  }
+
+  async function endGuestAccess() {
+    await fetch('/api/access-key', { method: 'DELETE' });
+    window.location.href = '/';
+  }
+
+  // Pinned: on sm+ screens the drawer stays docked open below the header and
+  // the page shifts right (CSS keys off <html data-menu-pinned>, which the
+  // inline script in app/layout.tsx restores before hydration).
+  const [pinned, setPinned] = useState(false);
+  useEffect(() => {
+    try { setPinned(localStorage.getItem('dr_menu_pinned') === '1'); } catch {}
+  }, []);
+  function setPin(on: boolean) {
+    setPinned(on);
+    setMenuOpen(false);
+    document.documentElement.toggleAttribute('data-menu-pinned', on);
+    try { localStorage.setItem('dr_menu_pinned', on ? '1' : '0'); } catch {}
+  }
+  function openMenu() {
+    // Hamburger on a pinned desktop menu collapses it; otherwise opens the drawer.
+    if (pinned && window.matchMedia('(min-width: 640px)').matches) setPin(false);
+    else setMenuOpen(true);
+  }
 
   function close() { setMenuOpen(false); }
-
-  const canManage = adminRole?.isCustomerAdmin || adminRole?.isTopicOwner || user?.isSysAdmin;
 
   return (
     <>
@@ -228,8 +310,8 @@ export default function Header() {
           {/* Left: hamburger + logo */}
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setMenuOpen(true)}
-              aria-label="Open navigation menu"
+              onClick={openMenu}
+              aria-label={pinned ? 'Collapse navigation menu' : 'Open navigation menu'}
               className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-blue-500/10 hover:text-blue-400"
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -292,6 +374,21 @@ export default function Header() {
                   )}
                 </Link>
               </div>
+            ) : guestKey ? (
+              <div className="flex items-center gap-2">
+                <span
+                  title={`Viewing with an access key: ${guestKey.label}`}
+                  className="flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs font-semibold text-amber-300"
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 0 1 21.75 8.25Z" />
+                  </svg>
+                  Guest access
+                </span>
+                <button onClick={endGuestAccess} className="text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors px-1.5 py-1.5">
+                  End
+                </button>
+              </div>
             ) : (
               <div className="flex items-center gap-2">
                 <Link href="/login" className="text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors px-2 py-1.5">Login</Link>
@@ -349,8 +446,8 @@ export default function Header() {
         aria-label="Navigation menu"
         className={`nav-drawer fixed top-0 left-0 z-50 h-full w-72 bg-dr-card border-r border-blue-900/20 flex flex-col transform transition-transform duration-300 ease-in-out ${menuOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
-        {/* Drawer header */}
-        <div className="flex h-16 items-center justify-between px-5 border-b border-blue-900/15 flex-shrink-0">
+        {/* Drawer header (hidden when pinned — the page header is visible above) */}
+        <div className="nav-drawer-head flex h-16 items-center justify-between px-5 border-b border-blue-900/15 flex-shrink-0">
           <Link href="/" onClick={close} className="flex items-center gap-2">
             <NvLogo className="w-7 h-7" />
             <span className="font-bold text-slate-100">new<span className="text-blue-400">.vote</span></span>
@@ -372,6 +469,35 @@ export default function Header() {
           <NavLink href="/scotparl" onClick={close} pathname={pathname} icon={icons.dashboard} exact>
             Dashboard
           </NavLink>
+
+          {/* ── TOPICS (collapsible) ── */}
+          <button
+            onClick={() => setTopicsOpen(o => !o)}
+            className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium text-slate-400 transition-colors hover:bg-blue-500/10 hover:text-slate-300"
+          >
+            <span className="flex items-center gap-3">
+              <span className="text-slate-600">{icons.topics}</span>
+              Topics
+            </span>
+            <svg className={`h-4 w-4 text-slate-600 transition-transform ${topicsOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m19 9-7 7-7-7" />
+            </svg>
+          </button>
+
+          {topicsOpen && (
+            <div className="ml-3 mt-1 space-y-0.5 border-l border-blue-900/20 pl-3">
+              {TOPICS.map(t => (
+                <Link
+                  key={t.slug}
+                  href={`/chamber?subject=${t.slug}`}
+                  onClick={close}
+                  className="block rounded px-2 py-1.5 text-xs text-slate-400 transition-colors hover:bg-blue-500/10 hover:text-blue-300"
+                >
+                  {t.label}
+                </Link>
+              ))}
+            </div>
+          )}
 
           <NavDivider />
 
@@ -411,6 +537,9 @@ export default function Header() {
                 >
                   <span className={`flex-shrink-0 ${societies.current?.id === s.id ? 'text-blue-400' : 'text-slate-500'}`}>{icons.settings}</span>
                   <span className="flex-1">{s.name}</span>
+                  {!s.isMember && s.visibility === 'apply' && (
+                    <span className="rounded border border-slate-600 px-1 text-[10px] text-slate-400">Apply</span>
+                  )}
                   {societies.current?.id === s.id && <span className="text-[10px] font-bold uppercase text-blue-400">Current</span>}
                   {switching === s.id && <span className="text-slate-600">…</span>}
                 </button>
@@ -420,88 +549,124 @@ export default function Header() {
 
           <NavDivider />
 
-          {/* ── DEBATE CHAMBER (contextual — shown on all debate.report pages) ── */}
-          {(pathname.startsWith('/chamber') || pathname.startsWith('/dashboard') || pathname.startsWith('/debates')) && (
+          {/* ── VOTER / DEBATER / MODERATOR (cumulative, by tier) ── */}
+          {user && isVoter && (
             <>
-              <NavLabel>Debate Chamber</NavLabel>
-              <NavLink href="/chamber" onClick={close} pathname={pathname} icon={icons.debate} exact>
-                Chamber
-              </NavLink>
-              {isMod && (
-                <>
-                  <NavLink href="/dashboard/new-debate" onClick={close} pathname={pathname} icon={icons.newdebate}>
-                    New Debate
-                  </NavLink>
-                  <NavLink href="/dashboard/ai-generator" onClick={close} pathname={pathname} icon={icons.ai}>
-                    AI Generator
-                  </NavLink>
-                  <NavLink href="/dashboard/alerts" onClick={close} pathname={pathname} icon={icons.alerts}>
-                    Alerts &amp; Flags
-                  </NavLink>
-                  <NavLink href="/dashboard/debates" onClick={close} pathname={pathname} icon={icons.debates_manage}>
-                    Manage Debates
-                  </NavLink>
-                  <NavLink href="/dashboard/forums" onClick={close} pathname={pathname} icon={icons.forums}>
-                    Debate Forums
-                  </NavLink>
-                </>
-              )}
+              <NavSection
+                id="role"
+                label={isModerator ? 'Moderator' : isDebater ? 'Debater' : 'Voter'}
+                badge={isModerator ? modBadge : undefined}
+              >
+                <NavLink href="/dashboard/your-votes" onClick={close} pathname={pathname} icon={icons.elect}>
+                  Your Votes
+                </NavLink>
+                <NavLink href="/dashboard/alerts" onClick={close} pathname={pathname} icon={icons.alerts}>
+                  My Alerts &amp; Flags
+                </NavLink>
+                {isDebater && (
+                  <>
+                    <NavLink href="/dashboard/my-statements" onClick={close} pathname={pathname} icon={icons.statements}>
+                      My Statements
+                    </NavLink>
+                    <NavLink href="/dashboard/chat-comments" onClick={close} pathname={pathname} icon={icons.debate}>
+                      Chat Comments
+                    </NavLink>
+                  </>
+                )}
+                {isModerator && (
+                  <>
+                    <NavLink href="/dashboard/societies" onClick={close} pathname={pathname} icon={icons.forums}>
+                      Manage Societies
+                    </NavLink>
+                    <NavLink href="/dashboard/new-debate" onClick={close} pathname={pathname} icon={icons.newdebate}>
+                      New Debate
+                    </NavLink>
+                    <NavLink href="/dashboard/debates" onClick={close} pathname={pathname} icon={icons.debates_manage}>
+                      Manage Debates
+                    </NavLink>
+                    <NavLink href="/dashboard/ai-generator" onClick={close} pathname={pathname} icon={icons.ai}>
+                      AI Arg Generator
+                    </NavLink>
+                    <NavLink
+                      href="/dashboard/scanner" onClick={close} pathname={pathname} icon={icons.task}
+                      badge={modCounts.myPending > 0 ? String(modCounts.myPending) : undefined}
+                      badgeClassName={theme === 'dark' ? 'bg-amber-500/20 text-amber-300' : 'bg-red-500/15 text-red-600'}
+                    >
+                      Alert Review
+                    </NavLink>
+                    <NavLink
+                      href="/dashboard/join-requests" onClick={close} pathname={pathname} icon={icons.signup}
+                      badge={modCounts.joinsPending > 0 ? String(modCounts.joinsPending) : undefined}
+                      badgeClassName={theme === 'dark' ? 'bg-amber-500/20 text-amber-300' : 'bg-red-500/15 text-red-600'}
+                    >
+                      Join Requests
+                    </NavLink>
+                    <NavLink href="/dashboard/invitations" onClick={close} pathname={pathname} icon={icons.contact}>
+                      Invitations
+                    </NavLink>
+                    <NavLink href="/dashboard/quality" onClick={close} pathname={pathname} icon={icons.quality}>
+                      Debate Quality
+                    </NavLink>
+                    <NavLink href="/admin/contact-platform" onClick={close} pathname={pathname} icon={icons.contact}>
+                      Contact Platform Admin
+                    </NavLink>
+                  </>
+                )}
+              </NavSection>
               <NavDivider />
             </>
           )}
 
-          {/* ── UTILITIES (sysadmin only) ── */}
+          {/* ── SYSADMIN: system features only ── */}
           {user?.isSysAdmin && (
             <>
-              <NavLabel>Utilities</NavLabel>
-              <NavLink href="https://vote.new.vote/poll" onClick={close} pathname={pathname} icon={icons.poll} external>
-                Poll
-              </NavLink>
-              <NavLink href="https://vote.new.vote/elect" onClick={close} pathname={pathname} icon={icons.elect} external>
-                Elect
-              </NavLink>
-              <NavLink href="https://tasks.debate.report" onClick={close} pathname={pathname} icon={icons.task} external>
-                Share Task
-              </NavLink>
-
+              <NavSection id="parliament" label="Parliament">
+                <NavLink href="/scotparl/proposals" onClick={close} pathname={pathname} icon={icons.proposals}>
+                  Proposals
+                </NavLink>
+                <NavLink href="/scotparl/bills" onClick={close} pathname={pathname} icon={icons.laws}>
+                  Laws
+                </NavLink>
+                <NavLink href="/scotparl/principles" onClick={close} pathname={pathname} icon={icons.principles}>
+                  Principles
+                </NavLink>
+              </NavSection>
+              <NavSection id="utilities" label="Utilities">
+                <NavLink href="https://vote.new.vote/poll" onClick={close} pathname={pathname} icon={icons.poll} external>
+                  Poll
+                </NavLink>
+                <NavLink href="https://vote.new.vote/elect" onClick={close} pathname={pathname} icon={icons.elect} external>
+                  Elect
+                </NavLink>
+                <NavLink href="https://tasks.debate.report" onClick={close} pathname={pathname} icon={icons.task} external>
+                  Share Task
+                </NavLink>
+              </NavSection>
+              <NavSection id="admin" label="Admin">
+                <NavLink href="/admin" onClick={close} pathname={pathname} icon={icons.settings} exact>
+                  Settings (Site)
+                </NavLink>
+                <NavLink href="/admin?tab=keys" onClick={close} pathname={pathname} icon={icons.key}>
+                  Access Keys
+                </NavLink>
+                <NavLink href="/dashboard/api-parties" onClick={close} pathname={pathname} icon={icons.settings}>
+                  API Parties
+                </NavLink>
+              </NavSection>
               <NavDivider />
             </>
           )}
 
-          {/* ── ACCOUNT ── */}
+          {/* ── ACCOUNT (always open) ── */}
+          <NavLabel>Account</NavLabel>
           {user ? (
             <>
-              <NavLabel>Admin</NavLabel>
               <NavLink href="/profile" onClick={close} pathname={pathname} icon={icons.profile}>
                 Profile &amp; Billing
               </NavLink>
-              {adminRole?.isCustomerAdmin && (
-                <NavLink href="/scotparl/admin" onClick={close} pathname={pathname} icon={icons.settings}>
-                  Settings (Customer)
-                </NavLink>
-              )}
-              {adminRole?.isTopicOwner && !adminRole?.isCustomerAdmin && (
-                <NavLink href="/scotparl/admin" onClick={close} pathname={pathname} icon={icons.settings}>
-                  Settings (Topics)
-                </NavLink>
-              )}
-              {user.isSysAdmin && (
-                <NavLink href="/admin" onClick={close} pathname={pathname} icon={icons.settings}>
-                  Settings (Site)
-                </NavLink>
-              )}
-              {isMod && (
-                <NavLink
-                  href="/dashboard" onClick={close} pathname={pathname} icon={icons.task}
-                  badge={modCounts.myPending + modCounts.joinsPending > 0 ? String(modCounts.myPending + modCounts.joinsPending) : undefined}
-                  badgeClassName={theme === 'dark' ? 'bg-amber-500/20 text-amber-300' : 'bg-red-500/15 text-red-600'}
-                >
-                  Mod Tools
-                </NavLink>
-              )}
               <button
                 onClick={() => { logout(); close(); }}
-                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-400 transition-colors hover:bg-red-500/10 hover:text-red-400"
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-sm text-slate-400 transition-colors hover:bg-red-500/10 hover:text-red-400"
               >
                 <span className="text-slate-600">{icons.logout}</span>
                 Log out
@@ -509,7 +674,6 @@ export default function Header() {
             </>
           ) : (
             <>
-              <NavLabel>Account</NavLabel>
               <NavLink href="/pricing" onClick={close} pathname={pathname} icon={icons.signup}>
                 Sign up / Pricing
               </NavLink>
@@ -524,47 +688,72 @@ export default function Header() {
           {/* ── HELP ── */}
           <NavLabel>Help</NavLabel>
           <NavLink href="https://debate.support" onClick={close} pathname={pathname} icon={icons.help} external>
-            Help System
+            Debating Guide
           </NavLink>
-          {canManage && (
-            <NavLink href="/admin/contact-platform" onClick={close} pathname={pathname} icon={icons.contact}>
-              Contact Platform Admin
-            </NavLink>
-          )}
-
-          <NavDivider />
-
-          {/* ── TOPICS (collapsible) ── */}
-          <button
-            onClick={() => setTopicsOpen(o => !o)}
-            className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium text-slate-400 transition-colors hover:bg-blue-500/10 hover:text-slate-300"
-          >
-            <span className="flex items-center gap-3">
-              <span className="text-slate-600">{icons.topics}</span>
-              Topics
-            </span>
-            <svg className={`h-4 w-4 text-slate-600 transition-transform ${topicsOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="m19 9-7 7-7-7" />
-            </svg>
-          </button>
-
-          {topicsOpen && (
-            <div className="ml-3 mt-1 space-y-0.5 border-l border-blue-900/20 pl-3">
-              {TOPICS.map(t => (
-                <Link
-                  key={t.slug}
-                  href={`/chamber?subject=${t.slug}`}
-                  onClick={close}
-                  className="block rounded px-2 py-1.5 text-xs text-slate-400 transition-colors hover:bg-blue-500/10 hover:text-blue-300"
-                >
-                  {t.label}
-                </Link>
-              ))}
-            </div>
-          )}
+          <NavLink href="/blog" onClick={close} pathname={pathname} icon={icons.news}>
+            News
+          </NavLink>
+          <NavLink href="/contact" onClick={close} pathname={pathname} icon={icons.contact}>
+            Contact Us
+          </NavLink>
 
         </nav>
+
+        {/* Pin / unpin (desktop only) */}
+        <div className="hidden sm:block flex-shrink-0 border-t border-blue-900/15 px-3 py-2">
+          <button
+            onClick={() => setPin(!pinned)}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 transition-colors hover:bg-blue-500/10 hover:text-slate-300"
+          >
+            <svg className="h-4 w-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              {pinned ? (
+                <path strokeLinecap="round" strokeLinejoin="round" d="M18.75 19.5 11.25 12l7.5-7.5m-6 15L5.25 12l7.5-7.5" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 17v5M9 3h6l-1 6 3 3v2H7v-2l3-3-1-6Z" />
+              )}
+            </svg>
+            {pinned ? 'Unpin menu' : 'Pin menu open'}
+          </button>
+        </div>
       </div>
+
+      {/* ── Access Key welcome (first visit on this device) ───────────────────── */}
+      {guestWelcome && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={closeGuestWelcome}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="guest-welcome-title"
+            className="w-full max-w-md rounded-2xl border border-slate-700 bg-dr-surface p-6 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <h2 id="guest-welcome-title" className="text-lg font-semibold text-white">
+              Welcome {guestWelcome.label}
+            </h2>
+            <div className="mt-3 space-y-3 text-sm leading-relaxed text-slate-300">
+              <p>
+                You have been invited to review {guestWelcome.debateCount > 1 ? 'these private debates' : 'this private debate'}.
+              </p>
+              <p>
+                I will be delighted to receive any feedback from you, either via the{' '}
+                <Link href="/contact" onClick={closeGuestWelcome} className="text-blue-400 hover:underline">Contact Us</Link>{' '}
+                page on this site, or directly to me via the email I sent you.
+              </p>
+              <p>Thank you very much for your time.</p>
+              <p className="font-medium text-slate-200">David Twaddell</p>
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button
+                autoFocus
+                onClick={closeGuestWelcome}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 transition-colors"
+              >
+                View the debate{guestWelcome.debateCount > 1 ? 's' : ''}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

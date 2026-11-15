@@ -105,7 +105,7 @@ export default function AiGeneratorPage() {
 
   useEffect(() => {
     if (!loading && !user) router.push('/login?next=/dashboard/ai-generator');
-    if (!loading && user && user.tier !== 'moderator' && !user.isSysAdmin) router.push('/dashboard');
+    if (!loading && user && user.tier !== 'moderator') router.push('/scotparl');
   }, [loading, user, router]);
 
   const [debates,     setDebates]     = useState<Debate[]>([]);

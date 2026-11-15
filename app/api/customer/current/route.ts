@@ -3,39 +3,31 @@ import pool, { getCurrentTenantId } from '@/lib/db';
 import { getSessionFromRequest } from '@/lib/auth';
 
 // "Society" is the user-facing term for a customer/tenant (see lib/db.ts).
-// No auth required — logged-out visitors need this to render the switcher
-// and to see which societies are public.
+// No auth required — logged-out visitors need this to render the switcher.
+//   public: every public Society
+//   private: every Apply Society (anyone may ask to join), plus Invite
+//            Societies the visitor belongs to or moderates
 export async function GET(req: NextRequest) {
   const session = await getSessionFromRequest(req);
   const currentId = await getCurrentTenantId();
+  const uid = session?.sub ?? null;
 
   const { rows: currentRows } = await pool.query('SELECT id, name FROM customers WHERE id = $1', [currentId]);
-  const { rows: publicRows } = await pool.query(
-    'SELECT id, name FROM customers WHERE is_public = true ORDER BY name'
+  const { rows } = await pool.query(
+    `SELECT c.id, c.name, c.visibility,
+            EXISTS (SELECT 1 FROM customer_members m WHERE m.customer_id = c.id AND m.user_id = $1)
+            OR EXISTS (SELECT 1 FROM customer_roles r WHERE r.tenant_id = c.id AND r.user_id = $1 AND r.role = 'customer_admin') AS is_member
+     FROM customers c
+     WHERE c.status = 'active' OR c.status IS NULL
+     ORDER BY c.name`,
+    [uid],
   );
 
-  let privateRows: { id: number; name: string }[] = [];
-  if (session) {
-    if (session.isSysAdmin) {
-      const { rows } = await pool.query(
-        'SELECT id, name FROM customers WHERE is_public = false ORDER BY name'
-      );
-      privateRows = rows;
-    } else {
-      const { rows } = await pool.query(
-        `SELECT c.id, c.name FROM customers c
-         JOIN customer_members cm ON cm.customer_id = c.id
-         WHERE c.is_public = false AND cm.user_id = $1
-         ORDER BY c.name`,
-        [session.sub]
-      );
-      privateRows = rows;
-    }
-  }
-
+  const toOption = (r: { id: number; name: string; visibility: string; is_member: boolean }) =>
+    ({ id: r.id, name: r.name, visibility: r.visibility, isMember: r.is_member });
   return NextResponse.json({
     current: currentRows[0] ?? null,
-    public: publicRows,
-    private: privateRows,
+    public: rows.filter(r => r.visibility === 'public').map(toOption),
+    private: rows.filter(r => r.visibility === 'apply' || (r.visibility === 'invite' && r.is_member)).map(toOption),
   });
 }

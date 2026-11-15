@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { sendContactNotification } from '@/lib/postmark';
 
 export async function POST(req: NextRequest) {
   const { name, email, subject, message, website } = await req.json();
@@ -25,6 +26,13 @@ export async function POST(req: NextRequest) {
      VALUES ($1, $2, $3, $4)`,
     [name.trim(), email.trim(), subject.trim(), message.trim()]
   );
+
+  // Email the team. The message is already saved, so a mail failure is logged, not shown.
+  try {
+    await sendContactNotification({ name: name.trim(), email: email.trim(), subject: subject.trim(), message: message.trim() });
+  } catch (err) {
+    console.error('contact email failed:', err);
+  }
 
   return NextResponse.json({ ok: true }, { status: 201 });
 }

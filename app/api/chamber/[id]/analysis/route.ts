@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { getSession } from '@/lib/auth';
+import { getDebateAccess } from '@/lib/debateAccess';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -8,10 +10,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   // Verify debate exists and get age
   const { rows: [res] } = await pool.query(
-    `SELECT id, created_at FROM statements WHERE id = $1 AND stat_type = 'resolution'`,
+    `SELECT id, created_at, customer_id, created_by, debate_visibility
+     FROM statements WHERE id = $1 AND stat_type = 'resolution'`,
     [id],
   );
   if (!res) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!(await getDebateAccess(await getSession(), res)).viewable) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
 
   const ageMs = Date.now() - new Date(res.created_at).getTime();
   const threeMonthsMs = 90 * 24 * 60 * 60 * 1000;

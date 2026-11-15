@@ -1,18 +1,20 @@
 'use client';
 
+import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
 
 type JoinRequest = {
   id: string;
-  forum_id: string;
-  forum_title: string;
+  resolution_id: string;
+  debate_title: string;
+  society_name: string | null;
   user_id: string;
   user_handle: string;
-  user_name: string | null;
-  join_message: string | null;
-  join_status: string;
+  user_full_name: string | null;
+  message: string | null;
+  status: string;
   created_at: string;
 };
 
@@ -33,21 +35,9 @@ export default function JoinRequestsPage() {
   const loadRequests = useCallback(async () => {
     setFetching(true);
     try {
-      const forumsRes = await fetch('/api/forums');
-      if (!forumsRes.ok) throw new Error();
-      const forums: { id: string; forum_title: string }[] = await forumsRes.json();
-
-      const all: JoinRequest[] = [];
-      await Promise.all(
-        forums.map(async f => {
-          const res = await fetch(`/api/forums/${f.id}/join-requests`);
-          if (!res.ok) return;
-          const rows: Omit<JoinRequest, 'forum_title'>[] = await res.json();
-          rows.forEach(r => all.push({ ...r, forum_title: f.forum_title }));
-        })
-      );
-      all.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      setRequests(all);
+      const res = await fetch('/api/dashboard/join-requests');
+      if (!res.ok) throw new Error();
+      setRequests(await res.json());
     } catch {
       setError('Could not load join requests');
     } finally {
@@ -60,7 +50,7 @@ export default function JoinRequestsPage() {
   async function handleAction(req: JoinRequest, action: 'accept' | 'deny') {
     setActing(req.id);
     try {
-      const res = await fetch(`/api/forums/${req.forum_id}/join-requests/${req.id}`, {
+      const res = await fetch(`/api/debates/${req.resolution_id}/join-requests/${req.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
@@ -69,7 +59,7 @@ export default function JoinRequestsPage() {
         setRequests(prev =>
           prev.map(r =>
             r.id === req.id
-              ? { ...r, join_status: action === 'accept' ? 'accepted' : 'denied' }
+              ? { ...r, status: action === 'accept' ? 'accepted' : 'denied' }
               : r
           )
         );
@@ -86,17 +76,19 @@ export default function JoinRequestsPage() {
 
   if (loading || !user) return null;
 
-  const pending  = requests.filter(r => r.join_status === 'pending');
-  const resolved = requests.filter(r => r.join_status !== 'pending');
+  const pending  = requests.filter(r => r.status === 'pending');
+  const resolved = requests.filter(r => r.status !== 'pending');
 
   return (
     <div className="px-6 py-8 max-w-3xl">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-slate-100">Join Requests</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Applications to join your Apply-type private forums.
+          Requests to join your Societies, and to join Apply-visibility debates in them.
         </p>
       </div>
+
+      <SocietyRequests />
 
       {error && <p className="text-sm text-red-400 mb-4">{error}</p>}
 
@@ -109,7 +101,7 @@ export default function JoinRequestsPage() {
           </svg>
           <p className="text-sm text-slate-400 font-medium">No pending requests</p>
           <p className="text-xs text-slate-600 mt-1">
-            Join requests from users who find your Apply-type forums will appear here.
+            Join requests from members applying to your Apply-visibility debates will appear here.
           </p>
         </div>
       ) : (
@@ -166,10 +158,10 @@ function RequestCard({
   onDeny: () => void;
   acting: boolean;
 }) {
-  const isPending = req.join_status === 'pending';
-  const statusColour = req.join_status === 'accepted'
+  const isPending = req.status === 'pending';
+  const statusColour = req.status === 'accepted'
     ? 'text-emerald-400'
-    : req.join_status === 'denied'
+    : req.status === 'denied'
     ? 'text-slate-500'
     : 'text-amber-400';
 
@@ -180,12 +172,12 @@ function RequestCard({
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-sm font-semibold text-slate-100">
               @{req.user_handle}
-              {req.user_name && <span className="text-slate-500 font-normal ml-1">({req.user_name})</span>}
+              {req.user_full_name && <span className="text-slate-500 font-normal ml-1">({req.user_full_name})</span>}
             </p>
-            <span className="text-xs text-slate-600">→ {req.forum_title}</span>
+            <span className="text-xs text-slate-600">→ {req.debate_title}{req.society_name ? ` (${req.society_name})` : ''}</span>
           </div>
-          {req.join_message && (
-            <p className="text-xs text-slate-400 mt-1.5 italic">&ldquo;{req.join_message}&rdquo;</p>
+          {req.message && (
+            <p className="text-xs text-slate-400 mt-1.5 italic">&ldquo;{req.message}&rdquo;</p>
           )}
           <p className="text-xs text-slate-600 mt-1.5">
             {new Date(req.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -193,7 +185,7 @@ function RequestCard({
         </div>
         {!isPending && (
           <span className={`text-xs font-semibold capitalize flex-shrink-0 ${statusColour}`}>
-            {req.join_status}
+            {req.status}
           </span>
         )}
       </div>
@@ -216,6 +208,31 @@ function RequestCard({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// Pending requests to join the Societies this user moderates; decided in Manage Societies.
+function SocietyRequests() {
+  const [rows, setRows] = useState<{ id: number; name: string; pending_requests: number }[]>([]);
+  useEffect(() => {
+    fetch('/api/manage/societies').then(r => r.ok ? r.json() : null)
+      .then(d => setRows((d?.societies ?? []).filter((s: { pending_requests: number }) => s.pending_requests > 0)))
+      .catch(() => {});
+  }, []);
+  if (!rows.length) return null;
+  return (
+    <div className="mb-8 rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4">
+      <p className="text-sm font-semibold text-amber-300 mb-2">Requests to join your Societies</p>
+      <ul className="space-y-1">
+        {rows.map(s => (
+          <li key={s.id} className="text-sm">
+            <Link href={`/dashboard/societies?society=${s.id}`} className="text-slate-200 hover:text-blue-300">
+              {s.name}: {s.pending_requests} pending →
+            </Link>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

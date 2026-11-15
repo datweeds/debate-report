@@ -10,6 +10,7 @@ type Society = {
   subdomain: string;
   description: string | null;
   is_public: boolean;
+  visibility?: 'public' | 'apply' | 'invite';
   is_member: boolean;
 };
 
@@ -67,7 +68,7 @@ export default function HomePage() {
     <div className="flex flex-col">
 
       {/* ── Hero ──────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden bg-dr-base pb-24 sm:pb-36">
+      <section className="dr-dark relative overflow-hidden bg-dr-base pb-24 sm:pb-36">
         {/* Subtle dark background */}
         <div
           aria-hidden="true"
@@ -125,7 +126,7 @@ export default function HomePage() {
           <p className="mt-4 text-xs text-slate-600">
             Stay informed —{' '}
             <Link href="/blog" className="text-blue-500 hover:text-blue-400 underline underline-offset-2 transition-colors">
-              read the blog &amp; subscribe
+              read the newsletter &amp; subscribe
             </Link>
           </p>
         </div>
@@ -189,12 +190,12 @@ export default function HomePage() {
             </div>
           ) : null}
 
-          {/* Private Societies (logged-in members only) */}
-          {user && privateSocieties.length > 0 && (
+          {/* Private Societies: Apply ones for everyone, Invite ones for their members */}
+          {privateSocieties.length > 0 && (
             <div className="card-dr overflow-hidden">
               <div className="px-5 py-4 border-b border-slate-800/60">
-                <h2 className="text-base font-semibold text-slate-100">Your Private Societies</h2>
-                <p className="text-xs text-slate-500 mt-0.5">Closed platforms — members only</p>
+                <h2 className="text-base font-semibold text-slate-100">Private Societies</h2>
+                <p className="text-xs text-slate-500 mt-0.5">Members-only platforms — ask to join, or join by invitation</p>
               </div>
               <div className="divide-y divide-slate-800/60">
                 {privateSocieties.map(s => (
@@ -203,7 +204,7 @@ export default function HomePage() {
                       <p className="text-sm font-semibold text-slate-200">{s.name}</p>
                       {s.description && <p className="text-xs text-slate-500 mt-0.5">{s.description}</p>}
                       <span className="inline-flex items-center gap-1 mt-1 rounded bg-slate-700/50 px-1.5 py-0.5 text-[10px] text-slate-400 border border-slate-700/60">
-                        🔒 Private
+                        🔒 {s.is_member ? 'Member' : s.visibility === 'apply' ? 'Apply to join' : 'Invite only'}
                       </span>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
@@ -276,7 +277,7 @@ export default function HomePage() {
           <div className="card-dr px-5 py-5">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-base font-semibold text-slate-200">From the Blog</h2>
+                <h2 className="text-base font-semibold text-slate-200">From the Newsletter</h2>
                 <p className="text-xs text-slate-500 mt-0.5">Thoughts on structured debate and building in public</p>
               </div>
               <Link href="/blog" className="text-xs text-blue-500 hover:text-blue-400 transition-colors">

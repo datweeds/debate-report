@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { PF_ALLOWED_CHILDREN, STAT_LABEL, STAT_BADGE, TYPE_DIRECTION_MODE } from './constants';
 import type { ChamberRelationship } from './ChamberGraph';
+import type { QDebate } from '@/lib/quality/rules';
+import DraftWarnings from './DraftWarnings';
 
 type StatStub = { id: string; stat_type: string; stat_title: string };
 
@@ -18,6 +20,7 @@ type Props = {
   onCreated: (statement: any, relationship: ChamberRelationship) => void;
   onRelationshipLinked?: (relationship: ChamberRelationship) => void;
   onClose: () => void;
+  debate?: QDebate | null;   // for live quality checks
 };
 
 // ── Shared helpers ─────────────────────────────────────────────────────────────
@@ -53,7 +56,7 @@ function DirectionPicker({ value, onChange }: {
 
 function EvidenceViaWarrantForm({
   parentId, parentType, parentTitle, resolutionId,
-  preSelectedDirection, onCreated, onClose,
+  preSelectedDirection, onCreated, onClose, debate,
 }: Omit<Props, 'preSelectedType' | 'availableStatements' | 'onRelationshipLinked'>) {
 
   const [warrantTitle,        setWarrantTitle]        = useState('');
@@ -142,6 +145,7 @@ function EvidenceViaWarrantForm({
                 rows={3} maxLength={2010} placeholder="Expand the reasoning, add context…"
                 className={textareaCls('violet')} />
             </Field>
+            <DraftWarnings debate={debate} draft={{ stat_type: 'warrant', stat_direction: effectiveWarrantDir, stat_title: warrantTitle, stat_description: warrantDescription }} />
           </div>
 
           {/* Evidence */}
@@ -157,6 +161,7 @@ function EvidenceViaWarrantForm({
                 rows={3} maxLength={2010} placeholder="Full citation, methodology, additional context…"
                 className={textareaCls('emerald')} />
             </Field>
+            <DraftWarnings debate={debate} draft={{ stat_type: 'evidence', stat_direction: null, stat_title: evidenceTitle, stat_description: evidenceDescription }} />
           </div>
         </div>
         <ModalFooter saving={saving} label="Add Warrant + Evidence" onClose={onClose} />
@@ -171,7 +176,7 @@ function EvidenceViaWarrantForm({
 function WarrantWithEvidenceForm({
   parentId, parentType, parentTitle, resolutionId,
   preSelectedDirection, availableStatements,
-  onCreated, onRelationshipLinked, onClose,
+  onCreated, onRelationshipLinked, onClose, debate,
 }: Omit<Props, 'preSelectedType'>) {
 
   const evidenceOptions = (availableStatements ?? []).filter(s => s.stat_type === 'evidence');
@@ -264,6 +269,7 @@ function WarrantWithEvidenceForm({
                 rows={3} maxLength={2010} placeholder="Expand the reasoning, add context…"
                 className={textareaCls('violet')} />
             </Field>
+            <DraftWarnings debate={debate} draft={{ stat_type: 'warrant', stat_direction: effectiveDir, stat_title: title, stat_description: description }} />
           </div>
 
           {/* Existing evidence linking */}
@@ -315,7 +321,7 @@ function WarrantWithEvidenceForm({
 function StandardForm({
   parentId, parentType, parentTitle, resolutionId,
   preSelectedType, preSelectedDirection,
-  onCreated, onClose,
+  onCreated, onClose, debate,
 }: Omit<Props, 'availableStatements' | 'onRelationshipLinked'>) {
 
   const allowedTypes = PF_ALLOWED_CHILDREN[parentType] ?? [];
@@ -429,6 +435,8 @@ function StandardForm({
               placeholder="Expand on the statement, add context, cite sources…"
               className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none placeholder-slate-600" />
           </Field>
+
+          <DraftWarnings debate={debate} draft={{ stat_type: statType, stat_direction: effectiveDirection, stat_title: title, stat_description: description }} />
         </div>
         <ModalFooter saving={saving} label={`Add ${STAT_LABEL[statType] ?? 'Statement'}`} disabled={!statType} onClose={onClose} />
       </form>
@@ -454,6 +462,7 @@ export default function CreateStatementModal(props: Props) {
         preSelectedDirection={props.preSelectedDirection}
         onCreated={onCreated}
         onClose={onClose}
+        debate={props.debate}
       />
     );
   }
@@ -471,6 +480,7 @@ export default function CreateStatementModal(props: Props) {
         onCreated={onCreated}
         onRelationshipLinked={onRelationshipLinked}
         onClose={onClose}
+        debate={props.debate}
       />
     );
   }

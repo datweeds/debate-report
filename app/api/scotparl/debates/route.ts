@@ -22,11 +22,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'debate_title and debate_description required' }, { status: 400 });
   }
 
-  const { rows: [forum] } = await pool.query(
-    `SELECT id FROM debate_forums WHERE is_system_forum = true AND forum_title = 'ScotParl Debates' LIMIT 1`
-  );
-  if (!forum) return NextResponse.json({ error: 'ScotParl forum not found — run migration 023' }, { status: 503 });
-
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -34,10 +29,10 @@ export async function POST(req: NextRequest) {
 
     const { rows: [stmt] } = await client.query(
       `INSERT INTO statements
-         (stat_type, stat_title, stat_description, subject_area, forum_visibility, forum_id, created_by, customer_id)
-       VALUES ('resolution', $1, $2, 'politics', 'public', $3, $4::uuid, $5)
+         (stat_type, stat_title, stat_description, subject_area, created_by, customer_id)
+       VALUES ('resolution', $1, $2, 'politics', $3::uuid, $4)
        RETURNING id`,
-      [debate_title.trim(), debate_description.trim(), forum.id, session.sub, parseInt(TENANT_ID, 10)]
+      [debate_title.trim(), debate_description.trim(), session.sub, parseInt(TENANT_ID, 10)]
     );
 
     const gid = group_id ? parseInt(String(group_id), 10) : null;

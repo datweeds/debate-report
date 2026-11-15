@@ -57,3 +57,40 @@ export async function sendBlogNewsletter({
 
   return res.json();
 }
+
+// Contact form → the team's inbox. Reply-To is the sender, so replying in the
+// mail client answers them directly.
+const CONTACT_TO   = process.env.CONTACT_TO_EMAIL   ?? 'contact@new.vote';
+const CONTACT_FROM = process.env.CONTACT_FROM_EMAIL ?? 'contact@new.vote';
+
+export async function sendContactNotification({ name, email, subject, message }: {
+  name: string; email: string; subject: string; message: string;
+}) {
+  const send = (from: string) => fetch(`${POSTMARK_API}/email`, {
+    method:  'POST',
+    headers: {
+      'Accept':                  'application/json',
+      'Content-Type':            'application/json',
+      'X-Postmark-Server-Token': TOKEN,
+    },
+    body: JSON.stringify({
+      From:     `${PRODUCT_NAME} contact form <${from}>`,
+      To:       CONTACT_TO,
+      ReplyTo:  `${name.replace(/[<>"\r\n]/g, '')} <${email}>`,
+      Subject:  `[${PRODUCT_NAME} contact] ${subject}`.slice(0, 250),
+      TextBody: `From: ${name} <${email}>\nSubject: ${subject}\n\n${message}\n\n— Sent from the contact form at ${BASE_URL}/contact`,
+      MessageStream: 'outbound',
+    }),
+  });
+
+  let res = await send(CONTACT_FROM);
+  // Until CONTACT_FROM is a confirmed Postmark sender, fall back to the
+  // account's existing sender so messages still arrive.
+  if (res.status === 422 && CONTACT_FROM !== FROM) {
+    const body = await res.text();
+    if (/sender signature/i.test(body)) res = await send(FROM);
+    else throw new Error(`Postmark error 422: ${body}`);
+  }
+  if (!res.ok) throw new Error(`Postmark error ${res.status}: ${await res.text()}`);
+  return res.json();
+}

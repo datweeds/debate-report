@@ -58,7 +58,7 @@ export async function createStatement(input: CreateStatementInput): Promise<ApiR
          (stat_type, stat_title, stat_direction, stat_description, resolution_id, created_by)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, stat_type, stat_title, stat_direction, stat_description,
-                 resolution_id, created_by, retracted_at, created_at`,
+                 resolution_id, created_by, retracted_at, created_at, stat_ref`,
       [statType, statTitle.trim(), statDirection ?? null, statDescription?.trim() ?? null, resolutionId, createdBy],
     );
 

@@ -18,7 +18,9 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   if (!msg) return NextResponse.json({ error: 'Message not found' }, { status: 404 });
   if (msg.is_deleted) return NextResponse.json({ error: 'Already deleted' }, { status: 409 });
 
-  const isMod = session.isSysAdmin || session.tier === 'moderator';
+  // The Society's moderator, or SysAdmin as the platform takedown backstop
+  const { isSocietyModerator, statementSocietyId } = await import('@/lib/roles');
+  const isMod = session.isSysAdmin || await isSocietyModerator(session, await statementSocietyId(id));
   if (msg.created_by !== session.sub && !isMod) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }

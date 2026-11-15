@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
+import { isSocietyModerator, statementSocietyId } from '@/lib/roles';
 import { getStatementForOwnershipCheck, updateStatementText } from '@/lib/statements';
 
 type Params = { params: Promise<{ id: string }> };
@@ -12,7 +13,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   const stmt = await getStatementForOwnershipCheck(id);
   if (!stmt) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (stmt.created_by !== session.sub && !session.isSysAdmin) {
+  // The author, or a moderator of the debate's Society (e.g. fixing quality-report findings)
+  if (stmt.created_by !== session.sub && !await isSocietyModerator(session, await statementSocietyId(id))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { isSocietyAdmin } from '@/lib/roles';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -35,13 +36,10 @@ export async function POST(req: NextRequest, { params }: Params) {
   return NextResponse.json({ ok: true });
 }
 
-// Moderator handles the appeal: outcome = 'unmasked' | 'closed'
+// Society Admin/SysAdmin handles the appeal: outcome = 'unmasked' | 'closed'
 export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
-  if (session.tier !== 'moderator' && !session.isSysAdmin) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
 
   const { id }      = await params;
   const { outcome } = await req.json() as { outcome: string };
@@ -55,13 +53,20 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     await client.query('BEGIN');
 
     const { rows: [alert] } = await client.query(
-      `SELECT content_type, content_id, original_content, appeal_status FROM content_alerts WHERE id = $1`,
+      `SELECT ca.content_type, ca.content_id, ca.original_content, ca.appeal_status, r.customer_id
+       FROM content_alerts ca
+       LEFT JOIN statements r ON r.id = ca.resolution_id
+       WHERE ca.id = $1`,
       [id],
     );
 
     if (!alert) {
       await client.query('ROLLBACK');
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+    if (alert.customer_id == null || !(await isSocietyAdmin(session, alert.customer_id))) {
+      await client.query('ROLLBACK');
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     if (alert.appeal_status !== 'sent') {
       await client.query('ROLLBACK');

@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Files uploaded through the site at runtime (debate and Society images)
+public/uploads/

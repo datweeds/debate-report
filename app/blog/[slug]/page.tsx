@@ -16,7 +16,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!post) return { title: 'Post not found' };
   const base = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://new.vote';
   return {
-    title: `${post.title} — new.vote Blog`,
+    title: `${post.title} — new.vote Newsletter`,
     description: post.excerpt,
     openGraph: {
       title:         post.title,
@@ -44,7 +44,7 @@ export default async function BlogPostPage({ params }: Props) {
         <nav className="flex items-center gap-2 text-xs text-slate-600 mb-10">
           <Link href="/" className="hover:text-slate-400 transition-colors">Home</Link>
           <span>/</span>
-          <Link href="/blog" className="hover:text-slate-400 transition-colors">Blog</Link>
+          <Link href="/blog" className="hover:text-slate-400 transition-colors">Newsletter</Link>
           <span>/</span>
           <span className="text-slate-400 truncate max-w-48">{post.title}</span>
         </nav>
@@ -93,7 +93,7 @@ export default async function BlogPostPage({ params }: Props) {
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
-            Back to Blog
+            Back to Newsletter
           </Link>
         </div>
 

@@ -11,15 +11,13 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params;
 
   const { rows: [debate] } = await pool.query(
-    `SELECT id, created_by, stat_status, vote_total_for, vote_total_against
+    `SELECT id, created_by, customer_id, stat_status, vote_total_for, vote_total_against
      FROM statements WHERE id = $1 AND stat_type = 'resolution'`,
     [id]
   );
   if (!debate) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  const TENANT_ID = parseInt(process.env.TENANT_ID ?? '0', 10);
-  const { canManageDebates } = await import('@/lib/roles');
-  const canManage = await canManageDebates(session, TENANT_ID);
-  if (debate.created_by !== session.sub && !canManage) {
+  const { isSocietyModerator } = await import('@/lib/roles');
+  if (!await isSocietyModerator(session, debate.customer_id)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
   if (debate.stat_status === 'closed') {

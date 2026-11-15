@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import type { QDebate } from '@/lib/quality/rules';
+import DraftWarnings from './DraftWarnings';
 
 type Props = {
   statementId: string;
@@ -9,11 +11,13 @@ type Props = {
   hasChildren: boolean;   // if true, the title is locked (connected responses exist)
   onSave: (id: string, title: string, description: string | null) => void;
   onClose: () => void;
+  debate?: QDebate | null;   // for live quality checks
 };
 
 export default function UpdateModal({
-  statementId, initialTitle, initialDescription, hasChildren, onSave, onClose,
+  statementId, initialTitle, initialDescription, hasChildren, onSave, onClose, debate,
 }: Props) {
+  const current = debate?.statements.find(s => s.id === statementId);
   const [title,       setTitle]       = useState(initialTitle);
   const [description, setDescription] = useState(initialDescription ?? '');
   const [saving,      setSaving]      = useState(false);
@@ -123,6 +127,13 @@ export default function UpdateModal({
               />
               <p className="mt-1 text-right text-xs text-slate-600">{description.length}/2010</p>
             </div>
+
+            {current && (
+              <DraftWarnings debate={debate} draft={{
+                id: statementId, stat_ref: current.stat_ref, stat_type: current.stat_type, stat_direction: current.stat_direction,
+                stat_title: hasChildren ? initialTitle : title, stat_description: description,
+              }} />
+            )}
           </div>
 
           <div className="flex items-center gap-3 px-5 py-4 border-t border-slate-800">

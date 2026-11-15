@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import Header from '@/components/Header';
-import SubNav from '@/components/SubNav';
 import Footer from '@/components/Footer';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { AuthProvider } from '@/components/AuthProvider';
@@ -37,14 +36,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
         {/* Set theme before React hydrates to avoid flash */}
-        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('dr_theme');document.documentElement.setAttribute('data-theme',t==='light'?'light':'dark');}catch(e){}` }} />
+        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('dr_theme');document.documentElement.setAttribute('data-theme',t==='light'?'light':'dark');if(localStorage.getItem('dr_menu_pinned')==='1')document.documentElement.setAttribute('data-menu-pinned','');}catch(e){}` }} />
       </head>
       <body className="min-h-screen flex flex-col antialiased bg-dr-base">
         <ThemeProvider>
           <AuthProvider>
             <Header />
-            <SubNav />
-            <main className="flex-1 pt-16 sm:pt-[108px] pb-14 sm:pb-0">{children}</main>
+            <main className="dr-pin-main flex-1 pt-16 pb-14 sm:pb-0">{children}</main>
             <Footer />
           </AuthProvider>
         </ThemeProvider>

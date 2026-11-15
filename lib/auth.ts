@@ -106,6 +106,7 @@ export interface ChallengePayload {
   displayName?: string;
   bio?: string;
   inviteToken?: string;
+  purpose?: 'add';  // set when a logged-in user adds a passkey to their account
 }
 
 export async function signChallengeToken(payload: ChallengePayload): Promise<string> {

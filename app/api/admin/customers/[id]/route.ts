@@ -10,7 +10,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   const { id } = await params;
   const body = await req.json();
-  const { name, hero_text, hero_image, contact_email, platform_contact_email, status, is_public } = body;
+  const { name, hero_text, hero_image, contact_email, platform_contact_email, status, is_public, visibility, description } = body;
 
   const allowed_statuses = ['active', 'paused', 'closed'];
   if (status && !allowed_statuses.includes(status)) {
@@ -38,12 +38,23 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     status || null,
   ];
 
-  if (typeof is_public === 'boolean') {
-    values.push(is_public);
-    fields.push(`is_public = $${values.length}`);
+  // visibility: 'public' | 'apply' | 'invite' (is_public is derived from it).
+  // The older boolean is still accepted: false means invite-only.
+  const vis = ['public', 'apply', 'invite'].includes(visibility) ? visibility
+    : typeof is_public === 'boolean' ? (is_public ? 'public' : 'invite') : null;
+  if (vis) {
+    values.push(vis);
+    fields.push(`visibility = $${values.length}`);
     // A society that's no longer public can't stay the default — logged-out
     // visitors couldn't see it. Demote it from default in the same update.
-    if (!is_public) fields.push('is_default = false');
+    if (vis !== 'public') fields.push('is_default = false');
+  }
+
+  // The long-form description can be cleared, so (like is_public) it's set
+  // whenever the body carries it — an empty string stores NULL.
+  if (typeof description === 'string') {
+    values.push(description.trim() || null);
+    fields.push(`description = $${values.length}`);
   }
 
   values.push(id);

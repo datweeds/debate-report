@@ -19,6 +19,7 @@ export async function GET() {
      LEFT JOIN statements ch ON ch.resolution_id = s.id
      WHERE s.stat_type = 'resolution'
        AND s.retracted_at IS NULL
+       AND s.debate_visibility = 'public'  -- a public feed: never Apply/Invite debates
      GROUP BY s.id, s.stat_title, s.created_at, s.vote_for, s.vote_against
      ORDER BY last_activity DESC
      LIMIT 20`,

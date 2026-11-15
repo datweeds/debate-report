@@ -72,7 +72,8 @@ export default function AboutPage() {
             <h2 className="text-xl font-bold text-slate-100 mb-3">Our Principles</h2>
             <ul className="space-y-3">
               {[
-                'Arguments are judged on logic and evidence, not on who made them.',
+                'Arguments are judged on logic and evidence, impact and credibility.',
+                'Support For and Against a resolution is determined by voting on individual statements.',
                 'All contributions are automatically scanned to protect against unwarranted profanity, hate and personal data exposure.',
                 'Both sides of every debate are represented and weighted fairly.',
                 'Grounding arguments in evidence and data is actively encouraged.',

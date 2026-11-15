@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback, useRef, useState } from 'react';
+import { useEffect, useCallback, useMemo, useRef, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -25,6 +25,7 @@ export type ChamberStatement = {
   stat_type: string;
   stat_title: string;
   stat_direction: string | null;
+  stat_ref?: string | null;       // debate-unique reference, e.g. CF2, RB1, E14
   retracted_at: string | null;
   created_by: string | null;
   stat_description: string | null;
@@ -175,62 +176,86 @@ function buildNodeSvg(n: Node<StatementNodeData>, ox: number, oy: number): strin
 
 // ── Graph builder ─────────────────────────────────────────────────────────────
 
-// A parent's evidence children collapse into one "N pieces of evidence" node
-// when there are 2+ of them and none has children of its own (collapsing would
-// otherwise hide a rebuttal/warrant subtree, so those legs stay fully expanded).
-function computeEvidenceGroups(
-  statements: ChamberStatement[],
-  relationships: ChamberRelationship[],
-): Map<string, string[]> {
-  const childrenByParent = new Map<string, string[]>();
-  for (const r of relationships) {
-    const arr = childrenByParent.get(r.stat_id_supported) ?? [];
-    arr.push(r.stat_id_supported_by);
-    childrenByParent.set(r.stat_id_supported, arr);
-  }
-  const stmtMap = new Map(statements.map(s => [s.id, s]));
-  const hasOwnChildren = (id: string) => (childrenByParent.get(id)?.length ?? 0) > 0;
+const DIRECTION_RANK: Record<string, number> = { for: 0, against: 2 };
+const directionRank = (dir: string | null | undefined) => DIRECTION_RANK[dir ?? ''] ?? 1;
 
-  const groups = new Map<string, string[]>();
-  for (const [parentId, childIds] of childrenByParent) {
-    const evidenceChildren = childIds.filter(cid => stmtMap.get(cid)?.stat_type === 'evidence');
-    if (evidenceChildren.length < 2) continue;
-    if (evidenceChildren.some(hasOwnChildren)) continue;
-    groups.set(parentId, evidenceChildren);
+// Every statement beneath each node in the full tree (unique, cycle-safe).
+function computeDescendantCounts(childrenByParent: Map<string, string[]>): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const root of childrenByParent.keys()) {
+    const seen = new Set<string>();
+    const stack = [...(childrenByParent.get(root) ?? [])];
+    while (stack.length) {
+      const id = stack.pop()!;
+      if (seen.has(id) || id === root) continue;
+      seen.add(id);
+      stack.push(...(childrenByParent.get(id) ?? []));
+    }
+    counts.set(root, seen.size);
   }
-  return groups;
+  return counts;
 }
 
 function buildGraph(
   resolution: { id: string; stat_title: string; stat_description: string | null; created_by: string | null },
   statements: ChamberStatement[],
   relationships: ChamberRelationship[],
-  expandedGroups: Set<string>,
+  expandedNodes: Set<string>,
 ): { nodes: Node<StatementNodeData>[]; edges: Edge[] } {
-  const groups = computeEvidenceGroups(statements, relationships);
-  const groupedChildIds = new Map<string, string>(); // evidence id -> its group's parent id
-  for (const [parentId, ids] of groups) for (const id of ids) groupedChildIds.set(id, parentId);
+  const stmtMap = new Map(statements.map(s => [s.id, s]));
+  const childrenByParent = new Map<string, string[]>();
+  const hasParent = new Set<string>();
+  for (const r of relationships) {
+    const arr = childrenByParent.get(r.stat_id_supported) ?? [];
+    arr.push(r.stat_id_supported_by);
+    childrenByParent.set(r.stat_id_supported, arr);
+    hasParent.add(r.stat_id_supported_by);
+  }
+  const descendantCounts = computeDescendantCounts(childrenByParent);
 
-  const all: ChamberStatement[] = [
-    {
-      id: resolution.id, stat_type: 'resolution', stat_title: resolution.stat_title,
-      stat_direction: null, retracted_at: null, created_by: resolution.created_by,
-      stat_description: resolution.stat_description,
-    },
-    // Hide a grouped evidence statement only while its group is collapsed.
-    ...statements.filter(s => {
-      const parentId = groupedChildIds.get(s.id);
-      return !parentId || expandedGroups.has(parentId);
-    }),
-  ];
+  // Walk the tree from the top, depth-first, descending only into expanded
+  // nodes. Children are visited For → neutral → Against, and that visiting
+  // order is what the layout follows, so it also sets left-to-right order.
+  // Statements with no parent (e.g. their parent was retracted and hidden)
+  // are treated as extra roots so they never silently disappear.
+  const order: string[] = [];          // visible node ids, in model order
+  const visibleEdges: [string, string][] = [];
+  const visited = new Set<string>();
+  const roots = [resolution.id, ...statements.filter(s => !hasParent.has(s.id)).map(s => s.id)];
 
-  const nodes: Node<StatementNodeData>[] = all.map(s => ({
+  const visit = (id: string) => {
+    if (visited.has(id)) return;
+    visited.add(id);
+    order.push(id);
+    if (!expandedNodes.has(id)) return;
+
+    const kids = [...(childrenByParent.get(id) ?? [])]
+      .sort((a, b) => directionRank(stmtMap.get(a)?.stat_direction) - directionRank(stmtMap.get(b)?.stat_direction));
+    for (const kid of kids) {
+      visibleEdges.push([id, kid]);
+      visit(kid);
+    }
+  };
+  for (const root of roots) visit(root);
+
+  const all: ChamberStatement[] = order
+    .map(id => id === resolution.id
+      ? {
+          id: resolution.id, stat_type: 'resolution', stat_title: resolution.stat_title,
+          stat_direction: null, retracted_at: null, created_by: resolution.created_by,
+          stat_description: resolution.stat_description,
+        }
+      : stmtMap.get(id)!)
+    .filter(Boolean);
+
+  const realNodes: Node<StatementNodeData>[] = all.map(s => ({
     id: s.id,
     type: 'statement',
     position: { x: 0, y: 0 },
     selected: false,
     data: {
       label: s.stat_title,
+      statRef: s.stat_ref ?? null,
       statType: s.stat_type as StatementNodeData['statType'],
       direction: s.stat_direction as 'for' | 'against' | null,
       isRetracted: !!s.retracted_at,
@@ -248,119 +273,97 @@ function buildGraph(
       onChat: () => {},
       onVote: () => {},
       onDescriptionPopup: () => {},
+      descendantCount: descendantCounts.get(s.id) ?? 0,
+      treeExpanded: expandedNodes.has(s.id),
     },
   }));
+  const byId = new Map<string, Node<StatementNodeData>>(realNodes.map(n => [n.id, n]));
 
-  // One synthetic header node per group, always present whether collapsed or expanded.
-  for (const [parentId, evidenceIds] of groups) {
-    const expanded = expandedGroups.has(parentId);
-    nodes.push({
-      id: `evgrp:${parentId}`,
-      type: 'statement',
-      position: { x: 0, y: 0 },
-      selected: false,
-      data: {
-        label: `${evidenceIds.length} pieces of evidence`,
-        statType: 'evidence',
-        direction: null,
-        isRetracted: false,
-        isOwner: false,
-        hasChildren: expanded,
-        canCreate: false,
-        allowedChildren: [],
-        description: null,
-        agreeCount: 0, disagreeCount: 0,
-        totalFor: 0, totalAgainst: 0,
-        chatCount: 0, hasAnalysis: false, isFlagged: false,
-        onUpdate: () => {},
-        onRetract: () => {},
-        onCreateChild: () => {},
-        onChat: () => {},
-        onVote: () => {},
-        onDescriptionPopup: () => {},
-        isGroupHeader: true,
-        groupCount: evidenceIds.length,
-        groupExpanded: expanded,
-        groupParentId: parentId,
-      },
-    });
-  }
+  const nodes = order.map(id => byId.get(id)).filter((n): n is Node<StatementNodeData> => !!n);
+  const nodeIds = new Set(nodes.map(n => n.id));
 
-  const directEdges: Edge[] = relationships
-    .filter(r => groupedChildIds.get(r.stat_id_supported_by) !== r.stat_id_supported)
-    .map(r => ({
-      id: `${r.stat_id_supported}__${r.stat_id_supported_by}`,
-      source: r.stat_id_supported,
-      target: r.stat_id_supported_by,
+  const edges: Edge[] = visibleEdges
+    .filter(([s, t]) => nodeIds.has(s) && nodeIds.has(t))
+    .map(([source, target]) => ({
+      id: `${source}__${target}`,
+      source,
+      target,
       markerEnd: { type: MarkerType.ArrowClosed, color: '#475569', width: 14, height: 14 },
       style: { stroke: '#475569', strokeWidth: 1.5 },
     }));
 
-  const groupEdges: Edge[] = [];
-  for (const [parentId, evidenceIds] of groups) {
-    const headerId = `evgrp:${parentId}`;
-    groupEdges.push({
-      id: `${parentId}__${headerId}`,
-      source: parentId,
-      target: headerId,
-      markerEnd: { type: MarkerType.ArrowClosed, color: '#15803d', width: 14, height: 14 },
-      style: { stroke: '#15803d', strokeWidth: 1.5, strokeDasharray: '4 3' },
-    });
-    if (expandedGroups.has(parentId)) {
-      for (const eid of evidenceIds) {
-        groupEdges.push({
-          id: `${headerId}__${eid}`,
-          source: headerId,
-          target: eid,
-          markerEnd: { type: MarkerType.ArrowClosed, color: '#475569', width: 14, height: 14 },
-          style: { stroke: '#475569', strokeWidth: 1.5 },
-        });
-      }
-    }
-  }
-
-  return { nodes, edges: [...directEdges, ...groupEdges] };
+  return { nodes, edges };
 }
 
-// ── ELK layout ────────────────────────────────────────────────────────────────
+// ── Layout ────────────────────────────────────────────────────────────────────
 
-// ELK's node-placement strategies all still bias toward the left edge of a
-// parent's children in practice, so instead of trusting an ELK option,
-// explicitly recentre each parent over the span of its own children after
-// ELK has settled everything else (ordering, spacing, no overlaps). Nodes
-// are processed layer-by-layer from the bottom up, so by the time a parent
-// is repositioned, every one of its children already has its final x.
-function centerParentsOverChildren(
-  positions: Map<string, { x: number; y: number }>,
+// Tidy tree layout: every subtree gets its own horizontal band, wide enough for
+// everything beneath it, and each parent sits centred over its children. Bands
+// never overlap, so expanding a node pushes its neighbours aside instead of
+// sliding over them. Siblings keep buildGraph's emit order (For → Against).
+// The tree is the first edge into each node from an earlier-emitted node; any
+// other edges are still drawn, just not used for placement.
+const SUBTREE_GAP = 40;
+const LAYER_GAP   = 70;
+
+function tidyTreeLayout(
+  nodes: Node<StatementNodeData>[],
   edges: Edge[],
-): void {
-  const childrenOf = new Map<string, string[]>();
+): Map<string, { x: number; y: number }> {
+  const index = new Map(nodes.map((n, i) => [n.id, i]));
+  const parentOf = new Map<string, string>();
   for (const e of edges) {
-    const arr = childrenOf.get(e.source) ?? [];
-    arr.push(e.target);
-    childrenOf.set(e.source, arr);
+    const si = index.get(e.source), ti = index.get(e.target);
+    if (si === undefined || ti === undefined || si >= ti || parentOf.has(e.target)) continue;
+    parentOf.set(e.target, e.source);
+  }
+  const kidsOf = new Map<string, string[]>();
+  const roots: string[] = [];
+  for (const n of nodes) {
+    const p = parentOf.get(n.id);
+    if (p) kidsOf.set(p, [...(kidsOf.get(p) ?? []), n.id]);
+    else roots.push(n.id);
   }
 
-  const byY = new Map<number, string[]>();
-  for (const [id, pos] of positions) {
-    const arr = byY.get(pos.y) ?? [];
-    arr.push(id);
-    byY.set(pos.y, arr);
-  }
-  const ysDeepestFirst = Array.from(byY.keys()).sort((a, b) => b - a);
+  const heightOf = new Map(nodes.map(n => [n.id, computeNodeH(n.data.label) + BTN_H]));
+  const widthMemo = new Map<string, number>();
+  const width = (id: string): number => {
+    const cached = widthMemo.get(id);
+    if (cached !== undefined) return cached;
+    const kids = kidsOf.get(id) ?? [];
+    const kidsW = kids.reduce((s, k) => s + width(k), 0) + SUBTREE_GAP * Math.max(0, kids.length - 1);
+    const w = Math.max(NODE_W, kidsW);
+    widthMemo.set(id, w);
+    return w;
+  };
 
-  for (const y of ysDeepestFirst) {
-    for (const id of byY.get(y)!) {
-      const kids = childrenOf.get(id);
-      if (!kids?.length) continue;
-      const centers = kids.map(k => positions.get(k)!.x + NODE_W / 2);
-      const mid = (Math.min(...centers) + Math.max(...centers)) / 2;
-      positions.get(id)!.x = mid - NODE_W / 2;
-    }
-  }
+  const xOf = new Map<string, number>();
+  const depthOf = new Map<string, number>();
+  const place = (id: string, left: number, depth: number) => {
+    depthOf.set(id, depth);
+    const kids = kidsOf.get(id) ?? [];
+    if (!kids.length) { xOf.set(id, left + (width(id) - NODE_W) / 2); return; }
+    const kidsW = kids.reduce((s, k) => s + width(k), 0) + SUBTREE_GAP * (kids.length - 1);
+    let cursor = left + (width(id) - kidsW) / 2;
+    for (const k of kids) { place(k, cursor, depth + 1); cursor += width(k) + SUBTREE_GAP; }
+    const first = xOf.get(kids[0])!, last = xOf.get(kids[kids.length - 1])!;
+    xOf.set(id, (first + last) / 2);
+  };
+  let left = 0;
+  for (const r of roots) { place(r, left, 0); left += width(r) + SUBTREE_GAP; }
+
+  // Each layer is as tall as its tallest node.
+  const layerH: number[] = [];
+  for (const [id, d] of depthOf) layerH[d] = Math.max(layerH[d] ?? 0, heightOf.get(id) ?? 0);
+  const layerY: number[] = [];
+  for (let d = 0, y = 0; d < layerH.length; d++) { layerY[d] = y; y += (layerH[d] ?? 0) + LAYER_GAP; }
+
+  const positions = new Map<string, { x: number; y: number }>();
+  for (const n of nodes) positions.set(n.id, { x: xOf.get(n.id) ?? 0, y: layerY[depthOf.get(n.id) ?? 0] ?? 0 });
+  return positions;
 }
 
-async function applyElkLayout(
+async function applyTreeLayout(
   nodes: Node<StatementNodeData>[],
   edges: Edge[],
 ): Promise<{ nodes: Node<StatementNodeData>[]; edges: Edge[] }> {
@@ -368,36 +371,7 @@ async function applyElkLayout(
     return { nodes: nodes.map(n => ({ ...n, position: { x: 0, y: 0 } })), edges };
   }
 
-  const elkMod = await import('elkjs/lib/elk.bundled.js');
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const ELK = (elkMod as any).default ?? elkMod;
-  const elk = new ELK();
-
-  const elkGraph = {
-    id: 'root',
-    layoutOptions: {
-      'elk.algorithm': 'layered',
-      'elk.direction': 'DOWN',
-      'elk.spacing.nodeNode': '60',
-      'elk.layered.spacing.nodeNodeBetweenLayers': '50',
-    },
-    children: nodes.map(n => ({
-      id: n.id,
-      width: NODE_W,
-      height: computeNodeH(n.data.label) + BTN_H,
-    })),
-    edges: edges.map(e => ({ id: e.id, sources: [e.source], targets: [e.target] })),
-  };
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const layout: any = await elk.layout(elkGraph);
-
-  const positions = new Map<string, { x: number; y: number }>();
-  for (const n of nodes) {
-    const en = layout.children?.find((c: { id: string }) => c.id === n.id);
-    positions.set(n.id, { x: en?.x ?? 0, y: en?.y ?? 0 });
-  }
-  centerParentsOverChildren(positions, edges);
+  const positions = tidyTreeLayout(nodes, edges);
 
   return {
     nodes: nodes.map(n => ({ ...n, position: positions.get(n.id) ?? { x: 0, y: 0 } })),
@@ -422,17 +396,12 @@ function decorateNodes(
   onDescriptionPopup: (id: string) => void,
   onArgue: ((id: string) => void) | undefined,
   onAnalyse: ((id: string) => void) | undefined,
-  onToggleGroup: (parentId: string) => void,
 ): Node<StatementNodeData>[] {
   const stmtMap    = new Map(statements.map(s => [s.id, s]));
   const parentIds  = new Set(relationships.map(r => r.stat_id_supported));
   const metricsMap = new Map(metrics?.map(m => [m.id, m]) ?? []);
 
   return nodes.map(n => {
-    // Synthetic evidence-group header — not a real statement, skip the lookups below.
-    if (n.data.isGroupHeader) {
-      return { ...n, data: { ...n.data, onToggleGroup } };
-    }
     const isRes     = n.id === resolution.id;
     const stmt      = isRes ? null : stmtMap.get(n.id);
     const createdBy = isRes ? resolution.created_by : stmt?.created_by ?? null;
@@ -519,44 +488,106 @@ export default function ChamberGraph({
   const stableArgue         = useCallback((id: string) => onArgueRef.current?.(id), []);
   const stableAnalyse       = useCallback((id: string) => onAnalyseRef.current?.(id), []);
 
-  // Evidence-group expand/collapse state — parents whose evidence children are
-  // currently shown in full. Empty by default, so every debate loads with
-  // evidence collapsed into summary nodes; each one toggles independently.
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set());
-  // Which header node triggered the most recent toggle, so the post-layout
-  // camera move can re-center on THAT node rather than refitting everything.
+  // The node whose expand/collapse (or reveal) triggered the next re-layout,
+  // so the layout can keep that node anchored on screen.
   const lastToggledNodeIdRef = useRef<string | null>(null);
-  // Separate from `selectedId` (which drives the real DetailPanel) — a header's
-  // click never reaches the normal node-click handler (stopPropagation, so
-  // toggling doesn't also try to open a detail panel for a synthetic id), so
-  // it needs its own highlight state, cleared the same way normal selection is.
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const toggleGroupRef = useRef((parentId: string) => {
-    const headerId = `evgrp:${parentId}`;
-    lastToggledNodeIdRef.current = headerId;
-    setSelectedGroupId(headerId);
-    setExpandedGroups(prev => {
-      const next = new Set(prev);
-      if (next.has(parentId)) next.delete(parentId); else next.add(parentId);
-      return next;
+
+  // Progressive disclosure — which nodes have their direct children shown.
+  // A debate loads with only the resolution expanded (so just its direct
+  // children are visible); kept per-debate so switching debates starts fresh.
+  const [expandState, setExpandState] = useState<{ resId: string; ids: Set<string> }>(
+    () => ({ resId: resolution.id, ids: new Set([resolution.id]) }),
+  );
+  const expandedNodes = useMemo(
+    () => (expandState.resId === resolution.id ? expandState.ids : new Set([resolution.id])),
+    [expandState, resolution.id],
+  );
+  const updateExpanded = useCallback((fn: (prev: Set<string>) => Set<string>) => {
+    setExpandState(prev => {
+      const base = prev.resId === resolution.id ? prev.ids : new Set([resolution.id]);
+      return { resId: resolution.id, ids: fn(base) };
     });
-  });
-  const stableToggleGroup = useCallback((parentId: string) => toggleGroupRef.current(parentId), []);
+  }, [resolution.id]);
+
+  const { childrenOf, parentsOf } = useMemo(() => {
+    const c = new Map<string, string[]>();
+    const p = new Map<string, string[]>();
+    for (const r of relationships) {
+      c.set(r.stat_id_supported, [...(c.get(r.stat_id_supported) ?? []), r.stat_id_supported_by]);
+      p.set(r.stat_id_supported_by, [...(p.get(r.stat_id_supported_by) ?? []), r.stat_id_supported]);
+    }
+    return { childrenOf: c, parentsOf: p };
+  }, [relationships]);
+
+  const descendantsOf = useCallback((id: string) => {
+    const out = new Set<string>();
+    const stack = [...(childrenOf.get(id) ?? [])];
+    while (stack.length) {
+      const n = stack.pop()!;
+      if (out.has(n) || n === id) continue;
+      out.add(n);
+      stack.push(...(childrenOf.get(n) ?? []));
+    }
+    return out;
+  }, [childrenOf]);
+
+  const ancestorsOf = useCallback((id: string) => {
+    const out = new Set<string>();
+    const stack = [...(parentsOf.get(id) ?? [])];
+    while (stack.length) {
+      const n = stack.pop()!;
+      if (out.has(n)) continue;
+      out.add(n);
+      stack.push(...(parentsOf.get(n) ?? []));
+    }
+    return out;
+  }, [parentsOf]);
+
+  // Expand goes down one level; collapse folds the whole subtree beneath.
+  const toggleNodeExpansion = useCallback((id: string) => {
+    if (!childrenOf.get(id)?.length) return;
+    lastToggledNodeIdRef.current = id;
+    if (expandedNodes.has(id)) {
+      const subtree = descendantsOf(id);
+      subtree.add(id);
+      updateExpanded(prev => new Set([...prev].filter(n => !subtree.has(n))));
+    } else {
+      updateExpanded(prev => new Set(prev).add(id));
+    }
+  }, [childrenOf, expandedNodes, descendantsOf, updateExpanded]);
+
+  // Make a statement visible by opening every node above it.
+  const revealNode = useCallback((id: string) => {
+    const ancestors = ancestorsOf(id);
+    if (ancestors.size === 0) return;
+    updateExpanded(prev => new Set([...prev, ...ancestors]));
+  }, [ancestorsOf, updateExpanded]);
 
   const runLayout = useCallback((opts?: { fit?: boolean; focusNodeId?: string | null }) => {
     const fit = opts?.fit ?? true;
     const focusNodeId = opts?.focusNodeId;
-    const { nodes: raw, edges: rawEdges } = buildGraph(resolution, statements, relationships, expandedGroups);
-    applyElkLayout(raw, rawEdges).then(({ nodes: laid, edges: laidEdges }) => {
-      const decorated = decorateNodes(laid, statements, relationships, resolution, userIdRef.current, metricsRef.current, stableUpdate, stableRetract, stableCreateChild, stableChat, stableVote, stableDescPopup, canArgueRef.current ? stableArgue : undefined, canAnalyseRef.current ? stableAnalyse : undefined, stableToggleGroup);
+    const { nodes: raw, edges: rawEdges } = buildGraph(resolution, statements, relationships, expandedNodes);
+    // Where the toggled node sits now, before the re-layout moves it.
+    const anchor = focusNodeId ? rfRef.current?.getNode(focusNodeId)?.position : undefined;
+    applyTreeLayout(raw, rawEdges).then(({ nodes: laidRaw, edges: laidEdges }) => {
+      // Shift the whole new layout so the toggled node keeps its old
+      // coordinates — it stays put on screen and the graph grows around it.
+      const newPos = anchor && laidRaw.find(n => n.id === focusNodeId)?.position;
+      const dx = newPos ? anchor.x - newPos.x : 0;
+      const dy = newPos ? anchor.y - newPos.y : 0;
+      const laid = (dx || dy)
+        ? laidRaw.map(n => ({ ...n, position: { x: n.position.x + dx, y: n.position.y + dy } }))
+        : laidRaw;
+      const decorated = decorateNodes(laid, statements, relationships, resolution, userIdRef.current, metricsRef.current, stableUpdate, stableRetract, stableCreateChild, stableChat, stableVote, stableDescPopup, canArgueRef.current ? stableArgue : undefined, canAnalyseRef.current ? stableAnalyse : undefined);
       // Re-apply selection here too, not just in the separate selection-sync
-      // effect below — this rebuild is async (ELK), so without this the
+      // effect below — this rebuild is async, so without this the
       // highlight set by a toggle would get wiped the instant layout lands.
-      setNodes(decorated.map(n => ({ ...n, selected: n.id === selectedId || n.id === selectedGroupId })));
+      setNodes(decorated.map(n => ({ ...n, selected: n.id === selectedId })));
       setEdges(laidEdges);
       if (fit) {
         setTimeout(() => rfRef.current?.fitView({ padding: 0.25, duration: 400 }), 60);
-      } else if (focusNodeId) {
+      } else if (focusNodeId && !anchor) {
+        // Node wasn't on screen before (e.g. revealed from the list): bring it into view.
         const target = laid.find(n => n.id === focusNodeId);
         if (target && rfRef.current) {
           const nodeH = computeNodeH(target.data.label);
@@ -569,13 +600,12 @@ export default function ChamberGraph({
       }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolution.id, statements.map(s => s.id).join(','), relationships.length, expandedGroups, selectedId, selectedGroupId]);
+  }, [resolution.id, statements.map(s => s.id).join(','), relationships.length, expandedNodes, selectedId]);
 
-  // Layout: reruns when visible statement set, relationship count, or group
+  // Layout: reruns when visible statement set, relationship count, or node
   // expansion changes (expanding/collapsing changes which nodes exist). A real
   // data change re-fits the whole graph; a pure expand/collapse toggle instead
-  // re-centers on the node that was toggled, at whatever zoom the user had —
-  // ELK may move it, so "keep the camera still" isn't enough on its own.
+  // keeps the toggled node at the same spot on screen (see runLayout).
   const statIdKey = [resolution.id, ...statements.map(s => s.id)].join(',');
   const prevStatIdKeyRef = useRef<string | null>(null);
   const prevRelCountRef  = useRef<number | null>(null);
@@ -592,22 +622,49 @@ export default function ChamberGraph({
       runLayout({ fit: false, focusNodeId: lastToggledNodeIdRef.current });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statIdKey, relationships.length, expandedGroups]);
+  }, [statIdKey, relationships.length, expandedNodes]);
+
+  // A statement added while its branch is collapsed would otherwise be
+  // invisible to the person who just created it — open the path down to it.
+  const prevStmtIdsRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const current = new Set(statements.map(s => s.id));
+    const prev = prevStmtIdsRef.current;
+    prevStmtIdsRef.current = current;
+    if (!prev) return;
+    // Exactly one new id = someone just added a statement. Several at once is
+    // a bulk change (e.g. "show retracted"), which shouldn't unfold the tree.
+    const added = [...current].filter(id => !prev.has(id));
+    if (added.length !== 1) return;
+    lastToggledNodeIdRef.current = added[0];
+    revealNode(added[0]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statIdKey]);
+  useEffect(() => { prevStmtIdsRef.current = null; }, [resolution.id]);
+
+  // Selecting a statement from the list that's currently folded away opens
+  // its branch, so the graph can then centre on it.
+  useEffect(() => {
+    if (!selectedId || selectedId === resolution.id) return;
+    if (nodes.some(n => n.id === selectedId)) return;
+    if (!statements.some(s => s.id === selectedId)) return;
+    lastToggledNodeIdRef.current = selectedId;
+    revealNode(selectedId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
 
   // Data-sync: update labels/ownership/retracted/metrics/callbacks without re-layout
   useEffect(() => {
     setNodes(prev =>
-      decorateNodes(prev, statements, relationships, resolution, userId, metrics, stableUpdate, stableRetract, stableCreateChild, stableChat, stableVote, stableDescPopup, canArgue ? stableArgue : undefined, canAnalyse ? stableAnalyse : undefined, stableToggleGroup),
+      decorateNodes(prev, statements, relationships, resolution, userId, metrics, stableUpdate, stableRetract, stableCreateChild, stableChat, stableVote, stableDescPopup, canArgue ? stableArgue : undefined, canAnalyse ? stableAnalyse : undefined),
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statements, relationships, userId, metrics, canArgue, canAnalyse]);
 
-  // Selection-sync — a header's highlight (selectedGroupId) and a normal
-  // node's highlight (selectedId) are mutually exclusive by construction
-  // (different id namespaces), so a node is just selected if either matches.
+  // Selection-sync
   useEffect(() => {
-    setNodes(prev => prev.map(n => ({ ...n, selected: n.id === selectedId || n.id === selectedGroupId })));
-  }, [selectedId, selectedGroupId, setNodes]);
+    setNodes(prev => prev.map(n => ({ ...n, selected: n.id === selectedId })));
+  }, [selectedId, setNodes]);
 
   // Expose handle via onMounted callback
   const onMountedRef = useRef(onMounted);
@@ -680,23 +737,42 @@ export default function ChamberGraph({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runLayout]);
 
+  // Tracks the node id the camera is already centered on, so a selection that
+  // arrives via prop (from the list panel) doesn't re-center on top of the
+  // one handleNodeClick already did for a direct graph click.
+  const lastCenteredIdRef = useRef<string | null>(null);
+
   const handleNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
-      const nodeH = computeNodeH((node.data as StatementNodeData).label);
-      rfRef.current?.setCenter(
-        node.position.x + NODE_W / 2,
-        node.position.y + (nodeH + BTN_H) / 2,
-        { duration: 300, zoom: rfRef.current.getZoom() },
-      );
-      setSelectedGroupId(null);
+      // No re-centring: a clicked node stays where it is on screen (the
+      // expand/collapse re-layout is anchored on it too). Marking it here stops
+      // the list-selection effect below from centring it instead.
+      lastCenteredIdRef.current = node.id;
+      toggleNodeExpansion(node.id);
       onNodeClick(node.id);
     },
-    [onNodeClick],
+    [onNodeClick, toggleNodeExpansion],
   );
   const handlePaneClick = useCallback(() => {
-    setSelectedGroupId(null);
     onNodeClick('');
   }, [onNodeClick]);
+
+  // Selecting a statement from the list panel (rather than clicking its node
+  // directly) should still bring it to the centre of the graph, at whatever
+  // zoom level the user currently has.
+  useEffect(() => {
+    if (!selectedId) { lastCenteredIdRef.current = null; return; }
+    if (selectedId === lastCenteredIdRef.current) return;
+    const target = nodes.find(n => n.id === selectedId);
+    if (!target || !rfRef.current) return;
+    lastCenteredIdRef.current = selectedId;
+    const nodeH = computeNodeH((target.data as StatementNodeData).label);
+    rfRef.current.setCenter(
+      target.position.x + NODE_W / 2,
+      target.position.y + (nodeH + BTN_H) / 2,
+      { duration: 300, zoom: rfRef.current.getZoom() },
+    );
+  }, [selectedId, nodes]);
 
   return (
     <div className="w-full h-full">

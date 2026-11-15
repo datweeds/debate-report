@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { startRegistration, browserSupportsWebAuthn } from '@simplewebauthn/browser';
 import { useAuth } from '@/components/AuthProvider';
 
 const TIER_INFO: Record<string, { label: string; monthly: number; annual: number; color: string }> = {
@@ -142,6 +143,9 @@ export default function ProfilePage() {
   const [passkeys, setPasskeys]           = useState<Passkey[]>([]);
   const [revoking, setRevoking]           = useState<string | null>(null);
   const [revokeError, setRevokeError]     = useState('');
+  const [adding, setAdding]               = useState(false);
+  const [addError, setAddError]           = useState('');
+  const [added, setAdded]                 = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch('/api/profile');
@@ -259,6 +263,42 @@ export default function ProfilePage() {
       setPasskeys(ps => ps.filter(p => p.id !== id));
     } catch { setRevokeError('Something went wrong'); }
     finally { setRevoking(null); }
+  }
+
+  async function addPasskey() {
+    setAddError(''); setAdded(false);
+    if (!browserSupportsWebAuthn()) { setAddError('This browser does not support passkeys'); return; }
+    setAdding(true);
+    try {
+      const optRes = await fetch('/api/auth/passkey/add-options', { method: 'POST' });
+      const optData = await optRes.json();
+      if (!optRes.ok) { setAddError(optData.error ?? 'Could not start passkey setup'); return; }
+
+      let credential;
+      try {
+        credential = await startRegistration({ optionsJSON: optData });
+      } catch (err) {
+        const name = (err as { name?: string }).name;
+        if (name === 'InvalidStateError') setAddError('This device already has a passkey for your account');
+        else if (name !== 'NotAllowedError') setAddError('Passkey setup failed');
+        return; // NotAllowedError = user cancelled
+      }
+
+      const verRes = await fetch('/api/auth/passkey/add-verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(credential),
+      });
+      const verData = await verRes.json();
+      if (!verRes.ok) { setAddError(verData.error ?? 'Passkey setup failed'); return; }
+
+      // Refresh just the passkey list (leave any unsaved form edits alone)
+      const res = await fetch('/api/profile');
+      if (res.ok) setPasskeys(((await res.json()) as Profile).passkeys);
+      setAdded(true);
+      setTimeout(() => setAdded(false), 3000);
+    } catch { setAddError('Something went wrong'); }
+    finally { setAdding(false); }
   }
 
   if (loading) {
@@ -426,7 +466,7 @@ export default function ProfilePage() {
         <Section title="Passkeys & security">
           {revokeError && <p className="text-xs text-red-400 mb-3">{revokeError}</p>}
           {passkeys.length === 0 ? (
-            <p className="text-sm text-slate-500">No passkeys registered. Log in with your recovery code and add one from a supported device.</p>
+            <p className="text-sm text-slate-500">No passkeys registered yet. Add one to log in with Face ID, fingerprint or a security key.</p>
           ) : (
             <ul className="space-y-3">
               {passkeys.map(pk => (
@@ -449,6 +489,21 @@ export default function ProfilePage() {
               ))}
             </ul>
           )}
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={addPasskey}
+              disabled={adding}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 transition-colors disabled:opacity-50"
+            >
+              {adding ? 'Waiting for device…' : '+ Add a passkey'}
+            </button>
+            {added && <span className="text-xs text-emerald-400">✓ Passkey added</span>}
+            {addError && <span className="text-xs text-red-400">{addError}</span>}
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            Use this device, or choose another option in the prompt to use your phone or a security key.
+          </p>
           <p className="mt-4 text-xs text-slate-600">
             Your recovery code can always be used to log in if you lose access to your passkey device.
             Keep it somewhere safe.

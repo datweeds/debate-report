@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
-import { getPartyFromRequest } from '@/lib/apiParties';
+import { getPartyFromRequest, partyDebateAccess, PRIVATE_DEBATE_ERROR } from '@/lib/apiParties';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -13,32 +13,27 @@ export async function GET(req: NextRequest, { params }: Params) {
   if (!party) return NextResponse.json({ error: 'Invalid or missing API token' }, { status: 401 });
 
   const { id } = await params;
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const { rows: resRows } = await pool.query(
     `SELECT s.id, s.stat_title, s.stat_description, s.subject_area, s.created_at,
-            s.forum_id, s.forum_visibility,
-            u.user_handle AS creator_handle,
-            f.forum_type, f.forum_visibility AS forum_vis
+            s.debate_visibility,
+            u.user_handle AS creator_handle
      FROM   statements s
      LEFT   JOIN users u ON u.id = s.created_by
-     LEFT   JOIN debate_forums f ON f.id = s.forum_id
      WHERE  s.id = $1 AND s.stat_type = 'resolution'`,
     [id],
   );
   const resolution = resRows[0] ?? null;
   if (!resolution) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  const isPublic = !resolution.forum_id
-    ? resolution.forum_visibility === 'public'
-    : resolution.forum_type === 'public';
-  if (!isPublic) {
-    // The external API only ever serves public resolutions — forum membership
-    // has no meaning for a third-party token.
-    return NextResponse.json({ error: 'This resolution is not public' }, { status: 403 });
+  // Apply/Invite debates are served only to tokens granted that debate
+  if (await partyDebateAccess(party.id, id) !== 'ok') {
+    return NextResponse.json({ error: PRIVATE_DEBATE_ERROR }, { status: 403 });
   }
 
   const { rows: statements } = await pool.query(
-    `SELECT s.id, s.stat_type, s.stat_title, s.stat_direction, s.stat_description,
+    `SELECT s.id, s.stat_ref, s.stat_type, s.stat_title, s.stat_direction, s.stat_description,
             s.created_at, s.created_by, s.retracted_at,
             u.user_handle AS creator_handle
      FROM   statements s

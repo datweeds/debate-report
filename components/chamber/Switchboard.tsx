@@ -13,9 +13,14 @@ type Props = {
   onSelect: (id: string) => void;
   onClose: () => void;
   initialTopic?: string;
+  // Overrides the default society filter (which otherwise follows the
+  // visitor's global "current society") — e.g. opened from a specific
+  // society's Debates metric on the dashboard. 'all' pre-selects "All
+  // Available Societies". The dropdown itself still lets them change it.
+  initialSocietyId?: number | 'all';
 };
 
-export default function Switchboard({ currentId, onSelect, onClose, initialTopic }: Props) {
+export default function Switchboard({ currentId, onSelect, onClose, initialTopic, initialSocietyId }: Props) {
   const [debates, setDebates] = useState<PublicDebate[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState('');
@@ -43,14 +48,17 @@ export default function Switchboard({ currentId, onSelect, onClose, initialTopic
       .finally(() => setLoading(false));
   }, []);
 
-  // Societies for the filter dropdown — defaults to whichever is current.
+  // Societies for the filter dropdown — defaults to whichever is current,
+  // unless the caller asked to open scoped to a specific one.
   useEffect(() => {
     fetch('/api/customer/current')
       .then(r => r.ok ? r.json() : null)
       .then((d: SocietyList | null) => {
         if (!d) return;
         setSocieties(d);
-        setSocietyFilter(String(d.current?.id ?? ALL_SOCIETIES));
+        setSocietyFilter(
+          initialSocietyId !== undefined ? String(initialSocietyId) : String(d.current?.id ?? ALL_SOCIETIES)
+        );
       })
       .catch(() => {});
   }, []);
@@ -215,11 +223,11 @@ export default function Switchboard({ currentId, onSelect, onClose, initialTopic
                         {d.society_name}
                       </span>
                     )}
-                    {d.forum_type === 'private' && d.forum_visibility === 'apply' && (
+                    {d.debate_visibility === 'apply' && (
                       <span className="rounded-full px-2 py-0.5 text-xs font-bold border bg-amber-500/15 text-amber-300 border-amber-500/30">Apply to join</span>
                     )}
-                    {d.forum_type === 'private' && d.forum_visibility === 'invite' && (
-                      <span className="rounded-full px-2 py-0.5 text-xs font-bold border bg-violet-500/15 text-violet-300 border-violet-500/30">Private</span>
+                    {d.debate_visibility === 'invite' && (
+                      <span className="rounded-full px-2 py-0.5 text-xs font-bold border bg-violet-500/15 text-violet-300 border-violet-500/30">Invite only</span>
                     )}
                     {/* Stats */}
                     {d.child_count > 0 && (

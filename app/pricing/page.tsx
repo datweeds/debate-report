@@ -10,7 +10,7 @@ import { useAuth } from '@/components/AuthProvider';
 const SHARED_FEATURES = [
   'Learn to debate with the Guide',
   'View all public debates',
-  'Private debates with up to 6 people in a private forum',
+  'Private debates with up to 6 people in a private society',
   'Visual graph of the debate',
   'Running live metrics on which side is winning',
   'Anonymous or Public Persona',
@@ -20,13 +20,13 @@ const SHARED_FEATURES = [
 ];
 
 const FREE_ONLY = [
-  'Unlimited debates in a single private forum',
+  'Unlimited debates in a single private society',
 ];
 
 const PAID_ONLY = [
   'Participate in public debates',
-  'Unlimited private forums',
-  'Unlimited debaters in private forums',
+  'Unlimited private societies',
+  'Unlimited debaters in private societies',
   'AI Assistant — structured argument generation and debate analysis',
 ];
 
@@ -57,6 +57,7 @@ export default function PricingPage() {
   const [loading,     setLoading]     = useState(false);
   const [error,       setError]       = useState('');
   const [showPasskey, setShowPasskey] = useState(false);
+  const [showBilling, setShowBilling] = useState(false);
 
   const isPaid = user?.plan === 'paid';
 
@@ -66,7 +67,7 @@ export default function PricingPage() {
       return;
     }
     if (isPaid) {
-      router.push('/dashboard/billing');
+      setShowBilling(true);
       return;
     }
     setLoading(true); setError('');
@@ -91,6 +92,7 @@ export default function PricingPage() {
   return (
     <div className="min-h-screen bg-dr-base py-16 px-4">
       {showPasskey && <PasskeyModal onClose={() => setShowPasskey(false)} />}
+      {showBilling && <BillingModal onClose={() => setShowBilling(false)} />}
 
       <div className="mx-auto max-w-5xl">
 
@@ -154,7 +156,7 @@ export default function PricingPage() {
               </div>
             ) : (
               <Link
-                href={user ? '/dashboard' : '/register?tier=debater'}
+                href={user ? '/scotparl' : '/register?tier=debater'}
                 className="w-full rounded-xl border border-slate-600 bg-slate-700/60 px-4 py-2.5 text-sm font-semibold text-slate-100 text-center hover:bg-slate-600/70 hover:border-slate-500 transition-colors mb-6"
               >
                 {user ? 'Go to dashboard' : 'Get started free'}
@@ -216,12 +218,12 @@ export default function PricingPage() {
             )}
 
             {isPaid ? (
-              <Link
-                href="/dashboard/billing"
+              <button
+                onClick={() => setShowBilling(true)}
                 className="w-full rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-sm font-semibold text-emerald-400 text-center hover:bg-emerald-500/15 transition-colors mb-6"
               >
                 Manage subscription
-              </Link>
+              </button>
             ) : (
               <button
                 onClick={handleUpgrade}
@@ -272,15 +274,52 @@ export default function PricingPage() {
               <p>
                 Payments are handled by <strong className="text-slate-300">Stripe</strong> — your card details
                 never touch our servers. Cancel any time from your{' '}
-                <Link href="/dashboard/billing" className="text-blue-400 hover:text-blue-300">
+                <button
+                  onClick={() => setShowBilling(true)}
+                  className="text-blue-400 hover:text-blue-300 underline underline-offset-2"
+                >
                   billing dashboard
-                </Link>
+                </button>
                 .
               </p>
             </div>
           </div>
         </div>
 
+      </div>
+    </div>
+  );
+}
+
+// ── Billing roadmap modal ─────────────────────────────────────────────────────
+
+function BillingModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="card-dr w-full max-w-md p-7 relative" onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-4 right-4 text-slate-500 hover:text-slate-300 transition-colors">
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+          </svg>
+        </button>
+        <h2 className="text-base font-semibold text-slate-100 mb-3">Billing dashboard</h2>
+        <p className="text-sm text-slate-400 mb-6">
+          Billing is on the roadmap for end 2026. Please contact us for more details.
+        </p>
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 transition-colors"
+          >
+            Close
+          </button>
+          <Link
+            href="/contact"
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 transition-colors no-underline"
+          >
+            Contact us
+          </Link>
+        </div>
       </div>
     </div>
   );

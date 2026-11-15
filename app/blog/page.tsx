@@ -4,7 +4,7 @@ import { getAllPosts, formatDate } from '@/lib/blog';
 import BlogSubscribeForm from '@/components/BlogSubscribeForm';
 
 export const metadata: Metadata = {
-  title: 'Blog — new.vote',
+  title: 'Newsletter — new.vote',
   description: 'Thoughts on structured debate, product decisions, and building in public from the new.vote team.',
 };
 
@@ -17,7 +17,7 @@ export default function BlogPage() {
 
         {/* Header */}
         <div className="mb-12">
-          <div className="text-xs font-semibold uppercase tracking-widest text-blue-400 mb-3">Blog</div>
+          <div className="text-xs font-semibold uppercase tracking-widest text-blue-400 mb-3">Newsletter</div>
           <h1 className="text-4xl font-extrabold text-slate-50 mb-4">Powering local and national debate.</h1>
           <p className="text-slate-400 text-sm leading-relaxed max-w-xl">
             Thoughts on structured debate, product decisions, and the thinking behind new.vote.

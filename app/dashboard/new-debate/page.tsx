@@ -34,12 +34,23 @@ export default function NewDebatePage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [error,       setError]       = useState('');
   const [submitting,  setSubmitting]  = useState(false);
+  const [societies,   setSocieties]   = useState<{ id: number; name: string }[]>([]);
+  const [societyId,   setSocietyId]   = useState<number | null>(null);
+
+  // The Societies this moderator can create debates in
+  useEffect(() => {
+    fetch('/api/me/roles').then(r => r.ok ? r.json() : null).then(d => {
+      const list = d?.moderatedSocieties ?? [];
+      setSocieties(list);
+      if (list.length) setSocietyId(list[0].id);
+    }).catch(() => {});
+  }, []);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!loading && !user) router.push('/login?next=/dashboard/new-debate');
-    if (!loading && user && user.tier !== 'moderator' && !user.isSysAdmin) {
-      router.push('/dashboard');
+    if (!loading && user && user.tier !== 'moderator') {
+      router.push('/scotparl');
     }
   }, [loading, user, router]);
 
@@ -74,7 +85,7 @@ export default function NewDebatePage() {
       const res = await fetch('/api/debates', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ title: title.trim(), description: description.trim() || undefined, subjectArea }),
+        body:    JSON.stringify({ title: title.trim(), description: description.trim() || undefined, subjectArea, societyId }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Failed to create debate'); return; }
@@ -117,10 +128,25 @@ export default function NewDebatePage() {
 
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-slate-100">Create new debate</h1>
-          <p className="text-sm text-slate-500 mt-1">The resolution will be published to the Public Forum.</p>
+          <p className="text-sm text-slate-500 mt-1">The resolution is published in the Society you choose, with Public Forum structure.</p>
         </div>
 
         <form onSubmit={submit} className="space-y-5">
+
+          {/* Society */}
+          {societies.length > 0 && (
+            <div className="card-dr p-5">
+              <label className="block text-xs font-semibold uppercase tracking-widest text-slate-500 mb-3">Society</label>
+              {societies.length === 1 ? (
+                <p className="text-sm text-slate-200">{societies[0].name}</p>
+              ) : (
+                <select value={societyId ?? ''} onChange={e => setSocietyId(Number(e.target.value))}
+                  className="w-full rounded-lg border border-slate-700 bg-dr-surface px-3 py-2.5 text-sm text-slate-100 focus:border-blue-500 focus:outline-none">
+                  {societies.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              )}
+            </div>
+          )}
 
           {/* Resolution title */}
           <div className="card-dr p-5">

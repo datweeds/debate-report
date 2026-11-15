@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
+import { isSocietyModerator, statementSocietyId } from '@/lib/roles';
 import { getStatementForOwnershipCheck, retractStatementCascade } from '@/lib/statements';
 
 type Params = { params: Promise<{ id: string }> };
@@ -12,7 +13,9 @@ export async function POST(_req: NextRequest, { params }: Params) {
 
   const stmt = await getStatementForOwnershipCheck(id);
   if (!stmt) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (stmt.created_by !== session.sub && !session.isSysAdmin) {
+  // The author, the Society's moderator, or SysAdmin as the platform takedown backstop
+  if (stmt.created_by !== session.sub && !session.isSysAdmin
+      && !await isSocietyModerator(session, await statementSocietyId(id))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

@@ -1,10 +1,15 @@
 import Link from 'next/link';
+import JoinSocietyButton from '@/components/societies/JoinSocietyButton';
+import { getSocietyAccess } from '@/lib/societies';
+import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import pool, { pq } from '@/lib/db';
 import DateFilter from '@/components/scotparl/DateFilter';
 import ActivityList from '@/components/scotparl/ActivityList';
+import DebatesMetricButton from '@/components/scotparl/DebatesMetricButton';
 import { getSession } from '@/lib/auth';
 import { STAT_LABEL } from '@/components/chamber/constants';
+import { viewableResolutionSql, listableResolutionSql } from '@/lib/debateAccess';
 
 export const metadata: Metadata = { title: 'Scottish Parliament' };
 export const dynamic = 'force-dynamic';
@@ -25,10 +30,13 @@ function addMetrics(a: Metrics, b: Metrics): Metrics {
   return { debates: a.debates + b.debates, votes: a.votes + b.votes, proposals: a.proposals + b.proposals, principles: a.principles + b.principles };
 }
 
-type Society = { id: number; name: string; is_public: boolean; is_default: boolean };
+type Society = {
+  id: number; name: string; is_public: boolean; visibility: 'public' | 'apply' | 'invite'; is_default: boolean;
+  hero_text: string | null; hero_image: string | null; description: string | null;
+};
 
 async function getSocieties(): Promise<Society[]> {
-  const { rows } = await pool.query('SELECT id, name, is_public, is_default FROM customers ORDER BY is_default DESC, name');
+  const { rows } = await pool.query('SELECT id, name, is_public, visibility, is_default, hero_text, hero_image, description FROM customers ORDER BY is_default DESC, name');
   return rows;
 }
 
@@ -125,8 +133,10 @@ async function getLawsTotal(since?: string): Promise<number> {
 
 type SocietyDebate = { id: string; stat_title: string; vote_for: number; vote_against: number; child_count: number };
 
-// For a single society's own dashboard — "select a debate to view".
-async function getSocietyDebates(customerId: number): Promise<SocietyDebate[]> {
+// For a single society's own dashboard — "select a debate to view". Only
+// debates this viewer may see listed (Invite debates stay hidden from all but
+// their invitees and staff).
+async function getSocietyDebates(customerId: number, userId: string | null, isSysAdmin: boolean): Promise<SocietyDebate[]> {
   try {
     const { rows } = await pool.query<SocietyDebate>(
       `SELECT s.id, s.stat_title, s.vote_for, s.vote_against,
@@ -134,9 +144,10 @@ async function getSocietyDebates(customerId: number): Promise<SocietyDebate[]> {
        FROM statements s
        LEFT JOIN statements ch ON ch.resolution_id = s.id
        WHERE s.stat_type = 'resolution' AND s.customer_id = $1 AND s.stat_hidden IS NOT TRUE
+         ${isSysAdmin ? '' : `AND ${listableResolutionSql('s', '$2::text')}`}
        GROUP BY s.id
        ORDER BY s.created_at DESC`,
-      [customerId]
+      isSysAdmin ? [customerId] : [customerId, userId]
     );
     return rows;
   } catch (err) {
@@ -159,10 +170,16 @@ export type UpdateItem = {
 // actually open.
 const SYSADMIN_ONLY_ITEM_TYPES = ['Proposal', 'Bill', 'Act', 'SSI', 'Principle'];
 
-async function getRecentUpdates(since: string | null, limit: number, isSysAdmin: boolean): Promise<UpdateItem[]> {
-  const sinceClause = since ? `AND changed_at >= '${since.replace(/'/g, "''")}'` : '';
+async function getRecentUpdates(since: string | null, limit: number, isSysAdmin: boolean, userId: string | null): Promise<UpdateItem[]> {
+  // Viewer id (for debate access) only when it's used — SysAdmin skips the
+  // filter, and Postgres rejects unused parameters. Then `since`, if given.
+  const params: unknown[] = isSysAdmin ? [] : [userId];
+  if (since) params.push(since);
+  const sinceClause = since ? `AND changed_at >= $${params.length}` : '';
   const limitClause = since ? '' : `LIMIT ${limit}`;
   const typeClause = isSysAdmin ? '' : `AND item_type NOT IN ('${SYSADMIN_ONLY_ITEM_TYPES.join("','")}')`;
+  // Debate content only from debates this viewer may open.
+  const canView = (res: string) => (isSysAdmin ? 'TRUE' : viewableResolutionSql(res, '$1::text'));
   try {
     const { rows } = await pool.query<UpdateItem>(`
       SELECT item_type, name, url, created_at, changed_at, entity_id FROM (
@@ -178,6 +195,7 @@ async function getRecentUpdates(since: string | null, limit: number, isSysAdmin:
                sbd.resolution_id::text
         FROM sp_bill_debates sbd
         JOIN statements s ON s.id = sbd.resolution_id
+        WHERE ${canView('s')}
         UNION ALL
         SELECT 'Debate', s.stat_title,
                '/scotparl/debates',
@@ -185,6 +203,7 @@ async function getRecentUpdates(since: string | null, limit: number, isSysAdmin:
                spd.resolution_id::text
         FROM sp_proposal_debates spd
         JOIN statements s ON s.id = spd.resolution_id
+        WHERE ${canView('s')}
         UNION ALL
         SELECT 'Vote', b.short_name,
                '/scotparl/bills/' || p.sp_bill_id,
@@ -223,17 +242,19 @@ async function getRecentUpdates(since: string | null, limit: number, isSysAdmin:
         JOIN nsp_principle_sets nps ON nps.id = np.set_id
         JOIN nsp_topics nt          ON nt.id  = nps.topic_id
         UNION ALL
-        SELECT INITCAP(s.stat_type), s.stat_title,
+        SELECT INITCAP(s.stat_type::text), s.stat_title,
                '/chamber?resolution=' || s.resolution_id,
                s.created_at, s.updated_at,
                s.id::text
         FROM statements s
+        JOIN statements res ON res.id = s.resolution_id
         WHERE s.stat_type <> 'resolution' AND s.retracted_at IS NULL
+          AND ${canView('res')}
       ) t
       WHERE changed_at IS NOT NULL ${sinceClause} ${typeClause}
       ORDER BY changed_at DESC
       ${limitClause}
-    `);
+    `, params);
     return rows;
   } catch (err) {
     console.error('[getRecentUpdates]', err);
@@ -282,19 +303,20 @@ function Lozenges({ counts }: { counts: LozengeCounts }) {
 }
 
 function SocietySection({
-  title, metrics, lozenges, isSysAdmin, highlight,
+  title, metrics, lozenges, isSysAdmin, highlight, societyId,
 }: {
   title: string;
   metrics: Metrics;
   lozenges: LozengeCounts | null;
   isSysAdmin: boolean;
   highlight?: boolean;
+  societyId: number | 'all';
 }) {
   return (
     <div className={`rounded-2xl border p-4 space-y-3 ${highlight ? 'border-blue-800/40 bg-blue-500/5' : 'border-slate-800 bg-[#0c1322]'}`}>
       <p className="text-sm font-semibold text-slate-200">{title}</p>
       <div className={`grid gap-2.5 ${isSysAdmin ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2'} max-w-md`}>
-        <MetricBox label="Debates" value={metrics.debates} colour="text-blue-400" bg="border-blue-800/30 bg-blue-500/5" />
+        <DebatesMetricButton value={metrics.debates} societyId={societyId} />
         <MetricBox label="Votes" value={metrics.votes} colour="text-emerald-400" bg="border-emerald-800/30 bg-emerald-500/5" />
         {isSysAdmin && <MetricBox label="Proposals" value={metrics.proposals} colour="text-violet-400" bg="border-violet-800/30 bg-violet-500/5" />}
         {isSysAdmin && <MetricBox label="Principles" value={metrics.principles} colour="text-rose-400" bg="border-rose-800/30 bg-rose-500/5" />}
@@ -323,7 +345,7 @@ export default async function ScotparlPage({
     getMetricsBySociety(),
     since ? getMetricsBySociety(since) : Promise.resolve(null),
     getLozengesBySociety(),
-    getRecentUpdates(since, 15, isSysAdmin),
+    getRecentUpdates(since, 15, isSysAdmin, session?.sub ?? null),
     isSysAdmin ? getLawsTotal() : Promise.resolve(0),
   ]);
 
@@ -339,43 +361,117 @@ export default async function ScotparlPage({
   // overview below.
   const activeSociety = societyId && !isNaN(societyId) ? societies.find(s => s.id === societyId) : null;
   if (activeSociety) {
-    const debates = await getSocietyDebates(activeSociety.id);
+    // Invite Societies don't exist for non-members. Apply Societies show
+    // non-members a teaser (name, image, description) and a join button.
+    const access = await getSocietyAccess(session, activeSociety.id);
+    if (!access?.canSeeTeaser) notFound();
+    const { hero_text, hero_image, description } = activeSociety;
+    const hasAside = !!(hero_image || description);
+    const visibilityLabel = activeSociety.visibility === 'public' ? 'Public society'
+      : activeSociety.visibility === 'apply' ? 'Private society · members only' : 'Private society · by invitation';
+
+    if (!access.canEnter) {
+      return (
+        <div className="space-y-8">
+          <div>
+            <Link href="/scotparl" className="text-xs text-slate-500 hover:text-slate-300 transition-colors">← All societies</Link>
+            <h1 className="text-3xl sm:text-4xl font-bold text-slate-100 mt-2">{activeSociety.name}</h1>
+            {hero_text && <p className="text-lg text-slate-300 mt-2 max-w-3xl leading-relaxed">{hero_text}</p>}
+            <p className="text-slate-500 mt-2 text-xs uppercase tracking-wider font-semibold">{visibilityLabel}</p>
+          </div>
+          <div className={hasAside ? 'grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] items-start' : ''}>
+            <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-6 space-y-4">
+              <p className="text-sm text-slate-300">
+                This Society&apos;s debates are open to its members. Ask to join and a moderator will review your request.
+              </p>
+              <JoinSocietyButton societyId={activeSociety.id} loggedIn={!!session} pending={access.pendingRequest} />
+            </div>
+            {hasAside && (
+              <aside className="space-y-4 order-first lg:order-none">
+                {hero_image && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={hero_image} alt={activeSociety.name} className="w-full max-h-[28rem] rounded-2xl border border-slate-800 object-cover" />
+                )}
+                {description && (
+                  <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-5">
+                    <p className="text-sm leading-relaxed text-slate-300 whitespace-pre-line">{description}</p>
+                  </div>
+                )}
+              </aside>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    const debates = await getSocietyDebates(activeSociety.id, session?.sub ?? null, isSysAdmin);
     return (
       <div className="space-y-8">
+        {/* Society name + hero text */}
         <div>
-          <Link href="/scotparl" className="text-xs text-slate-500 hover:text-slate-300 transition-colors">← All societies</Link>
-          <h1 className="text-2xl font-bold text-slate-100 mt-1">{activeSociety.name}</h1>
-          <p className="text-slate-400 mt-1 text-sm">{activeSociety.is_public ? 'Public society' : 'Private society'}</p>
+          <div className="flex items-center justify-between gap-4">
+            <Link href="/scotparl" className="text-xs text-slate-500 hover:text-slate-300 transition-colors">← All societies</Link>
+            {access.isModerator && (
+              <Link href={`/dashboard/societies?society=${activeSociety.id}`} className="text-xs text-blue-400 hover:text-blue-300 transition-colors">Manage society →</Link>
+            )}
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-bold text-slate-100 mt-2">{activeSociety.name}</h1>
+          {hero_text && <p className="text-lg text-slate-300 mt-2 max-w-3xl leading-relaxed">{hero_text}</p>}
+          <p className="text-slate-500 mt-2 text-xs uppercase tracking-wider font-semibold">{visibilityLabel}</p>
         </div>
 
-        <SocietySection
-          title="Totals"
-          metrics={metricsBySociety.get(activeSociety.id) ?? emptyMetrics()}
-          lozenges={lozengesBySociety.get(activeSociety.id) ?? emptyLozenges()}
-          isSysAdmin={isSysAdmin}
-        />
+        {/* Left: metrics + debates. Right: image, then description. */}
+        <div className={hasAside ? 'grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] items-start' : ''}>
+          <div className="space-y-8 min-w-0">
+            <SocietySection
+              title="Totals"
+              metrics={metricsBySociety.get(activeSociety.id) ?? emptyMetrics()}
+              lozenges={lozengesBySociety.get(activeSociety.id) ?? emptyLozenges()}
+              isSysAdmin={isSysAdmin}
+              societyId={activeSociety.id}
+            />
 
-        <div className="space-y-3">
-          <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Select a debate</p>
-          {debates.length === 0 ? (
-            <p className="text-sm text-slate-500 italic">No debates in this society yet.</p>
-          ) : (
-            <div className="divide-y divide-slate-800/60 rounded-2xl border border-slate-800 bg-[#0c1322] overflow-hidden">
-              {debates.map(d => (
-                <Link
-                  key={d.id}
-                  href={`/chamber?resolution=${d.id}`}
-                  className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-slate-800/40 transition-colors"
-                >
-                  <span className="text-sm text-slate-200">{d.stat_title}</span>
-                  <span className="flex items-center gap-3 text-xs text-slate-500 flex-shrink-0">
-                    <span className="text-emerald-500">{d.vote_for}↑</span>
-                    <span className="text-rose-500">{d.vote_against}↓</span>
-                    <span>{d.child_count} statements</span>
-                  </span>
-                </Link>
-              ))}
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Select a debate</p>
+              {debates.length === 0 ? (
+                <p className="text-sm text-slate-500 italic">No debates in this society yet.</p>
+              ) : (
+                <div className="divide-y divide-slate-800/60 rounded-2xl border border-slate-800 bg-[#0c1322] overflow-hidden">
+                  {debates.map(d => (
+                    <Link
+                      key={d.id}
+                      href={`/chamber?resolution=${d.id}`}
+                      className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-slate-800/40 transition-colors"
+                    >
+                      <span className="text-sm text-slate-200">{d.stat_title}</span>
+                      <span className="flex items-center gap-3 text-xs text-slate-500 flex-shrink-0">
+                        <span className="text-emerald-500">{d.vote_for}↑</span>
+                        <span className="text-rose-500">{d.vote_against}↓</span>
+                        <span>{d.child_count} statements</span>
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
+          </div>
+
+          {hasAside && (
+            <aside className="space-y-4 order-first lg:order-none">
+              {hero_image && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={hero_image}
+                  alt={activeSociety.name}
+                  className="w-full max-h-[28rem] rounded-2xl border border-slate-800 object-cover"
+                />
+              )}
+              {description && (
+                <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-5">
+                  <p className="text-sm leading-relaxed text-slate-300 whitespace-pre-line">{description}</p>
+                </div>
+              )}
+            </aside>
           )}
         </div>
       </div>
@@ -393,6 +489,7 @@ export default async function ScotparlPage({
             metrics={metricsMap?.get(s.id) ?? emptyMetrics()}
             lozenges={lozengesBySociety.get(s.id) ?? emptyLozenges()}
             isSysAdmin={isSysAdmin}
+            societyId={s.id}
           />
         ))}
       </div>
@@ -402,6 +499,7 @@ export default async function ScotparlPage({
         lozenges={null}
         isSysAdmin={isSysAdmin}
         highlight
+        societyId="all"
       />
       {isSysAdmin && privateSocieties.length > 0 && (
         <SocietySection
@@ -409,6 +507,7 @@ export default async function ScotparlPage({
           metrics={privateSocieties.reduce((acc, s) => addMetrics(acc, metricsMap?.get(s.id) ?? emptyMetrics()), emptyMetrics())}
           lozenges={null}
           isSysAdmin={isSysAdmin}
+          societyId="all"
         />
       )}
     </div>
@@ -431,9 +530,10 @@ export default async function ScotparlPage({
       {renderGroup(metricsBySociety, 'Totals')}
 
       {isSysAdmin && (
-        <p className="text-xs text-slate-500">
-          Laws (not society-specific — shared Scottish Parliament data): <span className="font-bold text-amber-400">{lawsTotal}</span>
-        </p>
+        <div className="max-w-[160px]">
+          <MetricBox label="Laws" value={lawsTotal} colour="text-amber-400" bg="border-amber-800/30 bg-amber-500/5" />
+          <p className="text-[10px] text-slate-600 mt-1">Shared Scottish Parliament data — not society-specific</p>
+        </div>
       )}
 
       {sinceMetricsBySociety && sinceLabel && renderGroup(sinceMetricsBySociety, `Changes since ${sinceLabel}`)}

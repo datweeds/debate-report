@@ -4,6 +4,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import MyFlags from '@/components/dashboard/MyFlags';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -305,8 +306,8 @@ export default function AlertsPage() {
   return (
     <div className="px-6 py-8 max-w-none">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-100">Alerts</h1>
-        <p className="text-sm text-slate-500 mt-1">Content you have submitted that triggered an automated scan alert</p>
+        <h1 className="text-2xl font-bold text-slate-100">My Alerts &amp; Flags</h1>
+        <p className="text-sm text-slate-500 mt-1">Automated scan alerts on your content, and flags raised by you or on your statements</p>
       </div>
 
       {/* Status filter */}
@@ -373,6 +374,8 @@ export default function AlertsPage() {
           ))}
         </div>
       )}
+
+      <MyFlags />
     </div>
   );
 }

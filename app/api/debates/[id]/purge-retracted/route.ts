@@ -21,9 +21,8 @@ export async function POST(req: NextRequest, { params }: Params) {
   );
   if (!debate) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  const { canManageDebates } = await import('@/lib/roles');
-  const canManage = await canManageDebates(session, debate.customer_id ?? 0);
-  if (debate.created_by !== session.sub && !canManage && !session.isSysAdmin) {
+  const { isSocietyModerator } = await import('@/lib/roles');
+  if (!await isSocietyModerator(session, debate.customer_id)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

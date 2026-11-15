@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import SocietyImageField from '@/components/societies/SocietyImageField';
 import Link from 'next/link';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -17,45 +18,7 @@ interface Stats {
   server: { uptimeSeconds: number; memoryMB: number };
 }
 
-type AlertSource = 'auto' | 'manual';
-type AlertStatusFilter = 'all' | 'pending' | 'masked' | 'passed';
-
-interface AdminAlert {
-  id: string;
-  source: AlertSource;
-  status: string;
-  created_at: string;
-  reviewed_at: string | null;
-  content_type: string | null;
-  flagged_text: string | null;
-  flags: string[] | null;
-  reason: string | null;
-  resolution_id: string | null;
-  content_id: string | null;
-  statement_title: string | null;
-  resolution_title: string | null;
-  author_handle: string | null;
-  author_email: string | null;
-  owner_handle: string | null;
-  owner_email: string | null;
-  flagger_handle: string | null;
-  flagger_email: string | null;
-}
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function timeAgo(d: string) {
-  const mins = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
-  if (mins < 1)  return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24)  return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
-}
-
-function fmtDate(d: string) {
-  return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
 
 function fmtUptime(s: number) {
   const d = Math.floor(s / 86400);
@@ -63,28 +26,6 @@ function fmtUptime(s: number) {
   const m = Math.floor((s % 3600) / 60);
   return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
-
-function truncate(s: string, n = 120) {
-  return s.length > n ? s.slice(0, n) + '…' : s;
-}
-
-const SCAN_FLAG_LABELS: Record<string, string> = {
-  profanity:   'Profanity',
-  hate_speech: 'Hate Speech',
-  pii:         'Personal Data',
-};
-
-const MANUAL_REASON_LABELS: Record<string, string> = {
-  inappropriate: 'Inappropriate',
-  hate_speech:   'Hate Speech',
-  personal_data: 'Personal Data',
-};
-
-const STATUS_STYLES: Record<string, string> = {
-  pending: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-  masked:  'bg-red-500/15 text-red-300 border-red-500/30',
-  passed:  'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-};
 
 // ── Mini chart ────────────────────────────────────────────────────────────────
 
@@ -120,223 +61,6 @@ function MiniLineChart({ data, color = '#3b82f6' }: { data: { month: string; cou
         </text>
       ))}
     </svg>
-  );
-}
-
-// ── Email compose modal ───────────────────────────────────────────────────────
-
-interface EmailTarget { label: string; email: string; handle: string | null }
-
-function EmailModal({ alert, onClose }: { alert: AdminAlert; onClose: () => void }) {
-  const targets: EmailTarget[] = [];
-  if (alert.owner_email)   targets.push({ label: 'Debate owner',    email: alert.owner_email,   handle: alert.owner_handle });
-  if (alert.author_email)  targets.push({ label: 'Statement author', email: alert.author_email,  handle: alert.author_handle });
-  if (alert.flagger_email) targets.push({ label: 'Flag reporter',   email: alert.flagger_email, handle: alert.flagger_handle });
-
-  const [selected, setSelected] = useState<Set<string>>(new Set(targets.map(t => t.email)));
-  const [subject, setSubject]   = useState(
-    `new.vote — Content Alert on "${truncate(alert.resolution_title ?? alert.statement_title ?? 'your debate', 60)}"`
-  );
-  const [body, setBody] = useState(
-    `Hello,\n\nA content alert has been raised on new.vote regarding content in the debate:\n"${alert.resolution_title ?? alert.statement_title ?? ''}"\n\n${
-      alert.source === 'auto'
-        ? `Our automated scanner flagged the following text:\n"${alert.flagged_text ?? ''}"\n\nFlags: ${(alert.flags ?? []).map(f => SCAN_FLAG_LABELS[f] ?? f).join(', ')}`
-        : `A user reported this statement for: ${MANUAL_REASON_LABELS[alert.reason ?? ''] ?? alert.reason ?? ''}`
-    }\n\nPlease review your content and ensure it complies with our community guidelines.\n\nKind regards,\nnew.vote`
-  );
-
-  const toggle = (email: string) => setSelected(prev => {
-    const next = new Set(prev);
-    next.has(email) ? next.delete(email) : next.add(email);
-    return next;
-  });
-
-  const selectedList = targets.filter(t => selected.has(t.email));
-
-  const openMailto = () => {
-    if (!selectedList.length) return;
-    const to  = selectedList.map(t => t.email).join(',');
-    const url = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.open(url, '_blank');
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="card-dr w-full max-w-xl p-6 relative flex flex-col gap-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute top-4 right-4 text-slate-500 hover:text-slate-300">
-          <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-        </button>
-
-        <div>
-          <h2 className="text-sm font-semibold text-slate-100">Compose email</h2>
-          <p className="text-xs text-slate-500 mt-0.5">Select recipients — opens your email client with pre-filled content.</p>
-        </div>
-
-        {/* Recipients */}
-        <div>
-          <p className="text-xs font-semibold text-slate-400 mb-2 uppercase tracking-wider">Recipients</p>
-          {targets.length === 0 ? (
-            <p className="text-xs text-slate-600">No email addresses available for this alert.</p>
-          ) : (
-            <div className="space-y-2">
-              {targets.map(t => (
-                <label key={t.email} className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selected.has(t.email)}
-                    onChange={() => toggle(t.email)}
-                    className="rounded border-slate-600 bg-slate-800 text-blue-500"
-                  />
-                  <span className="text-sm text-slate-300">
-                    {t.label}
-                    {t.handle && <span className="text-slate-500 ml-1">@{t.handle}</span>}
-                    <span className="text-slate-600 ml-2 font-mono text-xs">{t.email}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Subject */}
-        <div>
-          <p className="text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Subject</p>
-          <input
-            value={subject}
-            onChange={e => setSubject(e.target.value)}
-            className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500"
-          />
-        </div>
-
-        {/* Body */}
-        <div>
-          <p className="text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Message</p>
-          <textarea
-            value={body}
-            onChange={e => setBody(e.target.value)}
-            rows={10}
-            className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono resize-y"
-          />
-        </div>
-
-        <button
-          onClick={openMailto}
-          disabled={selectedList.length === 0 || targets.length === 0}
-          className="w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-40 transition-colors"
-        >
-          Open in email client ({selectedList.length} recipient{selectedList.length !== 1 ? 's' : ''})
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ── Alert card ────────────────────────────────────────────────────────────────
-
-function AlertCard({ alert, onEmail }: { alert: AdminAlert; onEmail: (a: AdminAlert) => void }) {
-  const hasEmail = !!(alert.owner_email || alert.author_email || alert.flagger_email);
-  const statusLabel = alert.status === 'pending' ? 'Under Review' : alert.status === 'masked' ? 'Masked' : 'Passed';
-
-  return (
-    <div className="rounded-xl border border-slate-800 bg-[#0c1322] p-4 space-y-3">
-      {/* Header row */}
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="flex flex-wrap items-center gap-1.5">
-          {/* Source badge */}
-          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
-            alert.source === 'auto'
-              ? 'bg-violet-500/15 text-violet-300 border-violet-500/30'
-              : 'bg-orange-500/15 text-orange-300 border-orange-500/30'
-          }`}>
-            {alert.source === 'auto' ? 'Auto-scan' : 'Manual flag'}
-          </span>
-
-          {/* Status badge */}
-          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${STATUS_STYLES[alert.status] ?? 'bg-slate-700 text-slate-400 border-slate-600'}`}>
-            {statusLabel}
-          </span>
-
-          {/* Flag tags */}
-          {alert.source === 'auto' && alert.flags?.map(f => (
-            <span key={f} className="rounded-full border bg-red-500/10 text-red-300 border-red-500/30 px-2 py-0.5 text-[10px] font-semibold">
-              {SCAN_FLAG_LABELS[f] ?? f}
-            </span>
-          ))}
-          {alert.source === 'manual' && alert.reason && (
-            <span className="rounded-full border bg-amber-500/10 text-amber-300 border-amber-500/30 px-2 py-0.5 text-[10px] font-semibold">
-              {MANUAL_REASON_LABELS[alert.reason] ?? alert.reason}
-            </span>
-          )}
-        </div>
-        <span className="text-[11px] text-slate-600 whitespace-nowrap flex-shrink-0" title={fmtDate(alert.created_at)}>
-          {timeAgo(alert.created_at)}
-        </span>
-      </div>
-
-      {/* Flagged text (auto-scan) */}
-      {alert.source === 'auto' && alert.flagged_text && (
-        <blockquote className="rounded-lg border-l-2 border-slate-700 bg-slate-900/50 px-3 py-2 text-sm text-slate-300 italic leading-relaxed">
-          {truncate(alert.flagged_text)}
-        </blockquote>
-      )}
-
-      {/* Statement title (manual flag) */}
-      {alert.source === 'manual' && alert.statement_title && (
-        <p className="text-sm text-slate-300 font-medium">{truncate(alert.statement_title)}</p>
-      )}
-
-      {/* Meta row */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-1 text-xs text-slate-500">
-        <div>
-          <span className="text-slate-600 uppercase tracking-wider text-[10px] font-semibold">Raised</span>
-          <p className="text-slate-400 mt-0.5">{fmtDate(alert.created_at)}</p>
-        </div>
-        <div>
-          <span className="text-slate-600 uppercase tracking-wider text-[10px] font-semibold">
-            {alert.source === 'auto' ? 'Flagged content by' : 'Flagged by'}
-          </span>
-          <p className="text-slate-400 mt-0.5">
-            {alert.source === 'auto'
-              ? (alert.author_handle ? `@${alert.author_handle}` : 'Unknown')
-              : (alert.flagger_handle ? `@${alert.flagger_handle}` : 'Anonymous')}
-          </p>
-        </div>
-        <div>
-          <span className="text-slate-600 uppercase tracking-wider text-[10px] font-semibold">Forum owner</span>
-          <p className="text-slate-400 mt-0.5">{alert.owner_handle ? `@${alert.owner_handle}` : '—'}</p>
-        </div>
-      </div>
-
-      {/* Debate link */}
-      {alert.resolution_id && alert.resolution_title && (
-        <div className="text-xs">
-          <span className="text-slate-600">Debate: </span>
-          <Link
-            href={`/chamber?resolution=${alert.resolution_id}`}
-            target="_blank"
-            className="text-blue-400 hover:text-blue-300 transition-colors"
-          >
-            {truncate(alert.resolution_title, 80)}
-          </Link>
-        </div>
-      )}
-
-      {/* Email button */}
-      <div className="pt-1">
-        <button
-          onClick={() => onEmail(alert)}
-          disabled={!hasEmail}
-          title={hasEmail ? 'Compose email to involved parties' : 'No email addresses available'}
-          className="rounded-lg border border-blue-700/40 bg-blue-500/10 px-3 py-1.5 text-xs font-semibold text-blue-300 hover:bg-blue-500/15 disabled:opacity-30 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
-        >
-          <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
-          </svg>
-          Email parties
-          {!hasEmail && <span className="text-slate-600 font-normal">(no emails on file)</span>}
-        </button>
-      </div>
-    </div>
   );
 }
 
@@ -490,107 +214,6 @@ function AnalyticsTab({ stats, staleDays, setStaleDays }: {
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-// ── Alerts tab ────────────────────────────────────────────────────────────────
-
-const STATUS_FILTERS: { value: AlertStatusFilter; label: string }[] = [
-  { value: 'all',     label: 'All' },
-  { value: 'pending', label: 'Under Review' },
-  { value: 'masked',  label: 'Masked' },
-  { value: 'passed',  label: 'Passed' },
-];
-
-function AlertsTab() {
-  const [alerts,       setAlerts]       = useState<AdminAlert[]>([]);
-  const [total,        setTotal]        = useState(0);
-  const [statusFilter, setStatusFilter] = useState<AlertStatusFilter>('all');
-  const [loading,      setLoading]      = useState(false);
-  const [error,        setError]        = useState('');
-  const [composing,    setComposing]    = useState<AdminAlert | null>(null);
-
-  const load = useCallback(async (status: AlertStatusFilter) => {
-    setLoading(true); setError('');
-    try {
-      const res = await fetch(`/api/admin/alerts?status=${status}`);
-      if (!res.ok) throw new Error('Failed');
-      const d = await res.json();
-      setAlerts(d.alerts ?? []);
-      setTotal(d.total ?? 0);
-    } catch {
-      setError('Could not load alerts');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { load(statusFilter); }, [statusFilter, load]);
-
-  const autoCount   = alerts.filter(a => a.source === 'auto').length;
-  const manualCount = alerts.filter(a => a.source === 'manual').length;
-
-  return (
-    <div className="space-y-5">
-      {composing && <EmailModal alert={composing} onClose={() => setComposing(null)} />}
-
-      {/* Source summary */}
-      <div className="flex flex-wrap gap-3">
-        <div className="card-dr px-4 py-3 flex items-center gap-2.5">
-          <span className="h-2 w-2 rounded-full bg-violet-400" />
-          <span className="text-sm text-slate-400">Auto-scan</span>
-          <span className="text-sm font-bold text-slate-100">{autoCount}</span>
-        </div>
-        <div className="card-dr px-4 py-3 flex items-center gap-2.5">
-          <span className="h-2 w-2 rounded-full bg-orange-400" />
-          <span className="text-sm text-slate-400">Manual flags</span>
-          <span className="text-sm font-bold text-slate-100">{manualCount}</span>
-        </div>
-        <div className="card-dr px-4 py-3 flex items-center gap-2.5">
-          <span className="text-sm text-slate-500">Total</span>
-          <span className="text-sm font-bold text-slate-100">{total}</span>
-        </div>
-      </div>
-
-      {/* Status filter */}
-      <div className="flex gap-1.5 flex-wrap">
-        {STATUS_FILTERS.map(f => (
-          <button
-            key={f.value}
-            onClick={() => setStatusFilter(f.value)}
-            className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-colors ${
-              statusFilter === f.value
-                ? 'bg-slate-700 text-slate-100'
-                : 'bg-slate-800/50 text-slate-500 hover:bg-slate-800 hover:text-slate-300'
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
-
-      {error && <p className="text-sm text-red-400">{error}</p>}
-
-      {loading ? (
-        <div className="space-y-3">
-          {[0,1,2,3].map(i => <div key={i} className="h-36 rounded-xl bg-slate-800/40 animate-pulse" />)}
-        </div>
-      ) : alerts.length === 0 ? (
-        <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-12 text-center">
-          <svg className="h-10 w-10 mx-auto text-slate-700 mb-3" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-          </svg>
-          <p className="text-sm text-slate-400 font-medium">No alerts</p>
-          <p className="text-xs text-slate-600 mt-1">No alerts match the current filter</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {alerts.map(a => (
-            <AlertCard key={`${a.source}-${a.id}`} alert={a} onEmail={setComposing} />
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -754,9 +377,10 @@ function BlogTab() {
 interface CustomerRow {
   id: number; name: string; subdomain: string; status: string;
   hero_text: string | null; contact_email: string | null;
+  hero_image: string | null; description: string | null;
   platform_contact_email: string | null; created_at: string;
   proposal_count: number; debate_count: number;
-  is_public: boolean; is_default: boolean;
+  is_public: boolean; visibility: 'public' | 'apply' | 'invite'; is_default: boolean;
 }
 
 interface CustomerAdmin { user_id: string; handle: string; created_at: string; }
@@ -911,6 +535,8 @@ function SocietyMembersPanel({ customerId }: { customerId: number }) {
   );
 }
 
+// Society dashboard image — uploads/removes immediately (not on Save), since
+// the file has to reach the server either way.
 const STATUS_CHIP: Record<string, string> = {
   active: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
   paused: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
@@ -922,6 +548,7 @@ function CustomersTab() {
   const [loading, setLoading]     = useState(true);
   const [editing, setEditing]     = useState<CustomerRow | null>(null);
   const [saving, setSaving]       = useState(false);
+  const [savedId, setSavedId]     = useState<number | null>(null); // brief "Saved" confirmation
   const [showNew, setShowNew]     = useState(false);
   const [newForm, setNewForm]     = useState({ name: '', subdomain: '', hero_text: '', contact_email: '', platform_contact_email: '' });
   const [newSaving, setNewSaving] = useState(false);
@@ -947,7 +574,10 @@ function CustomersTab() {
         body: JSON.stringify(editing),
       });
       if (!r.ok) { const d = await r.json(); setErr(d.error ?? 'Save failed'); return; }
+      const savedId = editing.id;
       setEditing(null);
+      setSavedId(savedId);
+      setTimeout(() => setSavedId(cur => (cur === savedId ? null : cur)), 3000);
       load();
     } finally { setSaving(false); }
   }
@@ -1051,15 +681,36 @@ function CustomersTab() {
                     />
                   </div>
                 ))}
-                <label className="flex items-center gap-2 text-sm text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={editing.is_public}
-                    onChange={e => setEditing(p => p ? { ...p, is_public: e.target.checked } : p)}
-                    className="rounded border-slate-600 bg-slate-900"
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Description</label>
+                  <textarea
+                    value={editing.description ?? ''}
+                    onChange={e => setEditing(p => p ? { ...p, description: e.target.value } : p)}
+                    rows={6}
+                    placeholder="Describe the society in more detail — shown on its dashboard under the image. Line breaks are kept."
+                    className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500 resize-y"
                   />
-                  Public — anyone can see and switch to this society
-                  {editing.is_default && !editing.is_public && (
+                </div>
+                <SocietyImageField
+                  endpoint={`/api/admin/customers/${editing.id}/image`}
+                  value={editing.hero_image}
+                  onChange={path => {
+                    setEditing(p => p ? { ...p, hero_image: path } : p);
+                    setCustomers(cs => cs.map(c => c.id === editing.id ? { ...c, hero_image: path } : c));
+                  }}
+                />
+                <label className="flex flex-wrap items-center gap-2 text-sm text-slate-300">
+                  Visibility
+                  <select
+                    value={editing.visibility}
+                    onChange={e => setEditing(p => p ? { ...p, visibility: e.target.value as 'public' | 'apply' | 'invite', is_public: e.target.value === 'public' } : p)}
+                    className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-200"
+                  >
+                    <option value="public">Public — anyone can see and enter</option>
+                    <option value="apply">Apply — listed to all; members only, anyone can ask to join</option>
+                    <option value="invite">Invite — hidden; members join by invite link</option>
+                  </select>
+                  {editing.is_default && editing.visibility !== 'public' && (
                     <span className="text-amber-400"> (will stop being the default)</span>
                   )}
                 </label>
@@ -1079,7 +730,7 @@ function CustomersTab() {
                     <span className="text-sm font-semibold text-slate-100">{c.name}</span>
                     <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${STATUS_CHIP[c.status] ?? STATUS_CHIP.closed}`}>{c.status}</span>
                     <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${c.is_public ? 'bg-sky-500/15 text-sky-300 border-sky-500/30' : 'bg-violet-500/15 text-violet-300 border-violet-500/30'}`}>
-                      {c.is_public ? 'Public' : 'Private'}
+                      {c.visibility === 'public' ? 'Public' : c.visibility === 'apply' ? 'Apply' : 'Invite'}
                     </span>
                     {c.is_default && (
                       <span className="rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-amber-500/15 text-amber-300 border-amber-500/30">Default</span>
@@ -1093,7 +744,15 @@ function CustomersTab() {
                     {c.contact_email && <span>Contact: {c.contact_email}</span>}
                   </div>
                 </div>
-                <div className="flex flex-shrink-0 gap-2">
+                <div className="flex flex-shrink-0 items-center gap-2">
+                  {savedId === c.id && (
+                    <span className="flex items-center gap-1 text-xs font-semibold text-emerald-400" role="status">
+                      <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                      </svg>
+                      Saved
+                    </span>
+                  )}
                   {c.is_public && !c.is_default && (
                     <button onClick={() => setDefault(c.id)} className="rounded-lg border border-amber-700/40 px-3 py-1.5 text-xs text-amber-400 hover:border-amber-500 transition-colors">
                       Set as default
@@ -1114,15 +773,227 @@ function CustomersTab() {
   );
 }
 
+// ── Access Keys tab ───────────────────────────────────────────────────────────
+// SysAdmin-issued keys that let a named recipient view chosen debates
+// read-only, without an account. The link is shown once, at creation.
+
+interface AccessKeyRow {
+  id: string; label: string; created_at: string; expires_at: string | null;
+  revoked_at: string | null; first_used_at: string | null; last_used_at: string | null;
+  use_count: number; created_by_handle: string | null;
+  debates: { id: string; title: string }[];
+}
+interface KeyDebateOption { id: string; title: string; visibility: string; society: string | null }
+
+function fmtDateTime(iso: string | null) {
+  return iso ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+}
+
+function AccessKeysTab() {
+  const [keys, setKeys]         = useState<AccessKeyRow[]>([]);
+  const [debates, setDebates]   = useState<KeyDebateOption[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [err, setErr]           = useState('');
+  const [showNew, setShowNew]   = useState(false);
+  const [label, setLabel]       = useState('');
+  const [chosen, setChosen]     = useState<Set<string>>(new Set());
+  const [expiry, setExpiry]     = useState('30'); // days; '' = never
+  const [creating, setCreating] = useState(false);
+  const [newLink, setNewLink]   = useState<{ label: string; url: string } | null>(null);
+  const [copied, setCopied]     = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [k, d] = await Promise.all([
+        fetch('/api/admin/access-keys').then(r => r.json()),
+        fetch('/api/admin/access-keys/debates').then(r => r.json()),
+      ]);
+      setKeys(Array.isArray(k) ? k : []);
+      setDebates(Array.isArray(d) ? d : []);
+    } finally { setLoading(false); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  async function create() {
+    setErr(''); setCreating(true);
+    try {
+      const r = await fetch('/api/admin/access-keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          label,
+          resolutionIds: [...chosen],
+          expiresInDays: expiry.trim() === '' ? null : Number(expiry),
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setErr(d.error ?? 'Could not create key'); return; }
+      setNewLink({ label, url: window.location.origin + d.path });
+      setCopied(false);
+      setShowNew(false); setLabel(''); setChosen(new Set()); setExpiry('30');
+      load();
+    } finally { setCreating(false); }
+  }
+
+  async function revoke(id: string) {
+    if (!window.confirm('Revoke this key? Anyone using it loses access immediately.')) return;
+    await fetch(`/api/admin/access-keys/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'revoke' }),
+    });
+    load();
+  }
+
+  async function remove(id: string) {
+    if (!window.confirm('Delete this key and its record? This cannot be undone.')) return;
+    await fetch(`/api/admin/access-keys/${id}`, { method: 'DELETE' });
+    load();
+  }
+
+  async function copyLink() {
+    if (!newLink) return;
+    try { await navigator.clipboard.writeText(newLink.url); setCopied(true); } catch { /* select manually */ }
+  }
+
+  function status(k: AccessKeyRow): { text: string; cls: string } {
+    if (k.revoked_at) return { text: 'Revoked', cls: 'bg-slate-700 text-slate-400 border-slate-600' };
+    if (k.expires_at && new Date(k.expires_at) < new Date()) return { text: 'Expired', cls: 'bg-slate-700 text-slate-400 border-slate-600' };
+    if (k.first_used_at) return { text: 'Active · used', cls: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' };
+    return { text: 'Active · not yet used', cls: 'bg-amber-500/15 text-amber-300 border-amber-500/30' };
+  }
+
+  if (loading) return <div className="flex justify-center py-20"><div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" /></div>;
+
+  return (
+    <div className="space-y-5">
+      {err && <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">{err}</p>}
+
+      {newLink && (
+        <div className="card-dr p-5 border-emerald-500/40">
+          <p className="text-sm font-semibold text-slate-100 mb-1">Key created for “{newLink.label}”</p>
+          <p className="text-xs text-amber-400 mb-3">Copy this link now — it is shown only once and can&apos;t be retrieved later.</p>
+          <div className="flex gap-2">
+            <input readOnly value={newLink.url} onFocus={e => e.target.select()}
+              className="flex-1 min-w-0 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-mono text-slate-200" />
+            <button onClick={copyLink} className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 transition-colors">
+              {copied ? 'Copied ✓' : 'Copy'}
+            </button>
+            <button onClick={() => setNewLink(null)} className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-400 hover:text-slate-200 transition-colors">
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-slate-400">
+          Read-only access to chosen debates without an account. Revoking a key cuts off access immediately.
+        </p>
+        <button onClick={() => { setShowNew(true); setErr(''); }} className="flex-shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 transition-colors">
+          + New Key
+        </button>
+      </div>
+
+      {showNew && (
+        <div className="card-dr p-5 space-y-4">
+          <h3 className="text-sm font-semibold text-slate-100">New Access Key</h3>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Who is it for?</label>
+            <input value={label} onChange={e => setLabel(e.target.value)} placeholder="Their name, e.g. Jane Smith — shown as “Welcome Jane Smith”"
+              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Debates it unlocks</label>
+            <div className="max-h-56 overflow-y-auto rounded-lg border border-slate-700 divide-y divide-slate-800">
+              {debates.map(d => (
+                <label key={d.id} className="flex items-start gap-2.5 px-3 py-2 text-sm text-slate-300 cursor-pointer hover:bg-slate-800/40">
+                  <input type="checkbox" className="mt-0.5" checked={chosen.has(d.id)}
+                    onChange={e => setChosen(prev => { const n = new Set(prev); if (e.target.checked) n.add(d.id); else n.delete(d.id); return n; })} />
+                  <span className="flex-1">{d.title}</span>
+                  <span className="text-[11px] text-slate-500 whitespace-nowrap">{d.society ?? '—'} · {d.visibility}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Expires after (days) — leave blank for no expiry</label>
+            <input value={expiry} onChange={e => setExpiry(e.target.value.replace(/[^0-9]/g, ''))} inputMode="numeric"
+              className="w-28 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500" />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={create} disabled={creating || !label.trim() || chosen.size === 0}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 disabled:opacity-40 transition-colors">
+              {creating ? 'Creating…' : 'Create key'}
+            </button>
+            <button onClick={() => setShowNew(false)} className="rounded-lg border border-slate-700 px-4 py-2 text-xs text-slate-400 hover:text-slate-200 transition-colors">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {keys.length === 0 ? (
+        <p className="text-sm text-slate-500 italic">No access keys yet.</p>
+      ) : (
+        <div className="space-y-3">
+          {keys.map(k => {
+            const st = status(k);
+            const live = !k.revoked_at && !(k.expires_at && new Date(k.expires_at) < new Date());
+            return (
+              <div key={k.id} className="card-dr p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <span className="text-sm font-semibold text-slate-100">{k.label}</span>
+                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${st.cls}`}>{st.text}</span>
+                    </div>
+                    <ul className="text-xs text-slate-400 mb-2 space-y-0.5">
+                      {k.debates.map(d => <li key={d.id}>• {d.title}</li>)}
+                    </ul>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                      <span>Created {fmtDateTime(k.created_at)}{k.created_by_handle ? ` by @${k.created_by_handle}` : ''}</span>
+                      <span>Expires {k.expires_at ? fmtDateTime(k.expires_at) : 'never'}</span>
+                      <span>First opened {fmtDateTime(k.first_used_at)}</span>
+                      <span>Last active {fmtDateTime(k.last_used_at)}</span>
+                      <span>Link opened {k.use_count}×</span>
+                      {k.revoked_at && <span>Revoked {fmtDateTime(k.revoked_at)}</span>}
+                    </div>
+                  </div>
+                  <div className="flex flex-shrink-0 gap-2">
+                    {live && (
+                      <button onClick={() => revoke(k.id)} className="rounded-lg border border-rose-700/40 px-3 py-1.5 text-xs text-rose-400 hover:border-rose-500 transition-colors">
+                        Revoke
+                      </button>
+                    )}
+                    <button onClick={() => remove(k.id)} className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200 hover:border-slate-500 transition-colors">
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-type AdminTab = 'alerts' | 'analytics' | 'blog' | 'customers';
+type AdminTab = 'analytics' | 'blog' | 'customers' | 'keys';
 
 export default function AdminPage() {
-  const [tab,      setTab]      = useState<AdminTab>('alerts');
+  const [tab,      setTab]      = useState<AdminTab>('analytics');
   const [stats,    setStats]    = useState<Stats | null>(null);
   const [statsErr, setStatsErr] = useState('');
   const [staleDays, setStaleDays] = useState(60);
+
+  // ?tab=customers (e.g. "Edit society" on a society dashboard) opens that tab.
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get('tab');
+    if (t === 'analytics' || t === 'blog' || t === 'customers' || t === 'keys') setTab(t);
+  }, []);
 
   useEffect(() => {
     fetch('/api/admin/stats')
@@ -1144,10 +1015,10 @@ export default function AdminPage() {
         {/* Tab bar */}
         <div className="flex gap-1 mb-8 border-b border-slate-800">
           {([
-            { id: 'alerts',    label: 'Alerts' },
             { id: 'analytics', label: 'Analytics' },
             { id: 'blog',      label: 'Blog' },
             { id: 'customers', label: 'Societies' },
+            { id: 'keys',      label: 'Access Keys' },
           ] as { id: AdminTab; label: string }[]).map(t => (
             <button
               key={t.id}
@@ -1164,8 +1035,6 @@ export default function AdminPage() {
         </div>
 
         {/* Tab content */}
-        {tab === 'alerts' && <AlertsTab />}
-
         {tab === 'analytics' && (
           statsErr ? (
             <p className="text-red-400 text-sm">{statsErr}</p>
@@ -1181,6 +1050,7 @@ export default function AdminPage() {
         {tab === 'blog' && <BlogTab />}
 
         {tab === 'customers' && <CustomersTab />}
+        {tab === 'keys'      && <AccessKeysTab />}
 
         <div className="text-center mt-10">
           <Link href="/" className="text-xs text-slate-600 hover:text-slate-400 transition-colors">

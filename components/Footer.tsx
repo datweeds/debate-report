@@ -6,27 +6,6 @@ import { NvLogo } from './NvLogo';
 import { useAuth } from './AuthProvider';
 import FooterModals, { type FooterModal } from './FooterModals';
 
-// sysAdminOnly items are hidden from the footer for everyone else — new.vote's
-// debate/vote pages are open to the public, but Proposals/Laws/Principles and
-// the Utilities links (Poll, Elect, Share Task) are not yet.
-const SERVICES = [
-  { label: 'Law Monitor',  href: '/scotparl/bills',             sysAdminOnly: true },
-  { label: 'Proposals',    href: '/scotparl/proposals',         sysAdminOnly: true },
-  { label: 'Principles',   href: '/scotparl/principles',        sysAdminOnly: true },
-  { label: 'Debate',       href: '/chamber' },
-  { label: 'Vote',         href: '/chamber' },
-  { label: 'Poll',         href: 'https://vote.new.vote/poll',  external: true, sysAdminOnly: true },
-  { label: 'Elect',        href: 'https://vote.new.vote/elect', external: true, sysAdminOnly: true },
-  { label: 'Share Task',   href: 'https://tasks.debate.report', external: true, sysAdminOnly: true },
-];
-
-const SOCIETY = [
-  { label: 'Laws',           href: '/scotparl/bills',       sysAdminOnly: true },
-  { label: 'Proposals',      href: '/scotparl/proposals',   sysAdminOnly: true },
-  { label: 'Principles',     href: '/scotparl/principles',  sysAdminOnly: true },
-  { label: 'Debate & Vote',  href: '/chamber' },
-];
-
 function FooterLink({ href, external, children }: { href: string; external?: boolean; children: React.ReactNode }) {
   const cls = 'text-sm text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1';
   if (external) {
@@ -48,14 +27,14 @@ export default function Footer() {
 
   return (
     <>
-      <footer className="border-t border-blue-900/15 bg-[#04060b] text-slate-400">
+      <footer className="dr-pin-main border-t border-blue-900/15 bg-[#04060b] text-slate-400">
         <div className="mx-auto max-w-7xl px-4 sm:px-8 py-12">
 
-          {/* 4-column grid */}
-          <div className="grid grid-cols-2 gap-8 sm:grid-cols-4">
+          {/* Brand + Company/Legal */}
+          <div className="grid grid-cols-1 gap-8 sm:grid-cols-[1fr_auto]">
 
             {/* Brand */}
-            <div className="col-span-2 sm:col-span-1">
+            <div className="max-w-xs">
               <Link href="/" className="flex items-center gap-2 mb-4">
                 <NvLogo className="w-8 h-8" />
                 <span className="font-bold text-slate-100 text-base">
@@ -67,46 +46,16 @@ export default function Footer() {
               </p>
             </div>
 
-            {/* Services */}
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-slate-600 mb-3">Services</p>
-              <ul className="space-y-2">
-                {SERVICES.filter(s => !s.sysAdminOnly || user?.isSysAdmin).map(s => (
-                  <li key={s.label}>
-                    <FooterLink href={s.href} external={s.external}>{s.label}</FooterLink>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Society */}
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-slate-600 mb-3">Society</p>
-              <ul className="space-y-2">
-                {SOCIETY.filter(s => !s.sysAdminOnly || user?.isSysAdmin).map(s => (
-                  <li key={s.label}>
-                    <FooterLink href={s.href}>{s.label}</FooterLink>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Company / Legal */}
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-slate-600 mb-3">Company</p>
-              <ul className="space-y-2">
-                <li><button onClick={() => setModal('about')}   className="text-sm text-slate-500 hover:text-slate-300 transition-colors text-left">About</button></li>
-                <li><button onClick={() => setModal('contact')} className="text-sm text-slate-500 hover:text-slate-300 transition-colors text-left">Contact</button></li>
-                <li><FooterLink href="https://debate.support" external>Help</FooterLink></li>
-                <li><Link href="/blog" className="text-sm text-slate-500 hover:text-slate-300 transition-colors">Blog</Link></li>
-                <li><Link href="/support" className="text-sm text-slate-500 hover:text-slate-300 transition-colors">Support &amp; Investors</Link></li>
-              </ul>
-              <p className="text-xs font-semibold uppercase tracking-widest text-slate-600 mt-6 mb-3">Legal</p>
-              <ul className="space-y-2">
-                <li><button onClick={() => setModal('terms')}   className="text-sm text-slate-500 hover:text-slate-300 transition-colors text-left">Terms &amp; Conditions</button></li>
-                <li><button onClick={() => setModal('privacy')} className="text-sm text-slate-500 hover:text-slate-300 transition-colors text-left">Privacy Policy</button></li>
-              </ul>
-            </div>
+            {/* Company / Legal — one horizontal row */}
+            <ul className="flex flex-wrap items-center gap-x-6 gap-y-2 sm:justify-end sm:self-center">
+              <li><button onClick={() => setModal('about')}   className="text-sm text-slate-500 hover:text-slate-300 transition-colors">About</button></li>
+              <li><button onClick={() => setModal('contact')} className="text-sm text-slate-500 hover:text-slate-300 transition-colors">Contact</button></li>
+              <li><FooterLink href="https://debate.support" external>Help</FooterLink></li>
+              <li><Link href="/blog" className="text-sm text-slate-500 hover:text-slate-300 transition-colors">Newsletter</Link></li>
+              <li><Link href="/support" className="text-sm text-slate-500 hover:text-slate-300 transition-colors">Support &amp; Investors</Link></li>
+              <li><button onClick={() => setModal('terms')}   className="text-sm text-slate-500 hover:text-slate-300 transition-colors">Terms &amp; Conditions</button></li>
+              <li><button onClick={() => setModal('privacy')} className="text-sm text-slate-500 hover:text-slate-300 transition-colors">Privacy Policy</button></li>
+            </ul>
 
           </div>
 

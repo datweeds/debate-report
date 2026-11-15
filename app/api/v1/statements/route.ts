@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getPartyFromRequest, resolveOrCreateExternalAuthor } from '@/lib/apiParties';
+import { getPartyFromRequest, resolveOrCreateExternalAuthor, partyDebateAccess, PRIVATE_DEBATE_ERROR } from '@/lib/apiParties';
 import { createStatement } from '@/lib/statements';
+import { statementWarnings } from '@/lib/quality/report';
 
 // POST /api/v1/statements — create a statement (claim, warrant, evidence, etc.)
 // on behalf of one of this party's external users. Body:
@@ -22,6 +23,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
 
+  // Checked before the author is created, so a refused call doesn't use up a user slot
+  if (await partyDebateAccess(party.id, body.resolution_id) === 'forbidden') {
+    return NextResponse.json({ error: PRIVATE_DEBATE_ERROR }, { status: 403 });
+  }
+
   const author = await resolveOrCreateExternalAuthor(party, body.external_user_id, body.author_name);
   if (!author.ok) return NextResponse.json({ error: author.error }, { status: author.status });
 
@@ -36,5 +42,7 @@ export async function POST(req: NextRequest) {
   });
 
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
-  return NextResponse.json(result.data, { status: 201 });
+  // Advisory quality checks (same rules as the Debate Quality Report); never block the write
+  const warnings = await statementWarnings(body.resolution_id, (result.data as { statement: { id: string } }).statement.id).catch(() => []);
+  return NextResponse.json({ ...result.data, warnings }, { status: 201 });
 }

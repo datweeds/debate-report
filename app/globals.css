@@ -57,7 +57,26 @@
     background-color: rgba(59, 130, 246, 0.3);
     color: #f1f5f9;
   }
+
+  /* Blue scrollbars everywhere, instead of the browser's default grey */
+  * {
+    scrollbar-color: rgba(59, 130, 246, 0.55) transparent;
+    scrollbar-width: thin;
+  }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background-color: rgba(59, 130, 246, 0.55);
+    border-radius: 6px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover { background-color: rgba(59, 130, 246, 0.8); }
 }
+
+[data-theme="light"] * { scrollbar-color: rgba(37, 99, 235, 0.45) transparent; }
+[data-theme="light"] ::-webkit-scrollbar-thumb { background-color: rgba(37, 99, 235, 0.45); }
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background-color: rgba(37, 99, 235, 0.7); }
 
 /* ── Light mode overrides ─────────────────────────────────── */
 [data-theme="light"] body            { background-color: #f0f4ff; color: #334155; }
@@ -71,9 +90,15 @@
 [data-theme="light"] .bg-dr-base     { background-color: #f0f4ff; }
 [data-theme="light"] .bg-dr-card     { background-color: #ffffff; }
 [data-theme="light"] .bg-dr-surface  { background-color: #e8eeff; }
+[data-theme="light"] .text-slate-100 { color: #0f172a; }
+[data-theme="light"] .text-slate-200 { color: #1e293b; }
 [data-theme="light"] .text-slate-300 { color: #334155; }
 [data-theme="light"] .text-slate-400 { color: #64748b; }
 [data-theme="light"] .text-slate-500 { color: #475569; }
+[data-theme="light"] .hover\:text-slate-100:hover,
+[data-theme="light"] .hover\:text-slate-200:hover,
+[data-theme="light"] .hover\:text-slate-300:hover { color: #0f172a; }
+[data-theme="light"] .placeholder-slate-600::placeholder { color: #94a3b8; }
 [data-theme="light"] .hover\:text-blue-300:hover { color: #1d4ed8; }
 [data-theme="light"] footer          { background-color: #0f172a; border-color: rgba(59,130,246,0.1); }
 [data-theme="light"] .nav-drawer     { background-color: #ffffff; border-color: rgba(59,130,246,0.15); }
@@ -82,6 +107,7 @@
 /* Light mode: blue interactive text */
 [data-theme="light"] .text-blue-400  { color: #2563eb; }
 [data-theme="light"] .text-blue-300  { color: #1d4ed8; }
+[data-theme="light"] :is(.text-blue-300\/70, .text-blue-300\/80, .text-blue-200\/80) { color: rgba(29,78,216,0.85); }
 
 /* Light mode: gold stays readable — amber-700 (#b45309) has 4.5:1 on white */
 [data-theme="light"] .text-amber-400 { color: #b45309; }
@@ -125,6 +151,99 @@
 [data-theme="light"] .glow-blue    { box-shadow: 0 0 20px rgba(59,130,246,0.1), 0 0 40px rgba(6,182,212,0.04); }
 [data-theme="light"] .glow-gold    { box-shadow: 0 0 20px rgba(245,158,11,0.1), 0 0 40px rgba(251,191,36,0.04); }
 [data-theme="light"] .glow-emerald { box-shadow: 0 0 20px rgba(16,185,129,0.1), 0 0 40px rgba(52,211,153,0.04); }
+
+/* ── Light mode: surfaces ─────────────────────────────────────
+   Components hard-code dark fills (hex and slate classes). In light mode,
+   repaint them light: page-level near-blacks become the page tone, panels and
+   cards become white, slate greys become light greys (keeping their alpha).
+   The footer and the home hero (.dr-dark) stay dark — see "dark islands". */
+[data-theme="light"] :is([class^="bg-[#0"], [class*=" bg-[#0"], [class^="bg-[#1"], [class*=" bg-[#1"]):not(footer, footer *, .dr-dark, .dr-dark *) { background-color: #ffffff; }
+[data-theme="light"] :is([class*="bg-[#080d1a]"], [class*="bg-[#080c1a]"], [class*="bg-[#050a15]"], [class*="bg-[#04060b]"], [class*="bg-[#0a1020]"]):not(footer, footer *, .dr-dark, .dr-dark *) { background-color: #f0f4ff; }
+[data-theme="light"] :is([class^="bg-slate-9"], [class*=" bg-slate-9"], [class^="bg-slate-8"], [class*=" bg-slate-8"]):not(footer *, .dr-dark *) { background-color: rgba(148,163,184,0.12); }
+[data-theme="light"] :is([class^="bg-slate-7"], [class*=" bg-slate-7"], [class^="bg-slate-6"], [class*=" bg-slate-6"]):not(footer *, .dr-dark *) { background-color: rgba(148,163,184,0.22); }
+[data-theme="light"] :is(.bg-slate-900, .bg-slate-950):not(footer *, .dr-dark *) { background-color: #f8fafc; }
+[data-theme="light"] .bg-slate-800:not(footer *, .dr-dark *) { background-color: #f1f5f9; }
+[data-theme="light"] .bg-slate-700:not(footer *, .dr-dark *) { background-color: #e2e8f0; }
+[data-theme="light"] .bg-slate-600:not(footer *, .dr-dark *) { background-color: #cbd5e1; }
+[data-theme="light"] [class*="hover:bg-slate-"]:hover:not(footer *, .dr-dark *) { background-color: rgba(148,163,184,0.2); }
+/* Graph node tints (For / Against / evidence group) */
+[data-theme="light"] .bg-\[\#071810\]  { background-color: #f0fdf4; }
+[data-theme="light"] .bg-\[\#180a0a\]  { background-color: #fef2f2; }
+[data-theme="light"] .bg-emerald-950\/40 { background-color: #ecfdf5; }
+[data-theme="light"] :is(.bg-emerald-900\/50, .hover\:bg-emerald-900\/40:hover) { background-color: #d1fae5; }
+/* White text sitting on a fill that just turned light */
+[data-theme="light"] :is([class^="bg-[#0"], [class*=" bg-[#0"], [class^="bg-[#1"], [class*=" bg-[#1"], [class^="bg-slate-"], [class*=" bg-slate-"]).text-white:not(footer *, .dr-dark *) { color: #0f172a; }
+/* Borders */
+[data-theme="light"] .border-slate-800 { border-color: #e2e8f0; }
+[data-theme="light"] .border-slate-600 { border-color: #94a3b8; }
+[data-theme="light"] :is(.border-slate-800\/40, .border-slate-800\/50, .border-slate-800\/60, .border-slate-800\/80, .border-slate-700\/50, .border-slate-700\/60, .border-slate-700\/80) { border-color: #e2e8f0; }
+/* Pastel accent text (200/300) and light 400s → readable on white */
+[data-theme="light"] :is(.text-rose-200, .text-rose-300)       { color: #be123c; }
+[data-theme="light"] :is(.text-red-200, .text-red-300)         { color: #b91c1c; }
+[data-theme="light"] :is(.text-blue-200)                       { color: #1d4ed8; }
+[data-theme="light"] :is(.text-amber-200)                      { color: #b45309; }
+[data-theme="light"] :is(.text-emerald-200, .text-emerald-300) { color: #047857; }
+[data-theme="light"] :is(.text-green-200, .text-green-300)     { color: #15803d; }
+[data-theme="light"] :is(.text-violet-200, .text-violet-300)   { color: #6d28d9; }
+[data-theme="light"] :is(.text-sky-200, .text-sky-300)         { color: #0369a1; }
+[data-theme="light"] :is(.text-orange-200, .text-orange-300)   { color: #c2410c; }
+[data-theme="light"] :is(.text-fuchsia-200, .text-fuchsia-300) { color: #a21caf; }
+[data-theme="light"] :is(.text-teal-200, .text-teal-300)       { color: #0f766e; }
+[data-theme="light"] :is(.text-cyan-200, .text-cyan-300)       { color: #0e7490; }
+[data-theme="light"] :is(.text-purple-200, .text-purple-300)   { color: #7e22ce; }
+[data-theme="light"] :is(.text-indigo-200, .text-indigo-300)   { color: #4338ca; }
+[data-theme="light"] :is(.text-yellow-200, .text-yellow-300)   { color: #a16207; }
+[data-theme="light"] .text-rose-400    { color: #e11d48; }
+[data-theme="light"] .text-red-400     { color: #dc2626; }
+[data-theme="light"] .text-violet-400  { color: #7c3aed; }
+[data-theme="light"] .text-sky-400     { color: #0284c7; }
+[data-theme="light"] .text-orange-400  { color: #ea580c; }
+[data-theme="light"] .text-teal-400    { color: #0d9488; }
+[data-theme="light"] .text-fuchsia-400 { color: #c026d3; }
+[data-theme="light"] .text-yellow-400  { color: #ca8a04; }
+/* React Flow chrome (graph styles it inline with !important) */
+[data-theme="light"] .react-flow__controls-button { background: #ffffff !important; border-color: #cbd5e1 !important; fill: #475569 !important; }
+[data-theme="light"] .react-flow__controls-button:hover { background: #f1f5f9 !important; fill: #0f172a !important; }
+
+/* ── Light mode: dark islands ─────────────────────────────────
+   The footer and the home hero (.dr-dark) keep their dark design in light
+   mode. Inside them, the light-mode text overrides above would put dark text
+   on a dark surface, so restore the dark-mode palette there. Matches the
+   island itself and anything inside it. */
+[data-theme="light"] :is(footer, .dr-dark) {
+  color: #e2e8f0;
+}
+[data-theme="light"] :is(footer, .dr-dark) :is(h1, h2, h3, h4),
+[data-theme="light"] :is(footer, .dr-dark) :is(.text-slate-100, .hover\:text-slate-100:hover),
+[data-theme="light"] :is(footer, .dr-dark):is(.text-slate-100) { color: #f1f5f9; }
+[data-theme="light"] :is(footer, .dr-dark) :is(.text-slate-200, .hover\:text-slate-200:hover),
+[data-theme="light"] :is(footer, .dr-dark):is(.text-slate-200) { color: #e2e8f0; }
+[data-theme="light"] :is(footer, .dr-dark) :is(.text-slate-300, .text-slate-400, .text-slate-500, .hover\:text-slate-300:hover),
+[data-theme="light"] :is(footer, .dr-dark):is(.text-slate-300, .text-slate-400, .text-slate-500) { color: #cbd5e1; }
+[data-theme="light"] :is(footer, .dr-dark) .text-slate-600 { color: #94a3b8; }
+[data-theme="light"] :is(footer, .dr-dark) .text-blue-400 { color: #60a5fa; }
+[data-theme="light"] :is(footer, .dr-dark) :is(.text-blue-300, .hover\:text-blue-300:hover) { color: #93c5fd; }
+[data-theme="light"] :is(footer, .dr-dark) .text-amber-400 { color: #fbbf24; }
+[data-theme="light"] :is(footer, .dr-dark) .text-amber-300 { color: #fcd34d; }
+[data-theme="light"] :is(footer, .dr-dark) .text-emerald-400 { color: #34d399; }
+[data-theme="light"] :is(footer, .dr-dark) .border-slate-700 { border-color: #334155; }
+[data-theme="light"] :is(footer, .dr-dark) .bg-blue-500\/10 { background-color: rgba(59,130,246,0.1); }
+[data-theme="light"] :is(footer, .dr-dark) .bg-amber-500\/10 { background-color: rgba(245,158,11,0.1); }
+[data-theme="light"] :is(footer, .dr-dark) .text-gradient-blue {
+  background: linear-gradient(135deg, #60a5fa, #06b6d4);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+[data-theme="light"] :is(footer, .dr-dark) .text-gradient-gold {
+  background: linear-gradient(135deg, #fbbf24, #d97706);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+[data-theme="light"] :is(footer, .dr-dark) .text-gradient-emerald {
+  background: linear-gradient(135deg, #34d399, #10b981);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
 
 /* ── Utility classes ──────────────────────────────────────── */
 @layer utilities {
@@ -192,4 +311,21 @@
   .prose-dr li  { margin-bottom: 0.4rem; }
   .prose-dr a   { color: #60a5fa; text-decoration: underline; text-underline-offset: 3px; }
   .prose-dr strong { color: #e2e8f0; font-weight: 600; }
+}
+
+/* ── Pinned nav menu (desktop) ───────────────────────────────
+   <html data-menu-pinned> docks the drawer open below the header and shifts
+   the page right by its width (18rem). Fixed full-width panels (the Chamber)
+   opt in with .dr-pin-shift. Ignored below the sm breakpoint. */
+@media (min-width: 640px) {
+  [data-menu-pinned] .nav-drawer {
+    transform: none;
+    --tw-translate-x: 0;
+    top: 4rem;
+    height: calc(100% - 4rem);
+    z-index: 30;
+  }
+  [data-menu-pinned] .nav-drawer-head { display: none; }
+  [data-menu-pinned] .dr-pin-main { margin-left: 18rem; }
+  [data-menu-pinned] .dr-pin-shift { left: 18rem; }
 }
