@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
@@ -95,9 +96,11 @@ export default function InvitationsPage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-100">Invitations</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Invitations to Invite-visibility debates — yours to respond to, and (for Society Admins) ones you&apos;ve sent.
+          Invitations you&apos;ve been sent, and the ones you&apos;ve sent as a Moderator: Society invite links and invitations to Invite-only debates.
         </p>
       </div>
+
+      <SocietyInviteLinks />
 
       {error && <p className="text-sm text-red-400">{error}</p>}
 
@@ -178,6 +181,30 @@ export default function InvitationsPage() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+// Active Society invite links this Moderator can share (created in Manage Societies).
+function SocietyInviteLinks() {
+  const [rows, setRows] = useState<{ id: string; customer_id: number; society_name: string; label: string | null; created_at: string; expires_at: string | null; use_count: number }[]>([]);
+  useEffect(() => {
+    fetch('/api/manage/inbox').then(r => r.ok ? r.json() : null).then(d => setRows(d?.invites ?? [])).catch(() => {});
+  }, []);
+  if (!rows.length) return null;
+  const fmt = (d: string) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  return (
+    <div>
+      <h2 className="text-sm font-semibold text-slate-300 mb-3">Society invite links you&apos;ve sent</h2>
+      <ul className="space-y-2">
+        {rows.map(i => (
+          <li key={i.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-slate-800 bg-[#0c1322] px-4 py-3 text-xs">
+            <Link href={`/dashboard/societies?society=${i.customer_id}`} className="text-sm text-slate-200 hover:text-blue-300">{i.society_name}</Link>
+            <span className="text-slate-400">{i.label || 'Invite link'}</span>
+            <span className="text-slate-500">used {i.use_count}× · {i.expires_at ? `expires ${fmt(i.expires_at)}` : 'no expiry'}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

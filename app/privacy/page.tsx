@@ -27,10 +27,46 @@ export default function PrivacyPage() {
             <span className="text-slate-300">Privacy Policy</span>
           </div>
           <h1 className="text-4xl font-bold text-slate-100">Privacy Policy</h1>
-          <p className="mt-2 text-slate-500 text-sm">Last updated: July 2026</p>
+          <p className="mt-2 text-slate-500 text-sm">Last updated: November 2026</p>
         </div>
 
         <div className="space-y-6">
+
+          <Section title="Your privacy at a glance">
+            <p>
+              <span className="text-slate-200 font-medium">You don&apos;t need to give us personal details.</span>{' '}
+              Register with just a username — it can be anonymous. An email address is optional, and only used for
+              the newsletter if you choose to give one.
+            </p>
+            <p>
+              <span className="text-slate-200 font-medium">There are no passwords.</span>{' '}
+              You sign in with a passkey: its private key is created on your own device and never leaves it. We store
+              only the matching public key, which can&apos;t be used to sign in as you. Your one-time recovery code is
+              shown to you once; we keep only a scrambled (one-way) copy that we can&apos;t read back.
+            </p>
+            <p>
+              <span className="text-slate-200 font-medium">Some content isn&apos;t encrypted on our server yet.</span>{' '}
+              Debates, chat, votes, comments and uploaded documents are encrypted while travelling to and from us
+              (HTTPS), but stored on our server without encryption. Encrypting stored content is planned. Until then,
+              if a document is highly sensitive, encrypt it before uploading and give the key to its readers separately.
+            </p>
+            <p>
+              <span className="text-slate-200 font-medium">Private means private from the public, not from platform administrators.</span>{' '}
+              Private Societies and debates are visible only to their members and moderators. Platform administrators
+              can access any content in order to remove abuse.
+            </p>
+            <p>
+              <span className="text-slate-200 font-medium">What our servers record.</span>{' '}
+              Our web server logs visitors&apos; IP addresses and the pages requested, for security. These logs are
+              deleted after 14 days.
+            </p>
+            <p>
+              <span className="text-slate-200 font-medium">Who else handles data.</span>{' '}
+              AI features (quality reports, analysis, the argument assistant) send the relevant debate text to
+              Anthropic to process. Emails (the contact form and newsletter) are delivered by Postmark. Automatic
+              abuse scanning runs on our own server.
+            </p>
+          </Section>
 
           <Section title="1. Who We Are">
             <p>
@@ -107,12 +143,13 @@ export default function PrivacyPage() {
 
           <Section title="6. Cookies and Local Storage">
             <p>
-              We use a session cookie (<code className="rounded bg-slate-800 px-1 py-0.5 text-xs font-mono text-blue-300">dr_session</code>) to
-              maintain your authenticated session. This is a strictly necessary cookie and does not require consent.
+              We use only strictly necessary cookies, which don&apos;t require consent: one keeps you signed in,
+              one remembers which Society you&apos;re in, one holds a guest access key if you were sent a review link,
+              and a short-lived one protects passkey sign-in.
             </p>
             <p>
-              We also use <code className="rounded bg-slate-800 px-1 py-0.5 text-xs font-mono text-blue-300">localStorage</code> to
-              remember your theme preference (light/dark). No tracking or advertising cookies are used.
+              We also use your browser&apos;s local storage for display preferences, such as light or dark theme and
+              which menu sections are open. No tracking or advertising cookies are used.
             </p>
           </Section>
 

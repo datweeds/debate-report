@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import SocietyImageField from '@/components/societies/SocietyImageField';
+import PrincipleForm, { CATEGORY_META, type PrincipleFields } from '@/components/principles/PrincipleForm';
 import Link from 'next/link';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -981,7 +982,129 @@ function AccessKeysTab() {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-type AdminTab = 'analytics' | 'blog' | 'customers' | 'keys';
+type AdminTab = 'analytics' | 'blog' | 'customers' | 'keys' | 'moderators' | 'library';
+
+// ── Principles library ───────────────────────────────────────────────────────
+// The general-purpose principles Moderators can copy into their Societies.
+type LibraryPrinciple = PrincipleFields & { id: string };
+
+function PrinciplesLibraryTab() {
+  const [rows, setRows] = useState<LibraryPrinciple[] | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
+  const load = useCallback(async () => {
+    const r = await fetch('/api/principle-library');
+    setRows(r.ok ? (await r.json()).principles : []);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  async function send(url: string, method: string, body?: unknown): Promise<string | null> {
+    const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    if (!r.ok) return (await r.json().catch(() => ({}))).error ?? 'Something went wrong';
+    load();
+    return null;
+  }
+
+  if (rows === null) return <div className="h-24 rounded-xl bg-slate-800/40 animate-pulse" />;
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-slate-400">A starting set Moderators can copy into their Societies. Societies keep their own copies, so changes here don&apos;t alter principles already copied.</p>
+        <button onClick={() => setAdding(true)} className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-500">+ Add principle</button>
+      </div>
+      {adding && <PrincipleForm saveLabel="Add to library" onCancel={() => setAdding(false)}
+        onSave={async v => { const err = await send('/api/admin/principle-library', 'POST', v); if (!err) setAdding(false); return err; }} />}
+      <ol className="space-y-2">
+        {rows.map((p, i) => (
+          <li key={p.id} className="rounded-xl border border-slate-800 bg-[#0c1322] p-4">
+            {editing === p.id ? (
+              <PrincipleForm initial={p} onCancel={() => setEditing(null)}
+                onSave={async v => { const err = await send(`/api/admin/principle-library/${p.id}`, 'PATCH', v); if (!err) setEditing(null); return err; }} />
+            ) : (
+              <div className="flex items-start gap-3">
+                <span className="w-6 text-right text-sm font-bold text-slate-500">{i + 1}.</span>
+                <div className="min-w-0 flex-1">
+                  <span className={`mr-2 rounded border px-1.5 py-0.5 text-[10px] font-semibold ${CATEGORY_META[p.category].cls}`}>{CATEGORY_META[p.category].label}</span>
+                  <span className="text-sm font-semibold text-slate-100">{p.title}</span>
+                  <p className="mt-1 text-sm text-slate-300">{p.body}</p>
+                  {p.grounding && <p className="mt-1 text-xs text-slate-500">Why: {p.grounding}</p>}
+                </div>
+                <div className="flex flex-col items-end gap-1 text-xs">
+                  <button onClick={() => setEditing(p.id)} className="text-slate-400 hover:text-slate-200">Edit</button>
+                  <button onClick={() => { if (confirm(`Delete "${p.title}" from the library?`)) send(`/api/admin/principle-library/${p.id}`, 'DELETE'); }} className="text-rose-400 hover:text-rose-300">Delete</button>
+                </div>
+              </div>
+            )}
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+// ── Moderator requests ───────────────────────────────────────────────────────
+// Moderator is the paid role; until billing launches, users request it here.
+type ModRequest = {
+  id: string; status: 'pending' | 'approved' | 'rejected'; message: string | null;
+  created_at: string; decided_at: string | null;
+  user_handle: string; user_full_name: string | null; user_tier: string;
+};
+
+function ModeratorRequestsTab() {
+  const [rows, setRows] = useState<ModRequest[] | null>(null);
+  const load = useCallback(async () => {
+    const r = await fetch('/api/admin/moderator-requests');
+    setRows(r.ok ? (await r.json()).requests : []);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  async function decide(id: string, action: 'approve' | 'reject') {
+    await fetch('/api/admin/moderator-requests', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, action }),
+    });
+    load();
+  }
+
+  if (rows === null) return <div className="h-24 rounded-xl bg-slate-800/40 animate-pulse" />;
+  const pending = rows.filter(r => r.status === 'pending');
+  const decided = rows.filter(r => r.status !== 'pending');
+  const when = (d: string) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  return (
+    <div className="space-y-6">
+      <p className="text-sm text-slate-400">People asking to become Moderators. Approving gives them Moderator tools at once (billing isn&apos;t live yet).</p>
+      {pending.length === 0 ? (
+        <p className="rounded-xl border border-slate-800 bg-[#0c1322] p-6 text-center text-sm text-slate-500">No pending requests.</p>
+      ) : (
+        <ul className="space-y-3">
+          {pending.map(r => (
+            <li key={r.id} className="rounded-xl border border-slate-800 bg-[#0c1322] p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm text-slate-200">{r.user_full_name || `@${r.user_handle}`} <span className="text-xs text-slate-500">· @{r.user_handle} · {r.user_tier} · asked {when(r.created_at)}</span></p>
+                  {r.message && <p className="mt-1 text-xs text-slate-400 whitespace-pre-line">{r.message}</p>}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => decide(r.id, 'approve')} className="rounded-lg bg-emerald-600/80 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-500">Approve</button>
+                  <button onClick={() => decide(r.id, 'reject')} className="rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-400 hover:text-slate-200">Decline</button>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {decided.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-slate-600 mb-2">Recent decisions</p>
+          <ul className="space-y-1 text-xs text-slate-500">
+            {decided.map(r => (
+              <li key={r.id}>@{r.user_handle}: {r.status === 'approved' ? 'approved' : 'declined'} {r.decided_at ? when(r.decided_at) : ''}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function AdminPage() {
   const [tab,      setTab]      = useState<AdminTab>('analytics');
@@ -992,7 +1115,7 @@ export default function AdminPage() {
   // ?tab=customers (e.g. "Edit society" on a society dashboard) opens that tab.
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get('tab');
-    if (t === 'analytics' || t === 'blog' || t === 'customers' || t === 'keys') setTab(t);
+    if (t === 'analytics' || t === 'blog' || t === 'customers' || t === 'keys' || t === 'moderators' || t === 'library') setTab(t);
   }, []);
 
   useEffect(() => {
@@ -1019,6 +1142,8 @@ export default function AdminPage() {
             { id: 'blog',      label: 'Blog' },
             { id: 'customers', label: 'Societies' },
             { id: 'keys',      label: 'Access Keys' },
+            { id: 'moderators', label: 'Moderators' },
+            { id: 'library',    label: 'Principles library' },
           ] as { id: AdminTab; label: string }[]).map(t => (
             <button
               key={t.id}
@@ -1051,6 +1176,8 @@ export default function AdminPage() {
 
         {tab === 'customers' && <CustomersTab />}
         {tab === 'keys'      && <AccessKeysTab />}
+        {tab === 'moderators' && <ModeratorRequestsTab />}
+        {tab === 'library'    && <PrinciplesLibraryTab />}
 
         <div className="text-center mt-10">
           <Link href="/" className="text-xs text-slate-600 hover:text-slate-400 transition-colors">

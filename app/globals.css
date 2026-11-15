@@ -329,3 +329,9 @@
   [data-menu-pinned] .dr-pin-main { margin-left: 18rem; }
   [data-menu-pinned] .dr-pin-shift { left: 18rem; }
 }
+
+/* Printing a report: just the page content, no site chrome */
+@media print {
+  header, footer, .nav-drawer, nav.sm\:hidden { display: none !important; }
+  .dr-pin-main { margin-left: 0 !important; padding-top: 0 !important; }
+}

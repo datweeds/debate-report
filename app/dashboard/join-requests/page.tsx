@@ -212,24 +212,49 @@ function RequestCard({
   );
 }
 
-// Pending requests to join the Societies this user moderates; decided in Manage Societies.
+// Requests to join the Societies this user moderates, decided right here.
+type SocietyRequest = {
+  id: string; customer_id: number; society_name: string; message: string | null;
+  created_at: string; user_handle: string | null; user_full_name: string | null;
+};
+
 function SocietyRequests() {
-  const [rows, setRows] = useState<{ id: number; name: string; pending_requests: number }[]>([]);
-  useEffect(() => {
-    fetch('/api/manage/societies').then(r => r.ok ? r.json() : null)
-      .then(d => setRows((d?.societies ?? []).filter((s: { pending_requests: number }) => s.pending_requests > 0)))
-      .catch(() => {});
+  const [rows, setRows] = useState<SocietyRequest[]>([]);
+  const load = useCallback(() => {
+    fetch('/api/manage/inbox').then(r => r.ok ? r.json() : null)
+      .then(d => setRows(d?.requests ?? [])).catch(() => {});
   }, []);
+  useEffect(() => { load(); }, [load]);
+
+  async function decide(r: SocietyRequest, action: 'approve' | 'reject') {
+    await fetch(`/api/manage/societies/${r.customer_id}/requests`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: r.id, action }),
+    });
+    load();
+  }
+
   if (!rows.length) return null;
   return (
-    <div className="mb-8 rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4">
-      <p className="text-sm font-semibold text-amber-300 mb-2">Requests to join your Societies</p>
-      <ul className="space-y-1">
-        {rows.map(s => (
-          <li key={s.id} className="text-sm">
-            <Link href={`/dashboard/societies?society=${s.id}`} className="text-slate-200 hover:text-blue-300">
-              {s.name}: {s.pending_requests} pending →
-            </Link>
+    <div className="mb-8">
+      <h2 className="text-sm font-semibold text-slate-300 mb-3">Requests to join your Societies</h2>
+      <ul className="space-y-3">
+        {rows.map(r => (
+          <li key={r.id} className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm text-slate-200">
+                  {r.user_full_name || `@${r.user_handle ?? 'unknown'}`}
+                  <span className="text-xs text-slate-500"> wants to join </span>
+                  <Link href={`/dashboard/societies?society=${r.customer_id}`} className="text-sm text-blue-300 hover:underline">{r.society_name}</Link>
+                </p>
+                {r.message && <p className="mt-1 text-xs text-slate-400 whitespace-pre-line">{r.message}</p>}
+                <p className="mt-1 text-[11px] text-slate-600">{new Date(r.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => decide(r, 'approve')} className="rounded-lg bg-emerald-600/80 px-3 py-1 text-xs font-semibold text-white hover:bg-emerald-500">Approve</button>
+                <button onClick={() => decide(r, 'reject')} className="rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-400 hover:text-slate-200">Decline</button>
+              </div>
+            </div>
           </li>
         ))}
       </ul>

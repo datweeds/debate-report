@@ -519,7 +519,8 @@ function ChamberInner() {
   }, []);
 
   const canArgue   = user?.tier === 'debater' || user?.tier === 'moderator';
-  const canAnalyse = user?.plan === 'paid' || !!user?.isSysAdmin;
+  // Formerly paid-plan only; Voters and above get it now that those tiers are free
+  const canAnalyse = ['voter', 'debater', 'moderator'].includes(user?.tier ?? '');
   // can_set_visibility = the viewer moderates this debate's Society
   const canPurgeRetracted = !!data?.resolution.can_set_visibility;
 

@@ -6,12 +6,15 @@ import Link from 'next/link';
 import { startRegistration, browserSupportsWebAuthn } from '@simplewebauthn/browser';
 import { useAuth } from '@/components/AuthProvider';
 
-const TIER_INFO: Record<string, { label: string; monthly: number; annual: number; color: string }> = {
-  follower:  { label: 'Follower',  monthly: 0,    annual: 0,    color: 'text-slate-300' },
-  voter:     { label: 'Voter',     monthly: 2,    annual: 1.50, color: 'text-blue-300' },
-  debater:   { label: 'Debater',   monthly: 4,    annual: 3,    color: 'text-amber-300' },
-  moderator: { label: 'Moderator', monthly: 9,    annual: 6.75, color: 'text-emerald-300' },
+// Voter and Debater are free; only Moderator is paid. (Earlier prices kept in
+// comments in case paid Voter/Debater tiers return: Voter £2, Debater £4.)
+const TIER_INFO: Record<string, { label: string; monthly: number; annual: number; color: string; desc: string }> = {
+  follower:  { label: 'Follower',  monthly: 0, annual: 0,    color: 'text-slate-300',   desc: 'Read debates and follow Societies' },
+  voter:     { label: 'Voter',     monthly: 0, annual: 0,    color: 'text-blue-300',    desc: 'Vote and comment' },
+  debater:   { label: 'Debater',   monthly: 0, annual: 0,    color: 'text-amber-300',   desc: 'Write statements and arguments' },
+  moderator: { label: 'Moderator', monthly: 9, annual: 6.75, color: 'text-emerald-300', desc: 'Run Societies and their debates' },
 };
+const FREE_TIERS = ['follower', 'voter', 'debater'];
 
 const BIO_MAX = 200;
 
@@ -432,34 +435,39 @@ export default function ProfilePage() {
         {/* ── Plan ─────────────────────────────────────── */}
         <Section title="Your plan">
           <form onSubmit={saveTier} className="space-y-4">
-            <div className="grid grid-cols-2 gap-2">
-              {(Object.entries(TIER_INFO) as [string, typeof TIER_INFO[string]][]).map(([id, info]) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => setTier(id)}
-                  className={`rounded-lg border px-3 py-3 text-left transition-colors ${
-                    tier === id
-                      ? 'border-blue-500 bg-blue-500/10'
-                      : 'border-slate-700 hover:border-slate-600'
-                  }`}
-                >
-                  <p className={`text-sm font-medium ${info.color}`}>{info.label}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {info.monthly === 0 ? 'Free' : `£${info.monthly}/mo · £${info.annual}/mo annual`}
-                  </p>
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-slate-600">
-              Payment is not collected yet —{' '}
-              <Link href="/pricing" className="text-blue-500 hover:text-blue-400 underline underline-offset-2">
-                see full plan details
-              </Link>
-            </p>
-            {tierError && <p className="text-xs text-red-400">{tierError}</p>}
-            <SaveButton loading={tierSaving} saved={tierSaved} />
+            {profile.user_tier === 'moderator' ? (
+              <p className="text-sm text-slate-300">
+                You&apos;re a <span className="font-semibold text-emerald-300">Moderator</span>: you can create and run Societies.
+              </p>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {FREE_TIERS.map(id => {
+                    const info = TIER_INFO[id];
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => setTier(id)}
+                        className={`rounded-lg border px-3 py-3 text-left transition-colors ${
+                          tier === id ? 'border-blue-500 bg-blue-500/10' : 'border-slate-700 hover:border-slate-600'
+                        }`}
+                      >
+                        <p className={`text-sm font-medium ${info.color}`}>{info.label} · Free</p>
+                        <p className="text-xs text-slate-500 mt-0.5">{info.desc}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+                {tierError && <p className="text-xs text-red-400">{tierError}</p>}
+                <SaveButton loading={tierSaving} saved={tierSaved} />
+              </>
+            )}
           </form>
+          {profile.user_tier !== 'moderator' && <ModeratorRequest />}
+          <p className="mt-4 text-xs text-slate-600">
+            <Link href="/pricing" className="text-blue-500 hover:text-blue-400 underline underline-offset-2">What each plan includes</Link>
+          </p>
         </Section>
 
         {/* ── Security / Passkeys ───────────────────────── */}
@@ -511,6 +519,51 @@ export default function ProfilePage() {
         </Section>
 
       </div>
+    </div>
+  );
+}
+
+// Moderator is the paid role; while billing isn't live, it's requested and a
+// SysAdmin approves it.
+function ModeratorRequest() {
+  const [status, setStatus] = useState<'loading' | 'none' | 'pending' | 'rejected' | 'open' | 'sending'>('loading');
+  const [message, setMessage] = useState('');
+  useEffect(() => {
+    fetch('/api/user/moderator-request').then(r => r.ok ? r.json() : null)
+      .then(d => setStatus(d?.request?.status === 'pending' ? 'pending' : d?.request?.status === 'rejected' ? 'rejected' : 'none'))
+      .catch(() => setStatus('none'));
+  }, []);
+  async function send() {
+    setStatus('sending');
+    const r = await fetch('/api/user/moderator-request', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message }),
+    });
+    setStatus(r.ok ? 'pending' : 'open');
+  }
+  if (status === 'loading') return null;
+  return (
+    <div className="mt-5 rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-4">
+      <p className="text-sm font-semibold text-emerald-300">Moderator · £9/month <span className="font-normal text-slate-400">(free while in preview)</span></p>
+      <p className="text-xs text-slate-400 mt-1">Create and run your own public and private Societies: debates, votes, discussions, documents, events, projects and principles.</p>
+      {status === 'pending' ? (
+        <p className="mt-3 text-xs text-amber-300">Your request is with the platform team. You&apos;ll get Moderator tools as soon as it&apos;s approved.</p>
+      ) : status === 'open' || status === 'sending' ? (
+        <div className="mt-3 space-y-2">
+          <textarea value={message} onChange={e => setMessage(e.target.value)} rows={3} maxLength={1000}
+            placeholder="Optional: what Society would you like to run?"
+            className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 placeholder-slate-600" />
+          <button onClick={send} disabled={status === 'sending'} className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50">
+            {status === 'sending' ? 'Sending…' : 'Send request'}
+          </button>
+        </div>
+      ) : (
+        <>
+          {status === 'rejected' && <p className="mt-2 text-xs text-slate-500">Your last request wasn&apos;t approved. You can ask again.</p>}
+          <button onClick={() => setStatus('open')} className="mt-3 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500">
+            Request Moderator access
+          </button>
+        </>
+      )}
     </div>
   );
 }

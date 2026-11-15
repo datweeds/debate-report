@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useTheme } from './ThemeProvider';
 import { useAuth } from './AuthProvider';
 import { NvLogo } from './NvLogo';
+import { SOCIETY_SECTIONS, societySectionHref } from './societies/SocietyTabs';
 
 export const TOPICS = [
   { label: 'Culture, Identity & Social Issues', slug: 'culture' },
@@ -120,6 +121,72 @@ function NavLink({
     return <a href={href} target="_blank" rel="noopener noreferrer" onClick={onClick} className={cls}>{content}</a>;
   }
   return <Link href={href} onClick={onClick} className={cls} data-active={isActive ? 'true' : undefined}>{content}</Link>;
+}
+
+// One Society in the menu. Its name opens the Society; the chevron shows its
+// sections (Debate & Vote, Discussions, Documents, …). Societies the visitor
+// can't enter yet (Apply, not a member) have no sections, just the teaser.
+function SocietyNavItem({ society, isCurrent, defaultOpen, switching, onEnter, onNavigate, pathname, icon }: {
+  society: SocietyOption; isCurrent: boolean; defaultOpen: boolean; switching: boolean;
+  onEnter: (id: number) => void; onNavigate: () => void; pathname: string; icon: React.ReactNode;
+}) {
+  const canEnter = society.visibility === 'public' || !!society.isMember;
+  const [open, setOpen] = useState(defaultOpen);
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(`dr_nav_soc_${society.id}`);
+      setOpen(v === '1' ? true : v === '0' ? false : defaultOpen);
+    } catch { setOpen(defaultOpen); }
+  }, [society.id, defaultOpen]);
+  function toggle() {
+    setOpen(o => {
+      try { localStorage.setItem(`dr_nav_soc_${society.id}`, o ? '0' : '1'); } catch {}
+      return !o;
+    });
+  }
+  return (
+    <div>
+      <div className={`flex items-center rounded-lg transition-colors ${isCurrent ? 'bg-blue-500/15' : 'hover:bg-blue-500/10'}`}>
+        <button
+          onClick={() => onEnter(society.id)}
+          disabled={switching}
+          className={`flex flex-1 min-w-0 items-center gap-3 px-3 py-1.5 text-sm text-left ${isCurrent ? 'text-blue-300 font-medium' : 'text-slate-300 hover:text-blue-300'}`}
+        >
+          <span className={`flex-shrink-0 ${isCurrent ? 'text-blue-400' : 'text-slate-500'}`}>{icon}</span>
+          <span className="flex-1 truncate">{society.name}</span>
+          {!canEnter && <span className="rounded border border-slate-600 px-1 text-[10px] text-slate-400">Apply</span>}
+          {switching && <span className="text-slate-600">…</span>}
+        </button>
+        {canEnter && (
+          <button onClick={toggle} aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} ${society.name} sections`}
+            className="px-2 py-1.5 text-slate-500 hover:text-slate-300">
+            <svg className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m19 9-7 7-7-7" />
+            </svg>
+          </button>
+        )}
+      </div>
+      {canEnter && open && (
+        <div className="ml-5 mt-0.5 mb-1 space-y-0.5 border-l border-blue-900/20 pl-3">
+          {SOCIETY_SECTIONS.map(sec => {
+            const href = societySectionHref(society.id, sec.slug);
+            const active = sec.slug ? pathname.startsWith(`/society/${society.id}/${sec.slug}`) : false;
+            return sec.slug ? (
+              <Link key={sec.label} href={href} onClick={onNavigate}
+                className={`block rounded px-2 py-1 text-xs transition-colors ${active ? 'bg-blue-500/15 text-blue-300' : 'text-slate-400 hover:bg-blue-500/10 hover:text-blue-300'}`}>
+                {sec.label}
+              </Link>
+            ) : (
+              <button key={sec.label} onClick={() => onEnter(society.id)}
+                className="block w-full text-left rounded px-2 py-1 text-xs text-slate-400 hover:bg-blue-500/10 hover:text-blue-300">
+                {sec.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -501,51 +568,41 @@ export default function Header() {
 
           <NavDivider />
 
-          {/* ── PUBLIC / PRIVATE SOCIETIES — the "rooms" this visitor can switch into ── */}
-          {societies && societies.public.length > 0 && (
-            <>
-              <NavLabel>Public Societies</NavLabel>
-              {societies.public.map(s => (
-                <button
-                  key={s.id}
-                  onClick={() => switchSociety(s.id)}
-                  disabled={switching === s.id}
-                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors text-left ${
-                    societies.current?.id === s.id ? 'bg-blue-500/15 text-blue-300 font-medium' : 'text-slate-300 hover:bg-blue-500/10 hover:text-blue-300'
-                  }`}
-                >
-                  <span className={`flex-shrink-0 ${societies.current?.id === s.id ? 'text-blue-400' : 'text-slate-500'}`}>{icons.forums}</span>
-                  <span className="flex-1">{s.name}</span>
-                  {societies.current?.id === s.id && <span className="text-[10px] font-bold uppercase text-blue-400">Current</span>}
-                  {switching === s.id && <span className="text-slate-600">…</span>}
-                </button>
-              ))}
-            </>
-          )}
-
-          {societies && societies.private.length > 0 && (
-            <>
-              <NavLabel>Private Societies</NavLabel>
-              {societies.private.map(s => (
-                <button
-                  key={s.id}
-                  onClick={() => switchSociety(s.id)}
-                  disabled={switching === s.id}
-                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors text-left ${
-                    societies.current?.id === s.id ? 'bg-blue-500/15 text-blue-300 font-medium' : 'text-slate-300 hover:bg-blue-500/10 hover:text-blue-300'
-                  }`}
-                >
-                  <span className={`flex-shrink-0 ${societies.current?.id === s.id ? 'text-blue-400' : 'text-slate-500'}`}>{icons.settings}</span>
-                  <span className="flex-1">{s.name}</span>
-                  {!s.isMember && s.visibility === 'apply' && (
-                    <span className="rounded border border-slate-600 px-1 text-[10px] text-slate-400">Apply</span>
-                  )}
-                  {societies.current?.id === s.id && <span className="text-[10px] font-bold uppercase text-blue-400">Current</span>}
-                  {switching === s.id && <span className="text-slate-600">…</span>}
-                </button>
-              ))}
-            </>
-          )}
+          {/* ── PUBLIC / PRIVATE SOCIETIES — public first. Sections open by
+               default when the visitor belongs to exactly one Society. ── */}
+          {societies && (() => {
+            const all = [...societies.public, ...societies.private];
+            const associated = all.filter(x => x.isMember).length;
+            const item = (x: SocietyOption, icon: React.ReactNode) => (
+              <SocietyNavItem
+                key={x.id}
+                society={x}
+                isCurrent={societies.current?.id === x.id}
+                defaultOpen={associated === 1 && !!x.isMember}
+                switching={switching === x.id}
+                onEnter={id => { close(); switchSociety(id); }}
+                onNavigate={close}
+                pathname={pathname}
+                icon={icon}
+              />
+            );
+            return (
+              <>
+                {societies.public.length > 0 && (
+                  <>
+                    <NavLabel>Public Societies</NavLabel>
+                    {societies.public.map(x => item(x, icons.forums))}
+                  </>
+                )}
+                {societies.private.length > 0 && (
+                  <>
+                    <NavLabel>Private Societies</NavLabel>
+                    {societies.private.map(x => item(x, icons.settings))}
+                  </>
+                )}
+              </>
+            );
+          })()}
 
           <NavDivider />
 

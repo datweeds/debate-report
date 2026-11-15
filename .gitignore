@@ -42,3 +42,6 @@ next-env.d.ts
 
 # Files uploaded through the site at runtime (debate and Society images)
 public/uploads/
+
+# Society documents uploaded at runtime (served through an access check)
+storage/

@@ -93,3 +93,33 @@ export async function moderatedSociety(req: NextRequest, params: Promise<{ id: s
   if (!session || isNaN(id) || !await isSocietyModerator(session, id)) return null;
   return { session, id };
 }
+
+// Who may read, contribute to and moderate a Society's content areas
+// (Discussions, Documents, …). Contributing: anyone logged in for a public
+// Society, members only for a private one.
+export type SocietyContentAccess = {
+  session: SessionPayload | null;
+  societyId: number;
+  canRead: boolean;      // anyone who can enter the Society
+  canPost: boolean;      // logged in; members only in a private Society
+  canModerate: boolean;  // the Society's moderators: pin, lock, delete any post
+  canTakeDown: boolean;  // moderators, plus SysAdmin as the platform backstop
+  isMember: boolean;     // a member or moderator of this Society
+};
+
+export async function societyContentAccess(req: NextRequest, rawId: string): Promise<SocietyContentAccess | null> {
+  const societyId = parseInt(rawId, 10);
+  if (isNaN(societyId)) return null;
+  const session = await getSessionFromRequest(req);
+  const access = await getSocietyAccess(session, societyId);
+  if (!access || !access.canEnter) return null;
+  const inside = access.isMember || access.isModerator;
+  return {
+    session, societyId,
+    canRead: true,
+    canPost: !!session && (access.visibility === 'public' || inside),
+    canModerate: access.isModerator,
+    canTakeDown: access.isModerator || !!session?.isSysAdmin,
+    isMember: inside,
+  };
+}

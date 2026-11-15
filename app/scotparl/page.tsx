@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import JoinSocietyButton from '@/components/societies/JoinSocietyButton';
+import SocietyTabs from '@/components/societies/SocietyTabs';
 import { getSocietyAccess } from '@/lib/societies';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
@@ -418,6 +419,7 @@ export default async function ScotparlPage({
           <h1 className="text-3xl sm:text-4xl font-bold text-slate-100 mt-2">{activeSociety.name}</h1>
           {hero_text && <p className="text-lg text-slate-300 mt-2 max-w-3xl leading-relaxed">{hero_text}</p>}
           <p className="text-slate-500 mt-2 text-xs uppercase tracking-wider font-semibold">{visibilityLabel}</p>
+          <SocietyTabs societyId={activeSociety.id} />
         </div>
 
         {/* Left: metrics + debates. Right: image, then description. */}

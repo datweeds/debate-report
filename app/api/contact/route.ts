@@ -3,7 +3,9 @@ import pool from '@/lib/db';
 import { sendContactNotification } from '@/lib/postmark';
 
 export async function POST(req: NextRequest) {
-  const { name, email, subject, message, website } = await req.json();
+  const body = await req.json().catch(() => null);
+  if (!body || typeof body !== 'object') return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+  const { name, email, subject, message, website } = body;
 
   if (website) return NextResponse.json({ ok: true }, { status: 201 }); // honeypot — silent reject
 
