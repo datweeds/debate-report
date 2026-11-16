@@ -75,6 +75,14 @@ export const SCAN_TARGETS: ScanTarget[] = [
     type: 'principle_review', label: 'Principle review request', table: 'society_principle_reviews', column: 'request_text', idColumn: 'id',
     from: 'society_principle_reviews t', society: 't.customer_id', author: 't.user_id', href: society('t.customer_id', '/principles'),
   },
+  {
+    type: 'news_title', label: 'News edition title', table: 'society_news', column: 'title', idColumn: 'customer_id',
+    from: 'society_news t', society: 't.customer_id', author: 't.updated_by', href: society('t.customer_id', '/news/settings'),
+  },
+  ...([['heading', 'heading'], ['phrases', 'search phrases']] as const).map(([c, l]) => ({
+    type: `news_section_${c}`, label: `News section ${l}`, table: 'society_news_sections', column: c, idColumn: 'id',
+    from: 'society_news_sections t', society: 't.customer_id', author: 't.created_by', href: society('t.customer_id', '/news/settings'),
+  })),
   ...(['name', 'description'] as const).map(c => ({
     type: `project_${c}`, label: `Project ${c}`, table: 'projects', column: c, idColumn: 'id',
     from: 'projects t', where: 't.deleted_at IS NULL',

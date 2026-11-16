@@ -2,13 +2,11 @@
 // evidence fit, relevance, fallacies, redundancy) that deterministic rules
 // can't. Server-only.
 
-import Anthropic from '@anthropic-ai/sdk';
 import crypto from 'crypto';
 import pool from '@/lib/db';
+import { aiComplete } from '@/lib/ai/gateway';
+import { parseJson } from '@/lib/ai/providers';
 import type { Category, Finding, QDebate, Severity } from './rules';
-
-// First model that the API key accepts is used.
-const MODELS = ['claude-sonnet-5-5', 'claude-sonnet-5'];
 
 const AI_CATEGORIES = ['logic', 'fallacy', 'relevance', 'evidence', 'duplication', 'clarity', 'balance'] as const;
 
@@ -52,33 +50,18 @@ Severity:
 
 Every finding must be actionable: say exactly what the moderator should change, in which statement. Report at most 30 findings, most important first. Use statement references exactly as given; use null for a finding about the debate as a whole. Write in plain British English.`;
 
-const TOOL: Anthropic.Tool = {
-  name: 'report_findings',
-  description: 'Return the debate quality findings.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      summary: { type: 'string', description: 'Two or three sentences: overall quality of reasoning and the most important things to fix.' },
-      findings: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            previous_key:   { type: ['string', 'null'], description: 'Key of the matching previous finding if this is the same issue still present, otherwise null' },
-            ref:            { type: ['string', 'null'], description: 'Statement reference, e.g. "CF2", or null for the whole debate' },
-            severity:       { type: 'string', enum: ['critical', 'major', 'minor', 'suggestion'] },
-            category:       { type: 'string', enum: [...AI_CATEGORIES] },
-            fallacy:        { type: ['string', 'null'], description: 'Exact fallacy name from the list, when category is fallacy' },
-            observation:    { type: 'string', description: 'What is wrong, specifically' },
-            recommendation: { type: 'string', description: 'What the moderator should change' },
-          },
-          required: ['ref', 'severity', 'category', 'observation', 'recommendation'],
-        },
-      },
-    },
-    required: ['summary', 'findings'],
-  },
-};
+// The reply format: plain JSON, so any provider the Society chooses can answer
+const OUTPUT = `Reply with a single JSON object and nothing else:
+{"summary": "Two or three sentences: overall quality of reasoning and the most important things to fix.",
+ "findings": [{
+   "previous_key": "key of the matching previous finding if this is the same issue still present, otherwise null",
+   "ref": "statement reference such as CF2, or null for the whole debate",
+   "severity": "critical | major | minor | suggestion",
+   "category": "${AI_CATEGORIES.join(' | ')}",
+   "fallacy": "exact fallacy name from the list when category is fallacy, otherwise null",
+   "observation": "what is wrong, specifically",
+   "recommendation": "what the moderator should change"
+ }]}`;
 
 // The debate as indented text, in tree order, with references and parents.
 function serialise(debate: QDebate): string {
@@ -112,7 +95,8 @@ function serialise(debate: QDebate): string {
   return lines.join('\n');
 }
 
-export async function aiReview(debate: QDebate, dismissed: string[], previous: PreviousFinding[] = []): Promise<AiResult> {
+export async function aiReview(debate: QDebate, dismissed: string[], previous: PreviousFinding[] = [],
+  societyId: number | null = null): Promise<AiResult> {
   const { rows: fallacies } = await pool.query(
     'SELECT fallacy_name, fallacy_type, fallacy_description FROM fallacies ORDER BY fallacy_type DESC, fallacy_name',
   );
@@ -127,39 +111,17 @@ export async function aiReview(debate: QDebate, dismissed: string[], previous: P
       ? `<previous_findings>\nOpen findings from the last review of this debate. For each one, check the current debate: if the issue is still present, report it again with previous_key set to its key (you may improve the wording); if it has been fixed, leave it out. Then add any further issues. Be consistent with the previous review: don't re-judge unchanged statements differently without reason.\n${previous.map(p => `- key=${p.key} · ${p.ref ?? 'whole debate'} · ${p.observation}`).join('\n')}\n</previous_findings>`
       : '',
     `<debate>\n${serialise(debate)}\n</debate>`,
-    'Review the debate and call report_findings.',
+    'Review the debate and reply with the JSON object.',
   ].filter(Boolean).join('\n\n');
 
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  let lastErr: unknown;
-  for (const model of MODELS) {
-    try {
-      const msg = await client.messages.create({
-        model,
-        max_tokens: 16000,
-        system: RUBRIC,
-        tools: [TOOL],
-        // Forcing a specific tool isn't supported by every model; the prompt asks for it
-        tool_choice: { type: 'auto' },
-        messages: [{ role: 'user', content: prompt }],
-      });
-      const block = msg.content.find(b => b.type === 'tool_use');
-      let input: unknown = block?.type === 'tool_use' ? block.input : null;
-      if (!input) {
-        // Fallback: the same JSON written as text
-        const text = msg.content.map(b => (b.type === 'text' ? b.text : '')).join('');
-        const json = text.match(/\{[\s\S]*\}/);
-        if (json) input = JSON.parse(json[0]);
-      }
-      if (!input) throw new Error('No findings returned');
-      return { model, ...toFindings(input, debate, new Set(fallacies.map(f => f.fallacy_name)), new Set(previous.map(p => p.key))) };
-    } catch (err) {
-      lastErr = err;
-      // Unknown model → try the next one; anything else is a real failure
-      if ((err as { status?: number }).status !== 404) break;
-    }
-  }
-  throw lastErr;
+  // Runs on the Society's chosen AI provider (or the platform's); throws
+  // AiUnavailable when AI is off or over budget, so only the rule checks run
+  const out = await aiComplete({
+    task: 'debate.quality_review', tier: 'standard', societyId,
+    system: `${RUBRIC}\n\n${OUTPUT}`, user: prompt, maxTokens: 16000,
+  });
+  const input = parseJson(out.text);
+  return { model: out.model, ...toFindings(input, debate, new Set(fallacies.map(f => f.fallacy_name)), new Set(previous.map(p => p.key))) };
 }
 
 type RawFinding = {

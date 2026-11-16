@@ -4,7 +4,7 @@
 import pool from './db';
 import { listableResolutionSql } from './debateAccess';
 
-export const SECTIONS = ['debates', 'discussions', 'documents', 'events', 'projects', 'principles'] as const;
+export const SECTIONS = ['debates', 'news', 'discussions', 'documents', 'events', 'projects', 'principles'] as const;
 export type Section = typeof SECTIONS[number];
 export type Counts = Record<Section, number>;
 
@@ -21,6 +21,10 @@ const QUERIES: Record<Section, string> = {
       AND s.retracted_at IS NULL AND s.created_by IS DISTINCT FROM $1
       AND s.created_at > ${since('debates', 'r.customer_id')}
       AND ${listableResolutionSql('r', '$1::text')}
+    GROUP BY 1`,
+  news: `
+    SELECT e.customer_id AS cid, COUNT(*)::int AS n FROM society_news_editions e
+    WHERE e.customer_id = ANY($2::int[]) AND e.created_at > ${since('news', 'e.customer_id')}
     GROUP BY 1`,
   discussions: `
     SELECT t.customer_id AS cid, COUNT(p.id)::int AS n

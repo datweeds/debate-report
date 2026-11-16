@@ -5,6 +5,7 @@ import type { SessionPayload } from '@/lib/auth';
 import { isSocietyModerator } from '@/lib/roles';
 import { runRules, qualityScore, checkDraft, type Finding, type QDebate } from './rules';
 import { aiReview } from './ai';
+import { AiUnavailable } from '@/lib/ai/gateway';
 
 export type DebateRow = { id: string; stat_title: string; stat_description: string | null; customer_id: number | null };
 
@@ -88,11 +89,16 @@ async function executeReport(reportId: string, res: DebateRow) {
         debate,
         dismissedRows.map(d => d.observation).filter(Boolean),
         previous.filter(p => !dismissed.has(p.key)),
+        res.customer_id,
       );
       aiFindings = ai.findings; aiModel = ai.model; aiSummary = ai.summary;
     } catch (err) {
-      console.error('quality AI review failed:', err);
-      aiError = 'The AI review could not be completed; the rule checks below are still valid.';
+      if (err instanceof AiUnavailable) {
+        aiError = `${err.message} The rule checks below are still valid.`;
+      } else {
+        console.error('quality AI review failed:', err);
+        aiError = 'The AI review could not be completed; the rule checks below are still valid.';
+      }
     }
 
     const all = [

@@ -5,6 +5,7 @@ import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import SocietyImageField from '@/components/societies/SocietyImageField';
+import SocietyAiCard from '@/components/societies/SocietyAiCard';
 
 type Visibility = 'public' | 'apply' | 'invite';
 
@@ -327,6 +328,8 @@ function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void })
           </div>
         </Card>
       </form>
+
+      <SocietyAiCard societyId={s.id} />
 
       {(s.visibility === 'apply' || data.requests.length > 0) && (
         <Card title={`Requests to join (${data.requests.length})`}>

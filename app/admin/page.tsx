@@ -1,5 +1,6 @@
 'use client';
 
+import AiTab from '@/components/admin/AiTab';
 import { useEffect, useState, useCallback } from 'react';
 import SocietyImageField from '@/components/societies/SocietyImageField';
 import PrincipleForm, { CATEGORY_META, type PrincipleFields } from '@/components/principles/PrincipleForm';
@@ -982,7 +983,7 @@ function AccessKeysTab() {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-type AdminTab = 'analytics' | 'blog' | 'customers' | 'keys' | 'moderators' | 'library' | 'scanning';
+type AdminTab = 'analytics' | 'blog' | 'customers' | 'keys' | 'moderators' | 'library' | 'scanning' | 'ai';
 
 // ── Abuse scanning ───────────────────────────────────────────────────────────
 type ScanRun = { id: string; kind: string; started_at: string; finished_at: string | null; items_scanned: number; alerts_raised: number; error: string | null; started_by: string | null };
@@ -1198,7 +1199,7 @@ export default function AdminPage() {
   // ?tab=customers (e.g. "Edit society" on a society dashboard) opens that tab.
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get('tab');
-    if (t === 'analytics' || t === 'blog' || t === 'customers' || t === 'keys' || t === 'moderators' || t === 'library' || t === 'scanning') setTab(t);
+    if (t === 'analytics' || t === 'blog' || t === 'customers' || t === 'keys' || t === 'moderators' || t === 'library' || t === 'scanning' || t === 'ai') setTab(t);
   }, []);
 
   useEffect(() => {
@@ -1228,6 +1229,7 @@ export default function AdminPage() {
             { id: 'moderators', label: 'Moderators' },
             { id: 'library',    label: 'Principles library' },
             { id: 'scanning',   label: 'Scanning' },
+            { id: 'ai',         label: 'AI' },
           ] as { id: AdminTab; label: string }[]).map(t => (
             <button
               key={t.id}
@@ -1263,6 +1265,7 @@ export default function AdminPage() {
         {tab === 'moderators' && <ModeratorRequestsTab />}
         {tab === 'library'    && <PrinciplesLibraryTab />}
         {tab === 'scanning'   && <ScanningTab />}
+        {tab === 'ai'         && <AiTab />}
 
         <div className="text-center mt-10">
           <Link href="/" className="text-xs text-slate-600 hover:text-slate-400 transition-colors">

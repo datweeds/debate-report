@@ -36,6 +36,15 @@ export default function ThreadList({ societyId }: { societyId: number }) {
   }, [societyId]);
   useEffect(() => { load(); }, [load]);
 
+  // ?new=1&title=…&body=… opens the form prefilled (e.g. "Discuss" on a News story)
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get('new') !== '1') return;
+    setComposing(true);
+    setTitle((q.get('title') ?? '').slice(0, 200));
+    setBody(q.get('body') ?? '');
+  }, []);
+
   function insertEmoji(e: string) {
     const el = bodyRef.current;
     if (!el) { setBody(b => b + e); return; }

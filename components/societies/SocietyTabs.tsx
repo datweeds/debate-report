@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 
 export const SOCIETY_SECTIONS = [
   { slug: '',            label: 'Debate & Vote' },
+  { slug: 'news',        label: 'News' },
   { slug: 'discussions', label: 'Discussions' },
   { slug: 'documents',   label: 'Documents' },
   { slug: 'events',      label: 'Events' },

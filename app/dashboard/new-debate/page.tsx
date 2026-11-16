@@ -40,10 +40,19 @@ export default function NewDebatePage() {
   // The Societies this moderator can create debates in
   useEffect(() => {
     fetch('/api/me/roles').then(r => r.ok ? r.json() : null).then(d => {
-      const list = d?.moderatedSocieties ?? [];
+      const list: { id: number; name: string }[] = d?.moderatedSocieties ?? [];
       setSocieties(list);
-      if (list.length) setSocietyId(list[0].id);
+      const wanted = Number(new URLSearchParams(window.location.search).get('society'));
+      if (list.length) setSocietyId(list.some(s => s.id === wanted) ? wanted : list[0].id);
     }).catch(() => {});
+  }, []);
+
+  // Prefilled from elsewhere, e.g. "Start a debate" on a News story
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const t = q.get('title'), d = q.get('description');
+    if (t) setTitle(t.slice(0, TITLE_MAX));
+    if (d) setDescription(d.slice(0, DESC_MAX));
   }, []);
   const fileRef = useRef<HTMLInputElement>(null);
 
