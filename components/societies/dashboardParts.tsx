@@ -6,6 +6,7 @@ import pool, { pq } from '@/lib/db';
 import DebatesMetricButton from '@/components/scotparl/DebatesMetricButton';
 import { STAT_LABEL } from '@/components/chamber/constants';
 import { listableResolutionSql } from '@/lib/debateAccess';
+import { openDeep } from '@/lib/societyCrypto';
 
 const LOZENGE_TYPES = ['framework', 'claim', 'impact', 'rebuttal', 'warrant', 'evidence', 'turn'] as const;
 export type LozengeCounts = Record<typeof LOZENGE_TYPES[number], number>;
@@ -130,7 +131,7 @@ export async function getSocietyDebates(customerId: number, userId: string | nul
        ORDER BY s.created_at DESC`,
       isSysAdmin ? [customerId] : [customerId, userId]
     );
-    return rows;
+    return openDeep(rows);
   } catch (err) {
     console.error('[getSocietyDebates]', err);
     return [];
@@ -193,3 +194,35 @@ export function SocietySection({
   );
 }
 
+
+// One Society's debate totals, counting only the debates this viewer may see
+// (so a private debate's size isn't revealed to visitors). Also how many
+// debates exist that the viewer can't see.
+export async function getVisibleSocietyTotals(customerId: number, userId: string | null, sysAdminSeesAll: boolean) {
+  const visible = sysAdminSeesAll ? 'TRUE' : listableResolutionSql('res', '$2::text');
+  const params = [customerId, userId];
+  const metrics = emptyMetrics();
+  const lozenges = emptyLozenges();
+  let hidden = 0;
+  try {
+    const [{ rows: [d] }, { rows: [v] }, { rows: l }] = await Promise.all([
+      pool.query(
+        // (for logged-out visitors the visibility test is NULL, not false: count hidden as total minus visible)
+        `SELECT count(*) FILTER (WHERE COALESCE((${visible}), false))::int AS visible, (count(*) - count(*) FILTER (WHERE COALESCE((${visible}), false)))::int AS hidden
+         FROM statements res WHERE res.stat_type = 'resolution' AND res.customer_id = $1 AND res.stat_hidden IS NOT TRUE
+           AND COALESCE($2::text, '') = COALESCE($2::text, '')`, params),
+      pool.query(
+        `SELECT count(*)::int AS n FROM stat_votes sv JOIN statements st ON st.id = sv.statement_id
+         JOIN statements res ON res.id = COALESCE(st.resolution_id, st.id)
+         WHERE res.customer_id = $1 AND ${visible} AND COALESCE($2::text, '') = COALESCE($2::text, '')`, params),
+      pool.query(
+        `SELECT s.stat_type, count(*)::int AS n FROM statements s JOIN statements res ON res.id = s.resolution_id
+         WHERE s.stat_type IN ('framework','claim','warrant','evidence','impact','rebuttal','turn') AND s.retracted_at IS NULL
+           AND res.stat_status = 'active' AND res.customer_id = $1 AND ${visible} AND COALESCE($2::text, '') = COALESCE($2::text, '')
+         GROUP BY s.stat_type`, params),
+    ]);
+    metrics.debates = d.visible; hidden = d.hidden; metrics.votes = v.n;
+    for (const r of l) if (r.stat_type in lozenges) lozenges[r.stat_type as keyof LozengeCounts] = r.n;
+  } catch (err) { console.error('[getVisibleSocietyTotals]', err); }
+  return { metrics, lozenges, hidden };
+}

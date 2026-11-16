@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { sealDebate } from '@/lib/debateCrypto';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest, { params }: Params) {
          stat_hidden         = $3,
          updated_at          = NOW()
      WHERE id = $4`,
-    [decision, rationale.trim(), Boolean(hidden), id]
+    [decision, await sealDebate(id, rationale.trim()), Boolean(hidden), id]
   );
 
   return NextResponse.json({

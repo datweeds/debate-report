@@ -3,9 +3,10 @@
 import Link from 'next/link';
 import { useState } from 'react';
 
-// "Request to join" for an Apply Society, shown on its teaser page.
-export default function JoinSocietyButton({ societyId, loggedIn, pending }: {
-  societyId: number; loggedIn: boolean; pending: boolean;
+// "Request to join" for an Apply Society, shown on its teaser page; or, with
+// `instant`, "Join this Society" for a public one.
+export default function JoinSocietyButton({ societyId, loggedIn, pending, instant }: {
+  societyId: number; loggedIn: boolean; pending: boolean; instant?: boolean;
 }) {
   const [state, setState] = useState<'idle' | 'open' | 'sending' | 'sent' | 'error'>(pending ? 'sent' : 'idle');
   const [message, setMessage] = useState('');
@@ -20,6 +21,17 @@ export default function JoinSocietyButton({ societyId, loggedIn, pending }: {
   }
   if (state === 'sent') {
     return <p className="text-sm text-emerald-300">Request sent. A moderator will review it.</p>;
+  }
+  if (instant) {
+    return (
+      <button disabled={state === 'sending'} onClick={async () => {
+        setState('sending');
+        const r = await fetch(`/api/societies/${societyId}/join`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        if (r.ok) window.location.reload(); else setState('error');
+      }} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50">
+        {state === 'sending' ? 'Joining…' : state === 'error' ? 'Could not join; try again' : 'Join this Society'}
+      </button>
+    );
   }
 
   async function send() {

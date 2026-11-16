@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { openRows, sealText } from '@/lib/societyCrypto';
 import { isSocietyMember, projectContext, PROJECT_STATUSES, readDate, text, UUID_RE } from '@/lib/projects';
+import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ id: string; pid: string }> };
 
@@ -33,6 +35,10 @@ export async function GET(req: NextRequest, { params }: Params) {
     pool.query('SELECT id, user_handle, user_full_name FROM users WHERE id = $1', [c.project.manager_id]),
   ]);
 
+  const sid = c.a.societyId;
+  await openRows(sid, tasks, ['name', 'description', 'comments']);
+  for (const t of tasks) if (t.latest_report) await openRows(sid, [t.latest_report], ['body']);
+  await openRows(sid, raid, ['name', 'description']);
   return NextResponse.json({
     project: { ...c.project, manager: mgr ?? null },
     tasks, raid,
@@ -43,7 +49,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 
 // PATCH — moderators edit anything (including the PM); the PM edits the
 // description, dates and status.
-export async function PATCH(req: NextRequest, { params }: Params) {
+async function handlePATCH(req: NextRequest, { params }: Params) {
   const { id, pid } = await params;
   const c = await projectContext(req, id, pid);
   if (!c) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -53,14 +59,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const set = (col: string, v: unknown) => { vals.push(v); sets.push(`${col} = $${vals.length}`); };
 
   if (c.a.canModerate) {
-    if ('name' in b) { const n = text(b.name, 200); if (!n) return NextResponse.json({ error: 'A project name is required' }, { status: 400 }); set('name', n); }
+    if ('name' in b) { const n = text(b.name, 200); if (!n) return NextResponse.json({ error: 'A project name is required' }, { status: 400 }); set('name', await sealText(c.a.societyId, n)); }
     if ('managerId' in b) {
       if (b.managerId === null || b.managerId === '') set('manager_id', null);
       else if (typeof b.managerId === 'string' && UUID_RE.test(b.managerId) && await isSocietyMember(c.a.societyId, b.managerId)) set('manager_id', b.managerId);
       else return NextResponse.json({ error: 'The Project Manager must be a member of this Society' }, { status: 400 });
     }
   }
-  if ('description' in b) set('description', text(b.description, 5000));
+  if ('description' in b) set('description', await sealText(c.a.societyId, text(b.description, 5000)));
   if ('status' in b) {
     if (!(PROJECT_STATUSES as readonly string[]).includes(b.status)) return NextResponse.json({ error: 'Unknown status' }, { status: 400 });
     set('status', b.status);
@@ -78,7 +84,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 }
 
 // DELETE — moderators (or SysAdmin as takedown) remove a project.
-export async function DELETE(req: NextRequest, { params }: Params) {
+async function handleDELETE(req: NextRequest, { params }: Params) {
   const { id, pid } = await params;
   const c = await projectContext(req, id, pid);
   if (!c) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -86,3 +92,6 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   await pool.query('UPDATE projects SET deleted_at = now() WHERE id = $1', [pid]);
   return NextResponse.json({ ok: true });
 }
+
+export const PATCH = lockSafe(handlePATCH);
+export const DELETE = lockSafe(handleDELETE);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { getDebateAccess } from '@/lib/debateAccess';
+import { openDeep } from '@/lib/societyCrypto';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -81,5 +82,6 @@ export async function GET(_req: NextRequest, { params }: Params) {
     [id, userId],
   );
 
+  await openDeep(rows);
   return NextResponse.json({ metrics: rows });
 }

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { getDebateAccess } from '@/lib/debateAccess';
+import { openDeep } from '@/lib/societyCrypto';
 
 const SUBJECT_LABELS: Record<string, string> = {
   culture:     'Culture, Identity & Social Issues',
@@ -70,6 +71,7 @@ export default async function DebatePage({
 
   // Same gate as the Chamber — Apply/Invite debates 404 for anyone who can't open them.
   if (!debate || !(await getDebateAccess(await getSession(), debate)).viewable) notFound();
+  await openDeep(debate);
 
   const subjectLabel  = SUBJECT_LABELS[debate.subject_area]  ?? debate.subject_area;
   const subjectColour = SUBJECT_COLOURS[debate.subject_area] ?? 'bg-slate-500/10 text-slate-300 border-slate-600/30';

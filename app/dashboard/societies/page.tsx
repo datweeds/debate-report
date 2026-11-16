@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import SocietyImageField from '@/components/societies/SocietyImageField';
 import SocietyAiCard from '@/components/societies/SocietyAiCard';
+import AccessLogCard from '@/components/societies/AccessLogCard';
 
 type Visibility = 'public' | 'apply' | 'invite';
 
@@ -330,6 +331,8 @@ function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void })
       </form>
 
       <SocietyAiCard societyId={s.id} />
+
+      <AccessLogCard societyId={s.id} visibility={s.visibility} />
 
       {(s.visibility === 'apply' || data.requests.length > 0) && (
         <Card title={`Requests to join (${data.requests.length})`}>

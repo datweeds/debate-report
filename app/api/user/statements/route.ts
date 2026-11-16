@@ -3,6 +3,7 @@ import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { checkDraft } from '@/lib/quality/rules';
 import { getDebate, loadDebate } from '@/lib/quality/report';
+import { openDeep } from '@/lib/societyCrypto';
 
 // GET — the statements this user has written, newest first, each with the
 // same quality warnings shown while writing, so they can go back and fix them.
@@ -25,6 +26,7 @@ export async function GET() {
 
   // Load each debate once and run the statement checks against it
   const warnings = new Map<string, { severity: string; observation: string; recommendation: string }[]>();
+  await openDeep(rows);
   for (const resId of new Set(rows.filter(r => !r.retracted_at).map(r => r.resolution_id as string))) {
     const res = await getDebate(resId);
     if (!res) continue;

@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { connection } from 'next/server';
+import { keyHeldOffline } from '@/lib/masterKey';
 
 export const metadata: Metadata = {
   title: 'Privacy Policy',
@@ -15,7 +17,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export default function PrivacyPage() {
+export default async function PrivacyPage() {
+  await connection();  // where the master key is kept can change: read it per request
+  const keyOffline = keyHeldOffline();
   return (
     <div className="min-h-screen bg-dr-base px-4 py-12 sm:px-6">
       <div className="mx-auto max-w-3xl">
@@ -45,15 +49,20 @@ export default function PrivacyPage() {
               shown to you once; we keep only a scrambled (one-way) copy that we can&apos;t read back.
             </p>
             <p>
-              <span className="text-slate-200 font-medium">Some content isn&apos;t encrypted on our server yet.</span>{' '}
-              Debates, chat, votes, comments and uploaded documents are encrypted while travelling to and from us
-              (HTTPS), but stored on our server without encryption. Encrypting stored content is planned. Until then,
-              if a document is highly sensitive, encrypt it before uploading and give the key to its readers separately.
+              <span className="text-slate-200 font-medium">Private Societies and private debates are encrypted on our server.</span>{' '}
+              A private Society&apos;s debates, discussions, documents, events, projects, principles and flagged content, and
+              Apply and Invite debates in public Societies, are stored encrypted with the Society&apos;s own key
+              {keyOffline
+                ? <>, and the master key that unlocks those keys is never stored on our servers (see Security, below).</>
+                : <>.</>}{' '}
+              Everything else, including public Societies&apos; content, public debates and who voted which way, is
+              encrypted while travelling to and from us (HTTPS) but stored without encryption.
             </p>
             <p>
-              <span className="text-slate-200 font-medium">Private means private from the public, not from platform administrators.</span>{' '}
-              Private Societies and debates are visible only to their members and moderators. Platform administrators
-              can access any content in order to remove abuse.
+              <span className="text-slate-200 font-medium">Private means private from our administrators too.</span>{' '}
+              Private Societies are visible only to their members and moderators. Our administrators have no routine
+              access to them; emergency access is time-limited, needs a reason, and is logged and shown to the Society.
+              In public Societies, administrators can remove content to stop abuse.
             </p>
             <p>
               <span className="text-slate-200 font-medium">What our servers record.</span>{' '}
@@ -174,6 +183,39 @@ export default function PrivacyPage() {
               We implement appropriate technical and organisational measures to protect your personal data,
               including encrypted session tokens, passkey-based authentication, and access controls.
               No method of data transmission is 100% secure; we cannot guarantee absolute security.
+            </p>
+            <p className="mt-3">
+              <strong>Private Societies.</strong> The debates (every argument, chat message, closing statement and
+              quality report), discussions, documents (including uploaded files and folder names), events,
+              projects (with their tasks, status reports and risk logs), principles (with review requests and version notes)
+              and flagged content of a private Society are stored encrypted with that Society&apos;s own key. This protects them in our database,
+              backups and storage; the site decrypts them to show them to the Society&apos;s members. If a Society is deleted,
+              its key is deleted too, and its encrypted content can no longer be read.
+            </p>
+            <p className="mt-3">
+              <strong>Private debates in public Societies.</strong> Debates a public Society sets to Apply or Invite are
+              stored encrypted in the same way, with that Society&apos;s key. Votes are counted openly and are not encrypted.
+            </p>
+            {keyOffline && (
+              <p className="mt-3">
+                <strong>The master key is kept offline.</strong> Each Society&apos;s key is itself encrypted with a master key
+                that is never stored on our servers, in our database or in our backups. It is held offline by new.vote&apos;s
+                operator and supplied by hand each time the service starts, after which it exists only in the running
+                service&apos;s memory. So a copy of our database or backups, a disk removed from the data centre, our hosting
+                provider&apos;s staff, or anyone who seizes our servers while they are switched off, finds only encrypted data
+                that can&apos;t be read. Until the key is supplied after a restart, private Societies are simply locked; nothing
+                is lost.
+              </p>
+            )}
+            <p className="mt-3">
+              Our system administrators have no routine access to a private Society&apos;s content. In an emergency, such as
+              a serious report or a legal requirement, an administrator may open time-limited access, giving a reason. Every
+              such access is logged, shown to the Society&apos;s moderators and emailed to the Society&apos;s contact address.
+            </p>
+            <p className="mt-3">
+              <strong>Calls.</strong> Audio and video calls are encrypted in transit and are never recorded. In rooms a
+              Society marks as end-to-end encrypted, calls are encrypted on your device with a passphrase members share
+              among themselves, so not even we can see or hear them.
             </p>
           </Section>
 

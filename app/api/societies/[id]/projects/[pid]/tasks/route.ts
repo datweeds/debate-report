@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { openRows, sealText } from '@/lib/societyCrypto';
 import { projectContext, readDate, text, TASK_STATUSES, UUID_RE } from '@/lib/projects';
+import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ id: string; pid: string }> };
 
 // POST { name, parentId?, description?, startDate?, endDate?, dueDate?, status?, comments? }
 // — the PM or a moderator adds a task (or a sub-task under parentId).
-export async function POST(req: NextRequest, { params }: Params) {
+async function handlePOST(req: NextRequest, { params }: Params) {
   const { id, pid } = await params;
   const c = await projectContext(req, id, pid);
   if (!c) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -29,7 +31,10 @@ export async function POST(req: NextRequest, { params }: Params) {
      VALUES ($1, $2, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM project_tasks WHERE project_id = $1 AND parent_id IS NOT DISTINCT FROM $2),
              $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING id`,
-    [pid, parent, name, text(b.description, 5000), start, end, due, status, text(b.comments, 5000), c.me],
+    [pid, parent, await sealText(c.a.societyId, name), await sealText(c.a.societyId, text(b.description, 5000)), start, end, due, status,
+     await sealText(c.a.societyId, text(b.comments, 5000)), c.me],
   );
   return NextResponse.json({ id: t.id }, { status: 201 });
 }
+
+export const POST = lockSafe(handlePOST);

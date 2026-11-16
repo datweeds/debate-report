@@ -4,6 +4,8 @@ import path from 'path';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { isSocietyModerator } from '@/lib/roles';
+import { openDeep } from '@/lib/societyCrypto';
+import { sealDebate } from '@/lib/debateCrypto';
 
 
 const VALID_SUBJECTS = new Set([
@@ -32,7 +34,7 @@ async function getDebate(id: string) {
      GROUP  BY s.id, u.user_handle`,
     [id]
   );
-  return rows[0] ?? null;
+  return rows[0] ? openDeep(rows[0]) : null;
 }
 
 export async function GET(_req: NextRequest, { params }: Params) {
@@ -101,10 +103,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
          image_path       = CASE WHEN $6::boolean THEN NULL ELSE image_path END
      WHERE id = $7`,
     [
-      title?.trim() ?? null,
+      await sealDebate(id, title?.trim() ?? null),
       description !== undefined,
-      description?.trim() || null,
-      description?.trim() ?? null,
+      await sealDebate(id, description?.trim() || null),
+      await sealDebate(id, description?.trim() ?? null),
       subjectArea ?? null,
       removeImage === true,
       id,

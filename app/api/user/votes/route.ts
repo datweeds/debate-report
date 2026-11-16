@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { openDeep } from '@/lib/societyCrypto';
 
 export async function GET() {
   const session = await getSession();
@@ -31,5 +32,6 @@ export async function GET() {
     [session.sub],
   );
 
+  await openDeep(rows);
   return NextResponse.json({ votes: rows });
 }

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { sealText } from '@/lib/societyCrypto';
 import { societyContentAccess } from '@/lib/societies';
 import { removeFile } from '@/lib/documents';
+import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ id: string; docId: string }> };
 const UUID = /^[0-9a-f-]{36}$/i;
@@ -16,7 +18,7 @@ async function load(societyId: number, docId: string) {
 }
 
 // PATCH { title?, description?, folderId? } — the uploader or a moderator.
-export async function PATCH(req: NextRequest, { params }: Params) {
+async function handlePATCH(req: NextRequest, { params }: Params) {
   const { id, docId } = await params;
   const a = await societyContentAccess(req, id);
   const doc = a ? await load(a.societyId, docId) : null;
@@ -26,8 +28,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const body = await req.json().catch(() => ({}));
   const sets: string[] = []; const vals: unknown[] = [];
   const set = (c: string, v: unknown) => { vals.push(v); sets.push(`${c} = $${vals.length}`); };
-  if (typeof body.title === 'string' && body.title.trim()) set('title', body.title.trim().slice(0, 200));
-  if (typeof body.description === 'string') set('description', body.description.trim().slice(0, 2000) || null);
+  if (typeof body.title === 'string' && body.title.trim()) set('title', await sealText(a.societyId, body.title.trim().slice(0, 200)));
+  if (typeof body.description === 'string') set('description', await sealText(a.societyId, body.description.trim().slice(0, 2000) || null));
   if ('folderId' in body) {
     if (body.folderId === null || body.folderId === 'root') set('folder_id', null);
     else if (typeof body.folderId === 'string' && UUID.test(body.folderId)) {
@@ -54,3 +56,5 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   await removeFile(a.societyId, doc.stored_name);
   return NextResponse.json({ ok: true });
 }
+
+export const PATCH = lockSafe(handlePATCH);

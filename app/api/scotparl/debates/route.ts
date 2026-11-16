@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSessionFromRequest } from '@/lib/auth';
+import { sealText } from '@/lib/societyCrypto';
 
 const TENANT_ID = process.env.TENANT_ID ?? '1';
 
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
          (stat_type, stat_title, stat_description, subject_area, created_by, customer_id)
        VALUES ('resolution', $1, $2, 'politics', $3::uuid, $4)
        RETURNING id`,
-      [debate_title.trim(), debate_description.trim(), session.sub, parseInt(TENANT_ID, 10)]
+      [await sealText(parseInt(TENANT_ID, 10), debate_title.trim()), await sealText(parseInt(TENANT_ID, 10), debate_description.trim()), session.sub, parseInt(TENANT_ID, 10)]
     );
 
     const gid = group_id ? parseInt(String(group_id), 10) : null;

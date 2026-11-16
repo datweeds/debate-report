@@ -22,7 +22,7 @@ export default function SocietyFrame({ societyId, manage }: { societyId: number;
     const section = SOCIETY_SECTIONS.find(s => isSectionActive(pathname, societyId, s.slug));
     const key = section ? (section.slug || 'debates') : null;
     (async () => {
-      if (key && key !== 'about') {
+      if (key && key !== 'about' && key !== 'meet') {
         await fetch(`/api/societies/${societyId}/seen`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ section: key }) });
       }
       const r = await fetch(`/api/societies/${societyId}/unread`);

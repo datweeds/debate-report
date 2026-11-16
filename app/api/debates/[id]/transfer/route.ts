@@ -3,6 +3,7 @@ import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { moderatedSocietyIds } from '@/lib/roles';
 import { copyDebate, moveDebate } from '@/lib/portability';
+import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -10,7 +11,7 @@ type Params = { params: Promise<{ id: string }> };
 // — a moderator of both Societies moves or copies a debate between them.
 // Everything else (statements, references, links, analyses, fallacy tags)
 // always goes with it; votes and chat are optional.
-export async function POST(req: NextRequest, { params }: Params) {
+async function handlePOST(req: NextRequest, { params }: Params) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
   const { id } = await params;
@@ -46,3 +47,5 @@ export async function POST(req: NextRequest, { params }: Params) {
     client.release();
   }
 }
+
+export const POST = lockSafe(handlePOST);

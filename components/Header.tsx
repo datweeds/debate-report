@@ -427,16 +427,19 @@ export default function Header() {
             const all = societies ? [...societies.public, ...societies.private] : [];
             const viewed = viewedSociety ? all.find(x => x.id === viewedSociety) : null;
             const title = viewed?.name ?? societies?.current?.name;
-            if (!title) return null;
+            const titleId = viewed?.id ?? societies?.current?.id;
+            if (!title || !titleId) return null;
+            // The title links to the Society's About page
             return viewed ? (
-              <Link href={`/society/${viewed.id}`}
+              <Link href={`/society/${titleId}/about`} title={`About ${title}`}
                 className="absolute left-1/2 -translate-x-1/2 max-w-[46%] sm:max-w-[50%] truncate text-center text-base sm:text-2xl font-bold text-slate-100 hover:text-white">
                 {title}
               </Link>
             ) : (
-              <span className="hidden sm:block absolute left-1/2 -translate-x-1/2 text-base font-semibold text-slate-200 select-none pointer-events-none truncate max-w-[40%] text-center">
+              <Link href={`/society/${titleId}/about`} title={`About ${title}`}
+                className="hidden sm:block absolute left-1/2 -translate-x-1/2 text-base font-semibold text-slate-200 hover:text-white truncate max-w-[40%] text-center">
                 {title}
-              </span>
+              </Link>
             );
           })()}
 

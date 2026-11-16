@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSessionFromRequest } from '@/lib/auth';
+import { sealText } from '@/lib/societyCrypto';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -24,7 +25,7 @@ async function createDebate(
          (stat_type, stat_title, stat_description, subject_area, created_by, customer_id)
        VALUES ('resolution', $1, $2, 'politics', $3::uuid, $4)
        RETURNING id`,
-      [title, description, actorId, parseInt(TENANT_ID, 10)]
+      [await sealText(parseInt(TENANT_ID, 10), title), await sealText(parseInt(TENANT_ID, 10), description), actorId, parseInt(TENANT_ID, 10)]
     );
 
     if (entityType === 'bill') {

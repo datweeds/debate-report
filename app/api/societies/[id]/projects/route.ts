@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { openRows, sealText } from '@/lib/societyCrypto';
 import { societyContentAccess } from '@/lib/societies';
 import { isSocietyMember, readDate, text, UUID_RE } from '@/lib/projects';
+import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -25,11 +27,12 @@ export async function GET(req: NextRequest, { params }: Params) {
      ORDER BY (p.status = 'complete'), p.created_at DESC`,
     [a.societyId],
   );
+  await openRows(a.societyId, rows, ['name', 'description']);
   return NextResponse.json({ projects: rows, canCreate: a.canModerate });
 }
 
 // POST { name, description?, managerId?, startDate?, endDate? } — moderators create a project.
-export async function POST(req: NextRequest, { params }: Params) {
+async function handlePOST(req: NextRequest, { params }: Params) {
   const a = await societyContentAccess(req, (await params).id);
   if (!a) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (!a.canModerate) return NextResponse.json({ error: 'Only moderators can create projects' }, { status: 403 });
@@ -46,7 +49,9 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { rows: [p] } = await pool.query(
     `INSERT INTO projects (customer_id, name, description, manager_id, start_date, end_date, created_by)
      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-    [a.societyId, name, text(b.description, 5000), manager, start, end, a.session!.sub],
+    [a.societyId, await sealText(a.societyId, name), await sealText(a.societyId, text(b.description, 5000)), manager, start, end, a.session!.sub],
   );
   return NextResponse.json({ id: p.id }, { status: 201 });
 }
+
+export const POST = lockSafe(handlePOST);

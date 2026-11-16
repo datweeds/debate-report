@@ -3,6 +3,7 @@ import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { getDebateAccess } from '@/lib/debateAccess';
 import { canSetDebateVisibility } from '@/lib/roles';
+import { openDeep } from '@/lib/societyCrypto';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -67,5 +68,6 @@ export async function GET(_req: NextRequest, { params }: Params) {
     [id]
   );
 
+  await openDeep([resolution, statements]);
   return NextResponse.json({ resolution, statements, relationships });
 }

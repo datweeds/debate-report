@@ -1,5 +1,6 @@
 'use client';
 
+import PrivacyTile from '@/components/PrivacyTile';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
@@ -268,6 +269,13 @@ export default function HomePage() {
             )}
           </div>
 
+        </div>
+      </div>
+
+      {/* ── Privacy ───────────────────────────────────────────── */}
+      <div className="bg-dr-base px-4 sm:px-6 pb-4">
+        <div className="mx-auto max-w-5xl">
+          <PrivacyTile />
         </div>
       </div>
 

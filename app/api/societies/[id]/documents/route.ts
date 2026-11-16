@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { openRows, sealText } from '@/lib/societyCrypto';
 import { societyContentAccess } from '@/lib/societies';
 import { MEMBER_LIMIT_BYTES, MODERATOR_LIMIT_BYTES, formatBytes, isHttpUrl, saveFile } from '@/lib/documents';
+import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ id: string }> };
 const UUID = /^[0-9a-f-]{36}$/i;
@@ -33,8 +35,7 @@ export async function GET(req: NextRequest, { params }: Params) {
               (SELECT COUNT(*)::int FROM documents d WHERE d.folder_id = f.id AND d.deleted_at IS NULL)
             + (SELECT COUNT(*)::int FROM document_folders c WHERE c.parent_id = f.id) AS item_count
        FROM document_folders f
-       WHERE f.customer_id = $1 AND f.parent_id IS NOT DISTINCT FROM $2
-       ORDER BY f.name`, [a.societyId, folderId]),
+       WHERE f.customer_id = $1 AND f.parent_id IS NOT DISTINCT FROM $2`, [a.societyId, folderId]),
     pool.query(
       `SELECT d.id, d.kind, d.title, d.description, d.url, d.file_name, d.mime_type, d.size_bytes,
               d.created_at, d.open_count, d.download_count, d.uploaded_by, u.user_handle AS uploader
@@ -42,6 +43,10 @@ export async function GET(req: NextRequest, { params }: Params) {
        WHERE d.customer_id = $1 AND d.folder_id IS NOT DISTINCT FROM $2 AND d.deleted_at IS NULL
        ORDER BY d.created_at DESC`, [a.societyId, folderId]),
   ]);
+  await openRows(a.societyId, items, ['title', 'description', 'url', 'file_name']);
+  await openRows(a.societyId, path, ['name']);
+  await openRows(a.societyId, folders, ['name']);
+  folders.sort((x, y) => String(x.name).localeCompare(String(y.name)));
   const limit = a.canModerate ? MODERATOR_LIMIT_BYTES : MEMBER_LIMIT_BYTES;
   return NextResponse.json({
     folderId, path, folders, items,
@@ -53,7 +58,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 
 // POST — multipart { file, title?, description?, folderId? } to upload, or
 // JSON { url, title, description?, folderId? } to add a link.
-export async function POST(req: NextRequest, { params }: Params) {
+async function handlePOST(req: NextRequest, { params }: Params) {
   const a = await societyContentAccess(req, (await params).id);
   if (!a) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (!a.canPost) return NextResponse.json({ error: 'Join this Society to add documents' }, { status: 403 });
@@ -74,8 +79,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     const { rows: [d] } = await pool.query(
       `INSERT INTO documents (customer_id, folder_id, kind, title, description, file_name, stored_name, mime_type, size_bytes, uploaded_by)
        VALUES ($1, $2, 'file', $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-      [a.societyId, folderId, title.slice(0, 200), description?.slice(0, 2000) ?? null,
-       file.name.slice(0, 255), storedName, file.type || 'application/octet-stream', file.size, a.session!.sub],
+      [a.societyId, folderId, await sealText(a.societyId, title.slice(0, 200)), await sealText(a.societyId, description?.slice(0, 2000) ?? null),
+       await sealText(a.societyId, file.name.slice(0, 255)), storedName, file.type || 'application/octet-stream', file.size, a.session!.sub],
     );
     return NextResponse.json({ id: d.id }, { status: 201 });
   }
@@ -88,8 +93,11 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { rows: [d] } = await pool.query(
     `INSERT INTO documents (customer_id, folder_id, kind, title, description, url, uploaded_by)
      VALUES ($1, $2, 'link', $3, $4, $5, $6) RETURNING id`,
-    [a.societyId, folderId, name.slice(0, 200),
-     typeof description === 'string' && description.trim() ? description.trim().slice(0, 2000) : null, url, a.session!.sub],
+    [a.societyId, folderId, await sealText(a.societyId, name.slice(0, 200)),
+     await sealText(a.societyId, typeof description === 'string' && description.trim() ? description.trim().slice(0, 2000) : null),
+     await sealText(a.societyId, url), a.session!.sub],
   );
   return NextResponse.json({ id: d.id }, { status: 201 });
 }
+
+export const POST = lockSafe(handlePOST);

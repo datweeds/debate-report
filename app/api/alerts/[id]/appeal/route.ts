@@ -3,11 +3,13 @@ import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { isSocietyAdmin } from '@/lib/roles';
 import { setText } from '@/lib/scanner';
+import { sealText } from '@/lib/societyCrypto';
+import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ id: string }> };
 
 // User submits an appeal for a masked alert
-export async function POST(req: NextRequest, { params }: Params) {
+async function handlePOST(req: NextRequest, { params }: Params) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
 
@@ -18,7 +20,8 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (body.trim().length > 1000) return NextResponse.json({ error: 'Message too long' }, { status: 400 });
 
   const { rows: [alert] } = await pool.query(
-    `SELECT author_id, status, appeal_status FROM content_alerts WHERE id = $1`,
+    `SELECT ca.author_id, ca.status, ca.appeal_status, COALESCE(ca.customer_id, r.customer_id) AS customer_id
+     FROM content_alerts ca LEFT JOIN statements r ON r.id = ca.resolution_id WHERE ca.id = $1`,
     [id],
   );
 
@@ -31,14 +34,14 @@ export async function POST(req: NextRequest, { params }: Params) {
     `UPDATE content_alerts
      SET appeal_body = $2, appeal_at = now(), appeal_status = 'sent'
      WHERE id = $1`,
-    [id, body.trim()],
+    [id, await sealText(alert.customer_id, body.trim())],
   );
 
   return NextResponse.json({ ok: true });
 }
 
 // Society Admin/SysAdmin handles the appeal: outcome = 'unmasked' | 'closed'
-export async function PATCH(req: NextRequest, { params }: Params) {
+async function handlePATCH(req: NextRequest, { params }: Params) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
 
@@ -99,3 +102,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     client.release();
   }
 }
+
+export const POST = lockSafe(handlePOST);
+export const PATCH = lockSafe(handlePATCH);

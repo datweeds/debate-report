@@ -3,6 +3,7 @@
 import type { NextRequest } from 'next/server';
 import pool from './db';
 import { societyContentAccess, type SocietyContentAccess } from './societies';
+import { openRows } from './societyCrypto';
 
 export const TASK_STATUSES = ['new', 'in_progress', 'complete'] as const;
 export const PROJECT_STATUSES = ['active', 'on_hold', 'complete'] as const;
@@ -36,6 +37,7 @@ export async function projectContext(req: NextRequest, rawSocietyId: string, pro
     [projectId, a.societyId],
   );
   if (!project) return null;
+  await openRows(a.societyId, [project], ['name', 'description']);
   const me = a.session?.sub ?? null;
   const isManager = !!me && project.manager_id === me;
   return { a, project, me, isManager, canManage: isManager || a.canModerate, canContribute: a.isMember };

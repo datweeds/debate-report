@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { openRows, sealText } from '@/lib/societyCrypto';
 import { projectContext, text, TASK_STATUSES, UUID_RE } from '@/lib/projects';
+import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ id: string; pid: string; tid: string }> };
 
@@ -19,12 +21,13 @@ export async function GET(req: NextRequest, { params }: Params) {
     `SELECT r.id, r.status, r.body, r.created_at, u.user_handle AS by
      FROM project_status_reports r LEFT JOIN users u ON u.id = r.user_id
      WHERE r.task_id = $1 ORDER BY r.created_at DESC`, [tid]);
+  await openRows(c.a.societyId, rows, ['body']);
   return NextResponse.json({ reports: rows });
 }
 
 // POST { body, status? } — a member allocated to the task (or the PM / a
 // moderator) files a status report, optionally updating the task's status.
-export async function POST(req: NextRequest, { params }: Params) {
+async function handlePOST(req: NextRequest, { params }: Params) {
   const { id, pid, tid } = await params;
   const c = await projectContext(req, id, pid);
   const task = c ? await taskInProject(pid, tid) : null;
@@ -35,7 +38,9 @@ export async function POST(req: NextRequest, { params }: Params) {
   const body = text(b.body, 5000);
   if (!body) return NextResponse.json({ error: 'Write the status update' }, { status: 400 });
   const status = (TASK_STATUSES as readonly string[]).includes(b.status) ? b.status : task.status;
-  await pool.query('INSERT INTO project_status_reports (task_id, user_id, status, body) VALUES ($1, $2, $3, $4)', [tid, c.me, status, body]);
+  await pool.query('INSERT INTO project_status_reports (task_id, user_id, status, body) VALUES ($1, $2, $3, $4)', [tid, c.me, status, await sealText(c.a.societyId, body)]);
   if (status !== task.status) await pool.query('UPDATE project_tasks SET status = $1, updated_at = now() WHERE id = $2', [status, tid]);
   return NextResponse.json({ ok: true }, { status: 201 });
 }
+
+export const POST = lockSafe(handlePOST);

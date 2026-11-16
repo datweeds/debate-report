@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { societyContentAccess } from '@/lib/societies';
+import { sealText } from '@/lib/societyCrypto';
+import { folderPaths } from '@/lib/folders';
+import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -8,16 +11,12 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(req: NextRequest, { params }: Params) {
   const a = await societyContentAccess(req, (await params).id);
   if (!a) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  const { rows } = await pool.query(
-    `WITH RECURSIVE t AS (
-       SELECT id, parent_id, name, name::text AS full_path FROM document_folders WHERE customer_id = $1 AND parent_id IS NULL
-       UNION ALL SELECT f.id, f.parent_id, f.name, t.full_path || ' / ' || f.name FROM document_folders f JOIN t ON f.parent_id = t.id)
-     SELECT id, full_path FROM t ORDER BY full_path`, [a.societyId]);
-  return NextResponse.json({ folders: rows });
+  const folders = (await folderPaths([a.societyId])).map(f => ({ id: f.id, full_path: f.full_path }));
+  return NextResponse.json({ folders });
 }
 
 // POST { name, parentId? } — moderators build the folder structure.
-export async function POST(req: NextRequest, { params }: Params) {
+async function handlePOST(req: NextRequest, { params }: Params) {
   const a = await societyContentAccess(req, (await params).id);
   if (!a) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (!a.canModerate) return NextResponse.json({ error: 'Only moderators can create folders' }, { status: 403 });
@@ -31,7 +30,9 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
   const { rows: [f] } = await pool.query(
     'INSERT INTO document_folders (customer_id, parent_id, name, created_by) VALUES ($1, $2, $3, $4) RETURNING id',
-    [a.societyId, parent, name.trim().slice(0, 120), a.session!.sub],
+    [a.societyId, parent, await sealText(a.societyId, name.trim().slice(0, 120)), a.session!.sub],
   );
   return NextResponse.json({ id: f.id }, { status: 201 });
 }
+
+export const POST = lockSafe(handlePOST);

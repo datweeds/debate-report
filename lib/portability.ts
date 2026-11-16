@@ -6,6 +6,8 @@ import { copyFile, rename, mkdir } from 'fs/promises';
 import path from 'path';
 import type { PoolClient } from 'pg';
 import { storedPath } from './documents';
+import { recryptDocument, recryptRow } from './societyRekey';
+import { reencryptDebate } from './debateCrypto';
 
 export type DebateOptions = { includeVotes: boolean; includeChat: boolean };
 
@@ -131,6 +133,7 @@ export async function copyDebate(client: PoolClient, resolutionId: string, targe
       );
     }
   }
+  await reencryptDebate(newRes, client);  // the copy is encrypted (or not) as its new Society requires
   return newRes;
 }
 
@@ -151,6 +154,7 @@ export async function moveDebate(client: PoolClient, resolutionId: string, targe
   }
   // A debate on one Society's principle doesn't belong to the new Society's principles
   await client.query('UPDATE society_principle_links SET resolution_id = NULL WHERE resolution_id = $1', [resolutionId]);
+  await reencryptDebate(resolutionId, client);
 }
 
 // ── Documents ────────────────────────────────────────────────────────────────
@@ -165,6 +169,8 @@ async function transferDoc(client: PoolClient, doc: DocRow, target: number, fold
       await mkdir(path.dirname(storedPath(target, doc.stored_name)), { recursive: true });
       await rename(storedPath(doc.customer_id, doc.stored_name), storedPath(target, doc.stored_name));
     }
+    // Re-encrypt for the target Society (its key; or plain if it is public)
+    if (doc.customer_id !== target) await recryptDocument(client, doc.id, doc.customer_id, target);
     return;
   }
   // Copy: a fresh file and row; open/download counts start again
@@ -174,12 +180,13 @@ async function transferDoc(client: PoolClient, doc: DocRow, target: number, fold
     await mkdir(path.dirname(storedPath(target, storedName)), { recursive: true });
     await copyFile(storedPath(doc.customer_id, doc.stored_name), storedPath(target, storedName));
   }
-  await client.query(
+  const { rows: [copy] } = await client.query(
     `INSERT INTO documents (customer_id, folder_id, kind, title, description, url, file_name, stored_name, mime_type, size_bytes, uploaded_by, created_at)
      SELECT $2, $3, kind, title, description, url, file_name, $4, mime_type, size_bytes, uploaded_by, created_at
-     FROM documents WHERE id = $1`,
+     FROM documents WHERE id = $1 RETURNING id`,
     [doc.id, target, folderId, storedName],
   );
+  await recryptDocument(client, copy.id, doc.customer_id, target);
 }
 
 /** Move or copy a document into a folder (or the top level) of another Society. */
@@ -197,6 +204,7 @@ export async function transferFolder(client: PoolClient, folderId: string, targe
   if (mode === 'move') {
     // Re-home the folder; its documents follow (sub-folders recurse)
     await client.query('UPDATE document_folders SET customer_id = $1, parent_id = $2 WHERE id = $3', [target, parentId, folderId]);
+    await recryptRow(client, 'document_folders', folderId, ['name'], f.customer_id, target);
     const { rows: docs } = await client.query('SELECT id, customer_id, kind, stored_name FROM documents WHERE folder_id = $1 AND deleted_at IS NULL', [folderId]);
     for (const d of docs) await transferDoc(client, d, target, folderId, 'move');
     const { rows: subs } = await client.query('SELECT id FROM document_folders WHERE parent_id = $1', [folderId]);
@@ -207,6 +215,7 @@ export async function transferFolder(client: PoolClient, folderId: string, targe
     'INSERT INTO document_folders (customer_id, parent_id, name, created_by) SELECT $2, $3, name, created_by FROM document_folders WHERE id = $1 RETURNING id',
     [folderId, target, parentId],
   );
+  await recryptRow(client, 'document_folders', nf.id, ['name'], f.customer_id, target);
   const { rows: docs } = await client.query('SELECT id, customer_id, kind, stored_name FROM documents WHERE folder_id = $1 AND deleted_at IS NULL', [folderId]);
   for (const d of docs) await transferDoc(client, d, target, nf.id, 'copy');
   const { rows: subs } = await client.query('SELECT id FROM document_folders WHERE parent_id = $1', [folderId]);

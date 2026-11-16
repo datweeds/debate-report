@@ -15,6 +15,7 @@ export type SocietyAccess = {
   canEnter: boolean;     // may see the Society's dashboard and (subject to debate visibility) its debates
   canSeeTeaser: boolean; // may see its name, image and description (and ask to join, for 'apply')
   pendingRequest: boolean;
+  breakGlass: string | null; // SysAdmin emergency access to a private Society: when it ends
 };
 
 export async function getSocietyAccess(session: SessionPayload | null, customerId: number): Promise<SocietyAccess | null> {
@@ -23,19 +24,25 @@ export async function getSocietyAccess(session: SessionPayload | null, customerI
     `SELECT c.visibility,
             EXISTS (SELECT 1 FROM customer_members m WHERE m.customer_id = c.id AND m.user_id = $2) AS is_member,
             EXISTS (SELECT 1 FROM customer_roles r WHERE r.tenant_id = c.id AND r.user_id = $2 AND r.role = 'customer_admin') AS is_moderator,
-            EXISTS (SELECT 1 FROM society_join_requests j WHERE j.customer_id = c.id AND j.user_id = $2 AND j.status = 'pending') AS pending
+            EXISTS (SELECT 1 FROM society_join_requests j WHERE j.customer_id = c.id AND j.user_id = $2 AND j.status = 'pending') AS pending,
+            (SELECT max(g.expires_at) FROM sysadmin_access g WHERE g.customer_id = c.id AND g.user_id::text = $2
+               AND g.ended_at IS NULL AND g.expires_at > now() AND $3::boolean) AS break_glass
      FROM customers c WHERE c.id = $1`,
-    [customerId, uid],
+    [customerId, uid, !!session?.isSysAdmin],
   );
   if (!row) return null;
   const inside = row.is_member || row.is_moderator;
+  // A SysAdmin may only look inside a private Society during a logged
+  // emergency ("break-glass") grant: see lib/breakGlass.ts
+  const breakGlass = row.visibility !== 'public' && !inside && row.break_glass ? new Date(row.break_glass).toISOString() : null;
   return {
     visibility: row.visibility,
     isMember: row.is_member,
     isModerator: row.is_moderator,
-    canEnter: row.visibility === 'public' || inside,
-    canSeeTeaser: row.visibility !== 'invite' || inside,
+    canEnter: row.visibility === 'public' || inside || !!breakGlass,
+    canSeeTeaser: row.visibility !== 'invite' || inside || !!breakGlass,
     pendingRequest: row.pending,
+    breakGlass,
   };
 }
 
@@ -103,8 +110,9 @@ export type SocietyContentAccess = {
   canRead: boolean;      // anyone who can enter the Society
   canPost: boolean;      // logged in; members only in a private Society
   canModerate: boolean;  // the Society's moderators: pin, lock, delete any post
-  canTakeDown: boolean;  // moderators, plus SysAdmin as the platform backstop
+  canTakeDown: boolean;  // moderators, plus SysAdmin as the platform backstop (private Societies: only under break-glass)
   isMember: boolean;     // a member or moderator of this Society
+  breakGlass: boolean;   // the viewer is a SysAdmin under emergency access
 };
 
 export async function societyContentAccess(req: NextRequest, rawId: string): Promise<SocietyContentAccess | null> {
@@ -119,7 +127,8 @@ export async function societyContentAccess(req: NextRequest, rawId: string): Pro
     canRead: true,
     canPost: !!session && (access.visibility === 'public' || inside),
     canModerate: access.isModerator,
-    canTakeDown: access.isModerator || !!session?.isSysAdmin,
+    canTakeDown: access.isModerator || (!!session?.isSysAdmin && (access.visibility === 'public' || !!access.breakGlass)),
     isMember: inside,
+    breakGlass: !!access.breakGlass,
   };
 }

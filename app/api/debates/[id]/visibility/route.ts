@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { canSetDebateVisibility } from '@/lib/roles';
+import { reencryptDebate } from '@/lib/debateCrypto';
+import { isUnlocked } from '@/lib/masterKey';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -36,6 +38,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Debates in a private Society cannot be set to Public' }, { status: 400 });
   }
 
+  // Public ↔ Apply/Invite changes whether the debate is stored encrypted
+  if (!isUnlocked()) return NextResponse.json({ error: 'Visibility can’t be changed while private content is locked. Please try again later.' }, { status: 503 });
   await pool.query(`UPDATE statements SET debate_visibility = $1 WHERE id = $2`, [visibility, id]);
+  const changed = await reencryptDebate(id);
+  if (changed) console.log(`[privacy] debate ${id} now ${visibility}: ${changed} items re-encrypted`);
   return NextResponse.json({ ok: true });
 }

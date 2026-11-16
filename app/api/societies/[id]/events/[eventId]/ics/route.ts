@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { societyContentAccess } from '@/lib/societies';
 import { toIcs } from '@/lib/events';
+import { openRows } from '@/lib/societyCrypto';
 
 type Params = { params: Promise<{ id: string; eventId: string }> };
 
@@ -17,6 +18,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     [eventId, a.societyId],
   );
   if (!e) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  await openRows(a.societyId, [e], ['title', 'description', 'location']);
   const base = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://new.vote';
   const body = toIcs(e, e.society, `${base}/society/${a.societyId}/events`);
   const safe = e.title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 60) || 'event';

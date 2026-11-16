@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { sealText } from '@/lib/societyCrypto';
 import { LEVELS, projectContext, RAID_KINDS, RAID_STATUSES, text, UUID_RE } from '@/lib/projects';
+import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ id: string; pid: string; rid: string }> };
 
@@ -11,7 +13,7 @@ async function load(pid: string, rid: string) {
 }
 
 // PATCH — whoever logged it, the PM or a moderator: any field, e.g. status → mitigated / closed.
-export async function PATCH(req: NextRequest, { params }: Params) {
+async function handlePATCH(req: NextRequest, { params }: Params) {
   const { id, pid, rid } = await params;
   const c = await projectContext(req, id, pid);
   const item = c ? await load(pid, rid) : null;
@@ -21,8 +23,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const sets: string[] = []; const vals: unknown[] = [];
   const set = (col: string, v: unknown) => { vals.push(v); sets.push(`${col} = $${vals.length}`); };
   if ('kind' in b && (RAID_KINDS as readonly string[]).includes(b.kind)) set('kind', b.kind);
-  if ('name' in b) { const n = text(b.name, 200); if (!n) return NextResponse.json({ error: 'A name is required' }, { status: 400 }); set('name', n); }
-  if ('description' in b) set('description', text(b.description, 5000));
+  if ('name' in b) { const n = text(b.name, 200); if (!n) return NextResponse.json({ error: 'A name is required' }, { status: 400 }); set('name', await sealText(c.a.societyId, n)); }
+  if ('description' in b) set('description', await sealText(c.a.societyId, text(b.description, 5000)));
   if ('impact' in b && (LEVELS as readonly string[]).includes(b.impact)) set('impact', b.impact);
   if ('likelihood' in b && (LEVELS as readonly string[]).includes(b.likelihood)) set('likelihood', b.likelihood);
   if ('status' in b && (RAID_STATUSES as readonly string[]).includes(b.status)) set('status', b.status);
@@ -33,7 +35,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE(req: NextRequest, { params }: Params) {
+async function handleDELETE(req: NextRequest, { params }: Params) {
   const { id, pid, rid } = await params;
   const c = await projectContext(req, id, pid);
   const item = c ? await load(pid, rid) : null;
@@ -42,3 +44,6 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   await pool.query('DELETE FROM project_raid WHERE id = $1', [rid]);
   return NextResponse.json({ ok: true });
 }
+
+export const PATCH = lockSafe(handlePATCH);
+export const DELETE = lockSafe(handleDELETE);

@@ -45,3 +45,6 @@ public/uploads/
 
 # Society documents uploaded at runtime (served through an access check)
 storage/
+
+# Copied from livekit-client by prebuild
+public/livekit-e2ee-worker.mjs

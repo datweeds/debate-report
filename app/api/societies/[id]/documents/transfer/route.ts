@@ -3,6 +3,8 @@ import pool from '@/lib/db';
 import { societyContentAccess } from '@/lib/societies';
 import { moderatedSocietyIds } from '@/lib/roles';
 import { transferDocument, transferFolder } from '@/lib/portability';
+import { lockSafe } from '@/lib/lockSafe';
+import { folderPaths } from '@/lib/folders';
 
 type Params = { params: Promise<{ id: string }> };
 const UUID = /^[0-9a-f-]{36}$/i;
@@ -13,17 +15,13 @@ export async function GET(req: NextRequest, { params }: Params) {
   if (!a?.session || !a.canModerate) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const mine = (await moderatedSocietyIds(a.session.sub)).filter(x => x !== a.societyId);
   const { rows: societies } = await pool.query('SELECT id, name FROM customers WHERE id = ANY($1::int[]) ORDER BY name', [mine]);
-  const { rows: folders } = await pool.query(
-    `WITH RECURSIVE t AS (
-       SELECT id, customer_id, parent_id, name::text AS full_path FROM document_folders WHERE customer_id = ANY($1::int[]) AND parent_id IS NULL
-       UNION ALL SELECT f.id, f.customer_id, f.parent_id, t.full_path || ' / ' || f.name FROM document_folders f JOIN t ON f.parent_id = t.id)
-     SELECT id, customer_id, full_path FROM t ORDER BY full_path`, [mine]);
+  const folders = await folderPaths(mine);
   return NextResponse.json({ societies, folders });
 }
 
 // POST { items: [{ type: 'doc' | 'folder', id }], targetSocietyId, targetFolderId?, mode }
 // — a moderator of both Societies moves or copies documents and folders.
-export async function POST(req: NextRequest, { params }: Params) {
+async function handlePOST(req: NextRequest, { params }: Params) {
   const a = await societyContentAccess(req, (await params).id);
   if (!a?.session) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const b = await req.json().catch(() => ({}));
@@ -69,3 +67,5 @@ export async function POST(req: NextRequest, { params }: Params) {
     client.release();
   }
 }
+
+export const POST = lockSafe(handlePOST);

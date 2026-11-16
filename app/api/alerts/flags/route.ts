@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { moderatedSocietyIds } from '@/lib/roles';
+import { sysAdminSocietySql } from '@/lib/breakGlass';
+import { openDeep } from '@/lib/societyCrypto';
 
 export async function GET() {
   const session = await getSession();
@@ -14,8 +16,11 @@ export async function GET() {
 
   // Each row = one flag event; group by statement to show total flag counts.
   // Every Society the viewer moderates (SysAdmin: all).
-  const societyFilter = session.isSysAdmin ? '' : 'AND res.customer_id = ANY($1::int[])';
-  const params = session.isSysAdmin ? [] : [moderated];
+  // SysAdmin: everything except private Societies they hold no break-glass grant for
+  const societyFilter = session.isSysAdmin
+    ? `AND (res.customer_id = ANY($1::int[]) OR ${sysAdminSocietySql('res.customer_id', '$2::text')})`
+    : 'AND res.customer_id = ANY($1::int[])';
+  const params = session.isSysAdmin ? [moderated, session.sub] : [moderated];
 
   const { rows } = await pool.query(
     `SELECT
@@ -42,5 +47,6 @@ export async function GET() {
     params,
   );
 
+  await openDeep(rows);
   return NextResponse.json({ flags: rows, total: rows.length });
 }

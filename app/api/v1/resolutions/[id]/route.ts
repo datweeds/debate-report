@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getPartyFromRequest, partyDebateAccess, PRIVATE_DEBATE_ERROR } from '@/lib/apiParties';
+import { openDeep } from '@/lib/societyCrypto';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -43,6 +44,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     [id],
   );
 
+  await openDeep([resolution, statements]);
   const { rows: relationships } = await pool.query(
     `SELECT sr.stat_id_supported, sr.stat_id_supported_by
      FROM   stat_relationships sr

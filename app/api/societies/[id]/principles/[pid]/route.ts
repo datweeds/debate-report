@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { societyContentAccess } from '@/lib/societies';
 import { currentPrinciple, readPrinciple } from '@/lib/principles';
+import { sealText } from '@/lib/societyCrypto';
+import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ id: string; pid: string }> };
 
 // PATCH — moderators edit a principle ({ category, title, body, grounding })
 // or move it ({ move: 'up' | 'down' }). Only the current version is editable.
-export async function PATCH(req: NextRequest, { params }: Params) {
+async function handlePATCH(req: NextRequest, { params }: Params) {
   const { id, pid } = await params;
   const a = await societyContentAccess(req, id);
   const p = a ? await currentPrinciple(a.societyId, pid) : null;
@@ -33,13 +35,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 });
   await pool.query(
     `UPDATE society_principles SET category = $1, title = $2, body = $3, grounding = $4, section = $6, updated_at = now() WHERE id = $5`,
-    [v.category, v.title, v.body, v.grounding, p.id, v.section],
+    [v.category, await sealText(a.societyId, v.title), await sealText(a.societyId, v.body), await sealText(a.societyId, v.grounding),
+     p.id, await sealText(a.societyId, v.section)],
   );
   return NextResponse.json({ ok: true });
 }
 
 // DELETE — moderators remove a principle from the current version (earlier versions keep it).
-export async function DELETE(req: NextRequest, { params }: Params) {
+async function handleDELETE(req: NextRequest, { params }: Params) {
   const { id, pid } = await params;
   const a = await societyContentAccess(req, id);
   const p = a ? await currentPrinciple(a.societyId, pid) : null;
@@ -48,3 +51,6 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   await pool.query('DELETE FROM society_principles WHERE id = $1', [p.id]);
   return NextResponse.json({ ok: true });
 }
+
+export const PATCH = lockSafe(handlePATCH);
+export const DELETE = lockSafe(handleDELETE);

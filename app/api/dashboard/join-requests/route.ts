@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { openDeep } from '@/lib/societyCrypto';
 
 // Aggregate across every debate the viewer can administer (their own
 // Societies, or all of them if SysAdmin) — replaces the old "across every
@@ -25,5 +26,6 @@ export async function GET() {
      ORDER BY jr.created_at DESC`,
     [session.sub]
   );
+  await openDeep(rows);
   return NextResponse.json(rows);
 }

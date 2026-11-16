@@ -1,18 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSessionFromRequest } from '@/lib/auth';
-import { getSocietyAccess } from '@/lib/societies';
+import { addMember, getSocietyAccess } from '@/lib/societies';
 
 type Params = { params: Promise<{ id: string }> };
 
-// POST { message? } — ask to join an Apply Society. A moderator approves it.
+// POST { message? } — join a public Society (straight away), or ask to join
+// an Apply Society (a moderator approves it).
 export async function POST(req: NextRequest, { params }: Params) {
   const session = await getSessionFromRequest(req);
   if (!session) return NextResponse.json({ error: 'Log in to request to join' }, { status: 401 });
   const id = Number((await params).id);
   const access = Number.isInteger(id) ? await getSocietyAccess(session, id) : null;
-  if (!access || access.visibility !== 'apply') return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!access || access.visibility === 'invite') return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (access.isMember || access.isModerator) return NextResponse.json({ error: 'You are already a member' }, { status: 409 });
+  if (access.visibility === 'public') {
+    await addMember(id, session.sub);
+    return NextResponse.json({ ok: true, joined: true }, { status: 201 });
+  }
 
   const { message } = await req.json().catch(() => ({}));
   await pool.query(

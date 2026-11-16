@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
-import { discussionAccess, UUID_RE } from '@/lib/discussions';
+import { openRows, openText, sealText } from '@/lib/societyCrypto';
+import { discussionAccess, membersOnly, UUID_RE } from '@/lib/discussions';
+import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ id: string; threadId: string }> };
 
@@ -12,6 +14,7 @@ async function loadThread(societyId: number, threadId: string) {
      WHERE t.id = $1 AND t.customer_id = $2 AND t.deleted_at IS NULL`,
     [threadId, societyId],
   );
+  if (t) t.title = await openText(societyId, t.title);
   return t ?? null;
 }
 
@@ -19,6 +22,7 @@ async function loadThread(societyId: number, threadId: string) {
 export async function GET(req: NextRequest, { params }: Params) {
   const { id, threadId } = await params;
   const a = await discussionAccess(req, id);
+  if (a && !a.isMember && !a.canModerate && !a.breakGlass) return membersOnly(a.societyId, a.session);
   const thread = a ? await loadThread(a.societyId, threadId) : null;
   if (!a || !thread) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
@@ -36,6 +40,7 @@ export async function GET(req: NextRequest, { params }: Params) {
      ORDER BY p.created_at`,
     [threadId, me],
   );
+  await openRows(a.societyId, posts, ['body']);
   return NextResponse.json({
     thread, posts, me,
     canPost: a.canPost && !thread.locked, canModerate: a.canModerate, canTakeDown: a.canTakeDown,
@@ -43,7 +48,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 }
 
 // PATCH { pinned?, locked?, title? } — moderators.
-export async function PATCH(req: NextRequest, { params }: Params) {
+async function handlePATCH(req: NextRequest, { params }: Params) {
   const { id, threadId } = await params;
   const a = await discussionAccess(req, id);
   const thread = a ? await loadThread(a.societyId, threadId) : null;
@@ -57,7 +62,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const set = (c: string, v: unknown) => { vals.push(v); sets.push(`${c} = $${vals.length}`); };
   if (typeof body.pinned === 'boolean') set('pinned', body.pinned);
   if (typeof body.locked === 'boolean') set('locked', body.locked);
-  if (typeof body.title === 'string' && body.title.trim()) set('title', body.title.trim().slice(0, 200));
+  if (typeof body.title === 'string' && body.title.trim()) set('title', await sealText(a.societyId, body.title.trim().slice(0, 200)));
   if (sets.length) {
     vals.push(threadId);
     await pool.query(`UPDATE discussion_threads SET ${sets.join(', ')} WHERE id = $${vals.length}`, vals);
@@ -75,3 +80,5 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   await pool.query('UPDATE discussion_threads SET deleted_at = now() WHERE id = $1', [threadId]);
   return NextResponse.json({ ok: true });
 }
+
+export const PATCH = lockSafe(handlePATCH);

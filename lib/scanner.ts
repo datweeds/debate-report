@@ -1,6 +1,9 @@
 import crypto from 'crypto';
 import pool from './db';
 import { SCAN_TARGETS, TARGET_BY_TYPE } from './scanTargets';
+import { isSealed, openText, sealText } from './societyCrypto';
+import { isUnlocked } from './masterKey';
+import { debateSealing } from './debateCrypto';
 
 const SCANNER_URL = process.env.SCANNER_URL ?? '';
 const SCANNER_KEY = process.env.SCANNER_API_KEY ?? '';
@@ -30,6 +33,7 @@ const hash = (text: string) => crypto.createHash('md5').update(text).digest('hex
 type Item = {
   type: string; key: string; text: string; societyId: number | null;
   authorId: string | null; resolutionId: string | null; href: string | null;
+  raw?: string;  // the stored value, when it is encrypted (private Societies)
 };
 
 // Scan one piece of text. Records that this exact text was scanned (so it
@@ -38,7 +42,8 @@ type Item = {
 async function scanItem(item: Item): Promise<boolean | null> {
   const result = await callScanner(item.text);
   if (!result) return null;
-  const h = hash(item.text);
+  // The hash is of what is stored, so unchanged encrypted text isn't rescanned
+  const h = hash(item.raw ?? item.text);
   await pool.query(
     `INSERT INTO scanned_content (content_type, content_key, text_hash) VALUES ($1, $2, $3)
      ON CONFLICT (content_type, content_key) DO UPDATE SET text_hash = EXCLUDED.text_hash, scanned_at = now()`,
@@ -46,18 +51,21 @@ async function scanItem(item: Item): Promise<boolean | null> {
   );
   if (!result.flagged) return false;
   // One alert per version of the text
+  const flagged = item.text.slice(0, 2000);
+  const flaggedHash = hash(flagged);
   const { rows } = await pool.query(
-    `SELECT 1 FROM content_alerts WHERE content_type = $1 AND content_key = $2 AND flagged_text = $3`,
-    [item.type, item.key, item.text.slice(0, 2000)],
+    `SELECT 1 FROM content_alerts WHERE content_type = $1 AND content_key = $2 AND text_hash = $3`,
+    [item.type, item.key, flaggedHash],
   );
   if (rows.length) return false;
   const isUuid = /^[0-9a-f-]{36}$/i.test(item.key);
   await pool.query(
     `INSERT INTO content_alerts
-       (content_type, content_id, content_key, resolution_id, customer_id, content_href, flagged_text, flags, author_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8::text[], $9)`,
+       (content_type, content_id, content_key, resolution_id, customer_id, content_href, flagged_text, flags, author_id, text_hash)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8::text[], $9, $10)`,
     [item.type, isUuid ? item.key : null, item.key, item.resolutionId, item.societyId, item.href,
-     item.text.slice(0, 2000), result.flags, item.authorId],
+     // A private debate's alert is encrypted even in a public Society
+     await sealText(item.societyId, flagged, item.resolutionId && (await debateSealing(item.resolutionId)).sealed || undefined), result.flags, item.authorId, flaggedHash],
   );
   return true;
 }
@@ -124,6 +132,7 @@ export async function runSweep(kind: SweepKind, opts: { full?: boolean; startedB
          FROM ${t.from}
          LEFT JOIN scanned_content sc ON sc.content_type = $1 AND sc.content_key = t.${t.idColumn}::text
          WHERE ${text} IS NOT NULL AND btrim(${text}) <> '' AND ${text} NOT LIKE '*** content masked%'
+           ${isUnlocked() ? '' : `AND ${text} NOT LIKE 'enc_:%'`}
            ${t.where ? `AND ${t.where}` : ''}
            ${opts.full ? '' : `AND sc.text_hash IS DISTINCT FROM md5(${text})`}
          LIMIT ${limit}`,
@@ -131,9 +140,11 @@ export async function runSweep(kind: SweepKind, opts: { full?: boolean; startedB
       );
       // A few at a time: quick, without swamping the scanner
       for (let i = 0; i < rows.length; i += 4) {
-        const results = await Promise.all(rows.slice(i, i + 4).map(r => scanItem({
-          type: t.type, key: r.key, text: r.text, societyId: r.society_id, authorId: r.author_id,
+        const results = await Promise.all(rows.slice(i, i + 4).map(async r => scanItem({
+          type: t.type, key: r.key, societyId: r.society_id, authorId: r.author_id,
           resolutionId: r.resolution_id, href: r.href,
+          // Private Societies' text is stored encrypted: scan the plain text
+          ...(isSealed(r.text) ? { text: await openText(r.society_id, r.text), raw: r.text } : { text: r.text }),
         })));
         for (const res of results) {
           if (res === null) unavailable++; else { scanned++; if (res) raised++; }

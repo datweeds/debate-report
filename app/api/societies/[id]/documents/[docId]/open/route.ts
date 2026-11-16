@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { openText } from '@/lib/societyCrypto';
 import { societyContentAccess } from '@/lib/societies';
 
 type Params = { params: Promise<{ id: string; docId: string }> };
@@ -15,5 +16,6 @@ export async function GET(req: NextRequest, { params }: Params) {
     [docId, a.societyId],
   );
   if (!d) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  return new NextResponse(null, { status: 302, headers: { Location: d.url, 'Referrer-Policy': 'no-referrer' } });
+  const url = await openText(a.societyId, d.url as string);
+  return new NextResponse(null, { status: 302, headers: { Location: url, 'Referrer-Policy': 'no-referrer' } });
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { openDeep } from '@/lib/societyCrypto';
 
 // GET — chat messages this user has posted, across all debates.
 export async function GET() {
@@ -20,5 +21,6 @@ export async function GET() {
      LIMIT  300`,
     [session.sub],
   );
+  await openDeep(rows);
   return NextResponse.json({ comments: rows });
 }

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { societyContentAccess } from '@/lib/societies';
 import { parseTime, readEvent } from '@/lib/events';
+import { openRows, sealText } from '@/lib/societyCrypto';
+import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -32,6 +34,8 @@ export async function GET(req: NextRequest, { params }: Params) {
      ORDER BY COALESCE(t.due_date, t.end_date)`,
     [a.societyId, from, to],
   );
+  await openRows(a.societyId, events, ['title', 'description', 'location']);
+  await openRows(a.societyId, tasks, ['title', 'project']);
   const STATUS: Record<string, string> = { new: 'New', in_progress: 'In progress', complete: 'Complete' };
   return NextResponse.json({
     events,
@@ -41,7 +45,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 }
 
 // POST — moderators add an event.
-export async function POST(req: NextRequest, { params }: Params) {
+async function handlePOST(req: NextRequest, { params }: Params) {
   const a = await societyContentAccess(req, (await params).id);
   if (!a) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (!a.canModerate) return NextResponse.json({ error: 'Only moderators can add events' }, { status: 403 });
@@ -50,7 +54,9 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { rows: [row] } = await pool.query(
     `INSERT INTO society_events (customer_id, title, description, location, starts_at, ends_at, all_day, created_by)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-    [a.societyId, e.title, e.description, e.location, e.startsAt, e.endsAt, e.allDay, a.session!.sub],
+    [a.societyId, await sealText(a.societyId, e.title), await sealText(a.societyId, e.description), await sealText(a.societyId, e.location), e.startsAt, e.endsAt, e.allDay, a.session!.sub],
   );
   return NextResponse.json({ id: row.id }, { status: 201 });
 }
+
+export const POST = lockSafe(handlePOST);

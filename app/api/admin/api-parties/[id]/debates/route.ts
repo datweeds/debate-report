@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { openForSysAdmin } from '@/lib/debateCrypto';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -14,15 +15,16 @@ export async function GET(_req: NextRequest, { params }: Params) {
   if (!UUID.test(id)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const { rows } = await pool.query(
-    `SELECT r.id, r.stat_title AS title, r.debate_visibility AS visibility, c.name AS society,
+    `SELECT r.id, r.stat_title AS title, r.debate_visibility AS visibility, c.name AS society, r.customer_id AS society_id,
             (g.resolution_id IS NOT NULL) AS granted
      FROM   statements r
      LEFT   JOIN customers c ON c.id = r.customer_id
      LEFT   JOIN api_party_debates g ON g.resolution_id = r.id AND g.api_party_id = $1
      WHERE  r.stat_type = 'resolution' AND (r.debate_visibility <> 'public' OR COALESCE(c.visibility, 'public') <> 'public')
-     ORDER  BY c.name NULLS LAST, r.stat_title`,
+     ORDER  BY c.name NULLS LAST, r.created_at`,
     [id],
   );
+  await openForSysAdmin(session, rows, r => r.society_id);
   return NextResponse.json({ debates: rows });
 }
 

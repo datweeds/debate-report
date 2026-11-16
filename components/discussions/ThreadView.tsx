@@ -1,5 +1,6 @@
 'use client';
 
+import MembersOnly from './MembersOnly';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -26,9 +27,11 @@ export default function ThreadView({ societyId, threadId }: { societyId: number;
   const base = `/api/societies/${societyId}`;
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState('');
+  const [membersOnly, setMembersOnly] = useState<{ visibility: string; pending: boolean } | null>(null);
   const [body, setBody] = useState('');
   const [replyTo, setReplyTo] = useState<Post | null>(null);
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
+  const [reporting, setReporting] = useState<{ id: string; reason: string; note: string; done?: string } | null>(null);
   const [sending, setSending] = useState(false);
   const [full, setFull] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -37,7 +40,11 @@ export default function ThreadView({ societyId, threadId }: { societyId: number;
 
   const load = useCallback(async () => {
     const r = await fetch(`${base}/threads/${threadId}`);
-    if (!r.ok) { setError(r.status === 404 ? 'This discussion no longer exists.' : 'Could not load the discussion.'); return; }
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      if (d.membersOnly) { setMembersOnly({ visibility: d.visibility, pending: d.pending }); return; }
+      setError(r.status === 404 ? 'This discussion no longer exists.' : 'Could not load the discussion.'); return;
+    }
     setData(await r.json());
   }, [base, threadId]);
 
@@ -100,6 +107,16 @@ export default function ThreadView({ societyId, threadId }: { societyId: number;
     if (r.ok) { setEditing(null); load(); } else setError((await r.json()).error ?? 'Could not save');
   }
 
+  async function report() {
+    if (!reporting) return;
+    const r = await fetch(`/api/societies/${societyId}/posts/${reporting.id}/report`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: reporting.reason, note: reporting.note }),
+    });
+    const d = await r.json().catch(() => ({}));
+    setReporting({ ...reporting, done: r.ok ? 'Reported. The Society’s moderators will review it.' : d.error ?? 'Could not send the report.' });
+  }
+
   async function remove(post: Post) {
     if (!confirm('Delete this message?')) return;
     await fetch(`${base}/posts/${post.id}`, { method: 'DELETE' });
@@ -119,6 +136,7 @@ export default function ThreadView({ societyId, threadId }: { societyId: number;
     router.push(`/society/${societyId}/discussions`);
   }
 
+  if (membersOnly) return <MembersOnly societyId={societyId} visibility={membersOnly.visibility} pending={membersOnly.pending} />;
   if (!data) return error ? <p className="text-sm text-rose-400">{error}</p> : <div className="h-40 rounded-2xl bg-slate-800/40 animate-pulse" />;
 
   const byId = new Map(data.posts.map(p => [p.id, p]));
@@ -205,7 +223,36 @@ export default function ThreadView({ societyId, threadId }: { societyId: number;
                       {data.canPost && <button onClick={() => { setReplyTo(p); inputRef.current?.focus(); }} className="hover:text-slate-300">Reply</button>}
                       {mine && <button onClick={() => setEditing({ id: p.id, text: p.body ?? '' })} className="hover:text-slate-300">Edit</button>}
                       {(mine || data.canTakeDown) && <button onClick={() => remove(p)} className="hover:text-rose-400">Delete</button>}
+                      {!mine && data.canPost && <button onClick={() => setReporting({ id: p.id, reason: 'inappropriate', note: '' })} className="hover:text-amber-300">Report</button>}
                     </span>
+                  </div>
+                )}
+                {reporting?.id === p.id && (
+                  <div className="mt-2 max-w-md space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs">
+                    {reporting.done ? (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-slate-300">{reporting.done}</span>
+                        <button onClick={() => setReporting(null)} className="text-slate-500 hover:text-slate-300">Close</button>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="font-semibold text-amber-200">Report this message to the moderators</p>
+                        <select value={reporting.reason} onChange={e => setReporting({ ...reporting, reason: e.target.value })}
+                          className="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-slate-200">
+                          <option value="inappropriate">Inappropriate or abusive</option>
+                          <option value="hate_speech">Hate speech</option>
+                          <option value="personal_data">Shares personal data</option>
+                          <option value="other">Something else</option>
+                        </select>
+                        <textarea value={reporting.note} onChange={e => setReporting({ ...reporting, note: e.target.value })} rows={2} maxLength={1000}
+                          placeholder="Optional: what’s wrong?" className="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-slate-200" />
+                        <p className="text-slate-500">The moderators and new.vote’s admins are told. The author isn’t told who reported it.</p>
+                        <div className="flex gap-2">
+                          <button onClick={report} className="rounded bg-amber-600 px-3 py-1 font-semibold text-white hover:bg-amber-500">Send report</button>
+                          <button onClick={() => setReporting(null)} className="text-slate-500 hover:text-slate-300">Cancel</button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

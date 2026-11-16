@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSessionFromRequest } from '@/lib/auth';
 import { canReviewQuality, getDebate } from '@/lib/quality/report';
+import { sealDebate } from '@/lib/debateCrypto';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -26,8 +27,8 @@ export async function POST(req: NextRequest, { params }: Params) {
      ON CONFLICT (resolution_id, fingerprint)
      DO UPDATE SET note = EXCLUDED.note, dismissed_by = EXCLUDED.dismissed_by, dismissed_at = now()`,
     [id, fingerprint, session.sub,
-     typeof note === 'string' && note.trim() ? note.trim().slice(0, 500) : null,
-     typeof observation === 'string' ? observation.slice(0, 1000) : null],
+     await sealDebate(id, typeof note === 'string' && note.trim() ? note.trim().slice(0, 500) : null),
+     await sealDebate(id, typeof observation === 'string' ? observation.slice(0, 1000) : null)],
   );
   return NextResponse.json({ ok: true });
 }

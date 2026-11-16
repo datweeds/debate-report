@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
-import { discussionAccess } from '@/lib/discussions';
+import { openRows, sealText } from '@/lib/societyCrypto';
+import { discussionAccess, membersOnly } from '@/lib/discussions';
+import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -8,6 +10,7 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(req: NextRequest, { params }: Params) {
   const a = await discussionAccess(req, (await params).id);
   if (!a) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!a.isMember && !a.canModerate && !a.breakGlass) return membersOnly(a.societyId, a.session);
   const { rows } = await pool.query(
     `SELECT t.id, t.title, t.created_at, t.last_post_at, t.pinned, t.locked,
             u.user_handle AS author,
@@ -20,14 +23,15 @@ export async function GET(req: NextRequest, { params }: Params) {
      LIMIT 200`,
     [a.societyId],
   );
+  await openRows(a.societyId, rows, ['title']);
   return NextResponse.json({ threads: rows, canPost: a.canPost, canModerate: a.canModerate });
 }
 
 // POST { title, body } — start a discussion.
-export async function POST(req: NextRequest, { params }: Params) {
+async function handlePOST(req: NextRequest, { params }: Params) {
   const a = await discussionAccess(req, (await params).id);
   if (!a) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!a.canPost) return NextResponse.json({ error: 'Join this Society to start a discussion' }, { status: 403 });
+  if (!a.canPost || (!a.isMember && !a.canModerate)) return NextResponse.json({ error: 'Join this Society to start a discussion' }, { status: 403 });
   const { title, body } = await req.json().catch(() => ({}));
   if (typeof title !== 'string' || !title.trim()) return NextResponse.json({ error: 'A title is required' }, { status: 400 });
   if (typeof body !== 'string' || !body.trim()) return NextResponse.json({ error: 'Write something to start the discussion' }, { status: 400 });
@@ -38,11 +42,11 @@ export async function POST(req: NextRequest, { params }: Params) {
     await client.query('BEGIN');
     const { rows: [t] } = await client.query(
       `INSERT INTO discussion_threads (customer_id, title, created_by) VALUES ($1, $2, $3) RETURNING id`,
-      [a.societyId, title.trim().slice(0, 200), a.session!.sub],
+      [a.societyId, await sealText(a.societyId, title.trim().slice(0, 200)), a.session!.sub],
     );
     await client.query(
       `INSERT INTO discussion_posts (thread_id, body, created_by) VALUES ($1, $2, $3)`,
-      [t.id, body.trim(), a.session!.sub],
+      [t.id, await sealText(a.societyId, body.trim()), a.session!.sub],
     );
     await client.query('COMMIT');
     return NextResponse.json({ id: t.id }, { status: 201 });
@@ -53,3 +57,5 @@ export async function POST(req: NextRequest, { params }: Params) {
     client.release();
   }
 }
+
+export const POST = lockSafe(handlePOST);

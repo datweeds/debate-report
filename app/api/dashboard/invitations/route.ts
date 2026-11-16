@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { openDeep } from '@/lib/societyCrypto';
 
 // `sent`: invitations the viewer can administer (their Societies, or all if
 // SysAdmin) — replaces "magic links across every forum I own."
@@ -41,5 +42,6 @@ export async function GET() {
     ),
   ]);
 
+  await openDeep([sent, received]);
   return NextResponse.json({ sent, received });
 }

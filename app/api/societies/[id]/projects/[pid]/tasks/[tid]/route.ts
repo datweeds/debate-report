@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { openRows, sealText } from '@/lib/societyCrypto';
 import { projectContext, readDate, text, TASK_STATUSES, UUID_RE } from '@/lib/projects';
+import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ id: string; pid: string; tid: string }> };
 
@@ -16,7 +18,7 @@ async function loadTask(projectId: string, taskId: string) {
 
 // PATCH — the PM or a moderator edits any field; members allocated to the
 // task can update its status and comments.
-export async function PATCH(req: NextRequest, { params }: Params) {
+async function handlePATCH(req: NextRequest, { params }: Params) {
   const { id, pid, tid } = await params;
   const c = await projectContext(req, id, pid);
   const task = c ? await loadTask(pid, tid) : null;
@@ -32,10 +34,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (!(TASK_STATUSES as readonly string[]).includes(b.status)) return NextResponse.json({ error: 'Unknown status' }, { status: 400 });
     set('status', b.status);
   }
-  if ('comments' in b) set('comments', text(b.comments, 5000));
+  const seal = (v: string | null) => sealText(c.a.societyId, v);
+  if ('comments' in b) set('comments', await seal(text(b.comments, 5000)));
   if (c.canManage) {
-    if ('name' in b) { const n = text(b.name, 200); if (!n) return NextResponse.json({ error: 'A task name is required' }, { status: 400 }); set('name', n); }
-    if ('description' in b) set('description', text(b.description, 5000));
+    if ('name' in b) { const n = text(b.name, 200); if (!n) return NextResponse.json({ error: 'A task name is required' }, { status: 400 }); set('name', await seal(n)); }
+    if ('description' in b) set('description', await seal(text(b.description, 5000)));
     const start = readDate(b.startDate), end = readDate(b.endDate), due = readDate(b.dueDate);
     if (start !== undefined) set('start_date', start);
     if (end !== undefined) set('end_date', end);
@@ -62,7 +65,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 }
 
 // DELETE — the PM or a moderator; its sub-tasks and reports go with it.
-export async function DELETE(req: NextRequest, { params }: Params) {
+async function handleDELETE(req: NextRequest, { params }: Params) {
   const { id, pid, tid } = await params;
   const c = await projectContext(req, id, pid);
   const task = c ? await loadTask(pid, tid) : null;
@@ -71,3 +74,6 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   await pool.query('DELETE FROM project_tasks WHERE id = $1', [tid]);
   return NextResponse.json({ ok: true });
 }
+
+export const PATCH = lockSafe(handlePATCH);
+export const DELETE = lockSafe(handleDELETE);

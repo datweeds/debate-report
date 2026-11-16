@@ -3,6 +3,7 @@
 import path from 'path';
 import crypto from 'crypto';
 import { mkdir, writeFile, unlink } from 'fs/promises';
+import { sealFile } from './societyCrypto';
 
 export const STORAGE_DIR = process.env.DOCUMENTS_DIR || path.join(process.cwd(), 'storage', 'documents');
 
@@ -28,7 +29,8 @@ export async function saveFile(customerId: number, file: File): Promise<{ stored
   const ext = path.extname(file.name).toLowerCase().replace(/[^a-z0-9.]/g, '').slice(0, 12);
   const storedName = `${crypto.randomUUID()}${ext}`;
   await mkdir(societyDir(customerId), { recursive: true });
-  await writeFile(storedPath(customerId, storedName), Buffer.from(await file.arrayBuffer()));
+  // Private Societies: stored encrypted with the Society's key
+  await writeFile(storedPath(customerId, storedName), await sealFile(customerId, Buffer.from(await file.arrayBuffer())));
   return { storedName };
 }
 

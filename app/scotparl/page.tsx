@@ -8,6 +8,8 @@ import DateFilter from '@/components/scotparl/DateFilter';
 import ActivityList from '@/components/scotparl/ActivityList';
 import { getSession } from '@/lib/auth';
 import { viewableResolutionSql } from '@/lib/debateAccess';
+import { openDeep } from '@/lib/societyCrypto';
+import { sysAdminSocietySql } from '@/lib/breakGlass';
 import {
   emptyLozenges, emptyMetrics, addMetrics, getMetricsBySociety, getLozengesBySociety, getLawsTotal,
   MetricBox, SocietySection, type Metrics,
@@ -43,15 +45,17 @@ export type UpdateItem = {
 const SYSADMIN_ONLY_ITEM_TYPES = ['Proposal', 'Bill', 'Act', 'SSI', 'Principle'];
 
 async function getRecentUpdates(since: string | null, limit: number, isSysAdmin: boolean, userId: string | null): Promise<UpdateItem[]> {
-  // Viewer id (for debate access) only when it's used — SysAdmin skips the
-  // filter, and Postgres rejects unused parameters. Then `since`, if given.
-  const params: unknown[] = isSysAdmin ? [] : [userId];
+  // Viewer id (for debate access), then `since`, if given.
+  const params: unknown[] = [userId];
   if (since) params.push(since);
   const sinceClause = since ? `AND changed_at >= $${params.length}` : '';
   const limitClause = since ? '' : `LIMIT ${limit}`;
   const typeClause = isSysAdmin ? '' : `AND item_type NOT IN ('${SYSADMIN_ONLY_ITEM_TYPES.join("','")}')`;
   // Debate content only from debates this viewer may open.
-  const canView = (res: string) => (isSysAdmin ? 'TRUE' : viewableResolutionSql(res, '$1::text'));
+  // Sys Admin: only where they may act (public Societies, or emergency access) — private debates are encrypted
+  const canView = (res: string) => isSysAdmin
+    ? `(${viewableResolutionSql(res, '$1::text')} OR ${sysAdminSocietySql(`${res}.customer_id`, '$1::text')})`
+    : viewableResolutionSql(res, '$1::text');
   try {
     const { rows } = await pool.query<UpdateItem>(`
       SELECT item_type, name, url, created_at, changed_at, entity_id FROM (
@@ -127,7 +131,7 @@ async function getRecentUpdates(since: string | null, limit: number, isSysAdmin:
       ORDER BY changed_at DESC
       ${limitClause}
     `, params);
-    return rows;
+    return openDeep(rows);
   } catch (err) {
     console.error('[getRecentUpdates]', err);
     return [];

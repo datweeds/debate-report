@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSessionFromRequest } from '@/lib/auth';
+import { openDeep } from '@/lib/societyCrypto';
 
 // GET — debates in the Societies this user moderates, with the latest result for each.
 export async function GET(req: NextRequest) {
@@ -23,5 +24,7 @@ export async function GET(req: NextRequest) {
      ORDER  BY c.name NULLS LAST, r.stat_title`,
     [session.sub],
   );
+  await openDeep(rows);
+  rows.sort((a, b) => String(a.society ?? '\uffff').localeCompare(String(b.society ?? '\uffff')) || String(a.title).localeCompare(String(b.title)));
   return NextResponse.json({ debates: rows });
 }

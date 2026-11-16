@@ -76,6 +76,11 @@ export const SCAN_TARGETS: ScanTarget[] = [
     from: 'society_principle_reviews t', society: 't.customer_id', author: 't.user_id', href: society('t.customer_id', '/principles'),
   },
   {
+    type: 'rtc_room_name', label: 'Call room name', table: 'society_rtc_rooms', column: 'name', idColumn: 'id',
+    from: 'society_rtc_rooms t', where: 't.deleted_at IS NULL',
+    society: 't.customer_id', author: 't.created_by', href: society('t.customer_id', '/meet'),
+  },
+  {
     type: 'news_title', label: 'News edition title', table: 'society_news', column: 'title', idColumn: 'customer_id',
     from: 'society_news t', society: 't.customer_id', author: 't.updated_by', href: society('t.customer_id', '/news/settings'),
   },

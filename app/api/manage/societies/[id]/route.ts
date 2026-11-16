@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { reencryptSociety } from '@/lib/societyRekey';
 import { moderatedSociety } from '@/lib/societies';
+import { isUnlocked } from '@/lib/masterKey';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -55,7 +57,19 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
   if (!sets.length) return NextResponse.json({ ok: true });
 
+  const { rows: [before] } = await pool.query('SELECT visibility FROM customers WHERE id = $1', [ctx.id]);
+  // Switching public ↔ private re-encrypts its content, which needs the master key
+  if (body.visibility && (body.visibility === 'public') !== (before?.visibility === 'public') && !isUnlocked()) {
+    return NextResponse.json({ error: 'Privacy can’t be changed while private Societies are locked. Please try again later.' }, { status: 503 });
+  }
   values.push(ctx.id);
   await pool.query(`UPDATE customers SET ${sets.join(', ')}, updated_at = now() WHERE id = $${values.length}`, values);
+  // Public ↔ private: encrypt (or decrypt) the Society's stored content to match, in the background
+  const wasPublic = before?.visibility === 'public';
+  if (body.visibility && (body.visibility === 'public') !== wasPublic) {
+    void reencryptSociety(ctx.id)
+      .then(n => console.log(`[privacy] society ${ctx.id} now ${body.visibility}: ${n} items re-encrypted`))
+      .catch(err => console.error('[privacy] reencrypt', err));
+  }
   return NextResponse.json({ ok: true });
 }

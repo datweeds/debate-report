@@ -42,8 +42,13 @@ export async function getDebateAccess(
   const everything: DebateAccess = { listable: true, viewable: true };
   const nothing: DebateAccess = { listable: false, viewable: false };
 
-  // SysAdmin can see everything only as the platform's takedown backstop
-  if (session?.isSysAdmin) return everything;
+  // SysAdmin sees everything as the platform's takedown backstop, except in a
+  // private Society, where only an emergency (break-glass) grant lets them in
+  if (session?.isSysAdmin) {
+    if (debate.customer_id == null) return everything;
+    const s = await getSocietyAccess(session, debate.customer_id);
+    if (!s || s.visibility === 'public' || s.breakGlass) return everything;
+  }
   if (userId && debate.created_by === userId) return everything;
   if (userId && debate.customer_id != null && await isCustomerAdmin(userId, debate.customer_id)) return everything;
 

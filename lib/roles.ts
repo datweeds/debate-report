@@ -70,8 +70,10 @@ export async function statementSocietyId(statementId: string): Promise<number | 
  * alert / flag review queue: SysAdmin keeps a platform-wide takedown backstop.
  */
 export async function isSocietyAdmin(session: SessionPayload, customerId: number): Promise<boolean> {
-  if (session.isSysAdmin) return true;
-  return isCustomerAdmin(session.sub, customerId);
+  if (await isCustomerAdmin(session.sub, customerId)) return true;
+  // SysAdmin: public Societies; private ones only under a break-glass grant
+  const { sysAdminMayAct } = await import('./breakGlass');
+  return sysAdminMayAct(session, customerId);
 }
 
 /**

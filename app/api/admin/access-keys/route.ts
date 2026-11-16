@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSessionFromRequest } from '@/lib/auth';
 import { generateAccessKey, hashAccessKey, DEFAULT_EXPIRY_DAYS } from '@/lib/accessKeys';
+import { openForSysAdmin } from '@/lib/debateCrypto';
 
 // SysAdmin: list and create Access Keys. (/api/admin/* is also SysAdmin-gated in proxy.ts.)
 
@@ -13,8 +14,8 @@ export async function GET(req: NextRequest) {
     SELECT k.id, k.label, k.created_at, k.expires_at, k.revoked_at,
            k.first_used_at, k.last_used_at, k.use_count,
            u.user_handle AS created_by_handle,
-           COALESCE(json_agg(json_build_object('id', s.id, 'title', s.stat_title)
-                    ORDER BY s.stat_title) FILTER (WHERE s.id IS NOT NULL), '[]') AS debates
+           COALESCE(json_agg(json_build_object('id', s.id, 'title', s.stat_title, 'society_id', s.customer_id)
+                    ORDER BY s.created_at) FILTER (WHERE s.id IS NOT NULL), '[]') AS debates
     FROM access_keys k
     LEFT JOIN users u               ON u.id = k.created_by
     LEFT JOIN access_key_debates kd ON kd.key_id = k.id
@@ -22,6 +23,7 @@ export async function GET(req: NextRequest) {
     GROUP BY k.id, u.user_handle
     ORDER BY k.created_at DESC
   `);
+  for (const k of rows) await openForSysAdmin(session, k.debates as { society_id: number | null }[], d => d.society_id);
   return NextResponse.json(rows);
 }
 

@@ -3,6 +3,7 @@
 // surfaces enforce identical debate rules and ownership checks.
 import pool from './db';
 import { scanContent } from './scanner';
+import { openDebateText, sealDebate } from './debateCrypto';
 import { PF_ALLOWED_CHILDREN, isValidStatType } from './debateRules';
 
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; status: number; error: string };
@@ -59,8 +60,11 @@ export async function createStatement(input: CreateStatementInput): Promise<ApiR
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, stat_type, stat_title, stat_direction, stat_description,
                  resolution_id, created_by, retracted_at, created_at, stat_ref`,
-      [statType, statTitle.trim(), statDirection ?? null, statDescription?.trim() ?? null, resolutionId, createdBy],
+      [statType, await sealDebate(resolutionId, statTitle.trim(), client), statDirection ?? null,
+       await sealDebate(resolutionId, statDescription?.trim() ?? null, client), resolutionId, createdBy],
     );
+    statement.stat_title = statTitle.trim();
+    statement.stat_description = statDescription?.trim() ?? null;
 
     // stat_id_supported = parent (what's being supported)
     // stat_id_supported_by = new child (the supporter)
@@ -93,7 +97,10 @@ export async function getStatementForOwnershipCheck(id: string) {
     'SELECT id, stat_title, stat_description, created_by, resolution_id, stat_type FROM statements WHERE id = $1',
     [id],
   );
-  return stmt ?? null;
+  if (!stmt) return null;
+  stmt.stat_title = await openDebateText(stmt.stat_title);
+  stmt.stat_description = await openDebateText(stmt.stat_description);
+  return stmt;
 }
 
 export async function updateStatementText(id: string, title: string, description: string | null, resolutionId: string, editedBy: string): Promise<ApiResult<{ ok: true }>> {
@@ -103,7 +110,7 @@ export async function updateStatementText(id: string, title: string, description
   const { rows: [stmt] } = await pool.query('SELECT stat_title FROM statements WHERE id = $1', [id]);
   if (!stmt) return { ok: false, status: 404, error: 'Not found' };
 
-  if (newTitle !== stmt.stat_title) {
+  if (newTitle !== await openDebateText(stmt.stat_title)) {
     const { rows: children } = await pool.query(
       'SELECT 1 FROM stat_relationships WHERE stat_id_supported = $1 LIMIT 1',
       [id],
@@ -115,7 +122,7 @@ export async function updateStatementText(id: string, title: string, description
 
   await pool.query(
     'UPDATE statements SET stat_title = $2, stat_description = $3 WHERE id = $1',
-    [id, newTitle, description?.trim() || null],
+    [id, await sealDebate(resolutionId, newTitle), await sealDebate(resolutionId, description?.trim() || null)],
   );
 
   void scanContent(newTitle, 'statement_title', id, resolutionId, editedBy);

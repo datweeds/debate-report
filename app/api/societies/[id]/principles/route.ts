@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { societyContentAccess } from '@/lib/societies';
 import { ensureCurrentVersion, readPrinciple } from '@/lib/principles';
+import { openRows, openText, sealText } from '@/lib/societyCrypto';
+import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -14,6 +16,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     `SELECT v.id, v.version, v.change_note, v.is_current, v.created_at, u.user_handle AS created_by
      FROM society_principle_versions v LEFT JOIN users u ON u.id = v.created_by
      WHERE v.customer_id = $1 ORDER BY v.version DESC`, [a.societyId]);
+  await openRows(a.societyId, versions, ['change_note']);
   const wanted = Number(req.nextUrl.searchParams.get('version'));
   const version = versions.find(v => wanted ? v.version === wanted : v.is_current) ?? null;
 
@@ -32,6 +35,8 @@ export async function GET(req: NextRequest, { params }: Params) {
      WHERE p.version_id = $1
      ORDER BY p.sort_order, p.created_at`, [version.id]) : { rows: [] };
 
+  await openRows(a.societyId, principles, ['title', 'body', 'grounding', 'section']);
+  for (const p of principles) for (const r of p.reviews) r.text = await openText(a.societyId, r.text);
   return NextResponse.json({
     version, versions, principles,
     canPost: a.canPost, canModerate: a.canModerate,
@@ -39,7 +44,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 }
 
 // POST { category, title, body, grounding? } — moderators add a principle to the current version.
-export async function POST(req: NextRequest, { params }: Params) {
+async function handlePOST(req: NextRequest, { params }: Params) {
   const a = await societyContentAccess(req, (await params).id);
   if (!a) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (!a.canModerate) return NextResponse.json({ error: 'Only moderators can change the principles' }, { status: 403 });
@@ -50,7 +55,10 @@ export async function POST(req: NextRequest, { params }: Params) {
     `INSERT INTO society_principles (version_id, sort_order, category, section, title, body, grounding)
      VALUES ($1, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM society_principles WHERE version_id = $1), $2, $6, $3, $4, $5)
      RETURNING id`,
-    [v.id, p.category, p.title, p.body, p.grounding, p.section],
+    [v.id, p.category, await sealText(a.societyId, p.title), await sealText(a.societyId, p.body),
+     await sealText(a.societyId, p.grounding), await sealText(a.societyId, p.section)],
   );
   return NextResponse.json({ id: row.id }, { status: 201 });
 }
+
+export const POST = lockSafe(handlePOST);

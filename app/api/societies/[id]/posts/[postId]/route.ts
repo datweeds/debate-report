@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { sealText } from '@/lib/societyCrypto';
 import { discussionAccess, UUID_RE } from '@/lib/discussions';
+import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ id: string; postId: string }> };
 
@@ -16,7 +18,7 @@ async function loadPost(societyId: number, postId: string) {
 }
 
 // PATCH { body } — the author edits their post.
-export async function PATCH(req: NextRequest, { params }: Params) {
+async function handlePATCH(req: NextRequest, { params }: Params) {
   const { id, postId } = await params;
   const a = await discussionAccess(req, id);
   const post = a ? await loadPost(a.societyId, postId) : null;
@@ -26,7 +28,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (typeof body !== 'string' || !body.trim() || body.length > 5000) {
     return NextResponse.json({ error: 'Message must be 1–5,000 characters' }, { status: 400 });
   }
-  await pool.query('UPDATE discussion_posts SET body = $1, edited_at = now() WHERE id = $2', [body.trim(), postId]);
+  await pool.query('UPDATE discussion_posts SET body = $1, edited_at = now() WHERE id = $2', [await sealText(a.societyId, body.trim()), postId]);
   return NextResponse.json({ ok: true });
 }
 
@@ -40,3 +42,5 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   await pool.query('UPDATE discussion_posts SET deleted_at = COALESCE(deleted_at, now()) WHERE id = $1', [postId]);
   return NextResponse.json({ ok: true });
 }
+
+export const PATCH = lockSafe(handlePATCH);

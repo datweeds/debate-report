@@ -1,6 +1,7 @@
 import pool from '@/lib/db';
 import { loadSocietyPage } from '@/lib/societyPage';
 import SocietyContactForm from '@/components/societies/SocietyContactForm';
+import SocietyMetrics from '@/components/societies/SocietyMetrics';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +30,7 @@ export default async function SocietyAboutPage({ params }: { params: Promise<{ i
           <div className="rounded-xl border border-slate-800 bg-[#0c1322] px-4 py-3"><dt className="text-[11px] uppercase tracking-wider text-slate-500">Moderators</dt>
             <dd className="mt-1 text-slate-200">{moderators.map(m => m.user_full_name ? `${m.user_full_name} (@${m.user_handle})` : `@${m.user_handle}`).join(', ') || '—'}</dd></div>
         </dl>
+        <SocietyMetrics societyId={society.id} />
       </div>
       <aside className="space-y-4">
         {society.hero_image && (

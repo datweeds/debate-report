@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool, { getCurrentTenantId } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { moderatedSocietyIds } from '@/lib/roles';
+import { sealText } from '@/lib/societyCrypto';
+import { openDeep } from '@/lib/societyCrypto';
 
 
 export async function GET() {
@@ -32,6 +34,7 @@ export async function GET() {
   );
 
   // Every listed debate is one this user moderates
+  await openDeep(rows);
   return NextResponse.json(rows.map(r => ({ ...r, can_set_visibility: true })));
 }
 
@@ -68,7 +71,7 @@ export async function POST(req: NextRequest) {
        (stat_type, stat_title, stat_description, subject_area, created_by, customer_id)
      VALUES ('resolution', $1, $2, $3, $4, $5)
      RETURNING id`,
-    [title.trim(), description?.trim() || null, subjectArea, session.sub, customerId]
+    [await sealText(customerId, title.trim()), await sealText(customerId, description?.trim() || null), subjectArea, session.sub, customerId]
   );
 
   return NextResponse.json({ id: rows[0].id }, { status: 201 });

@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { societyContentAccess } from '@/lib/societies';
 import { currentPrinciple } from '@/lib/principles';
+import { lockSafe } from '@/lib/lockSafe';
+import { sealText } from '@/lib/societyCrypto';
 
 type Params = { params: Promise<{ id: string; pid: string }> };
 
 // POST — moderators open a debate on the principle (a resolution in this
 // Society that members argue and vote on). Returns the existing one if there is one.
-export async function POST(req: NextRequest, { params }: Params) {
+async function handlePOST(req: NextRequest, { params }: Params) {
   const { id, pid } = await params;
   const a = await societyContentAccess(req, id);
   const p = a ? await currentPrinciple(a.societyId, pid) : null;
@@ -23,8 +25,8 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { rows: [r] } = await pool.query(
     `INSERT INTO statements (stat_type, stat_title, stat_description, subject_area, created_by, customer_id)
      VALUES ('resolution', $1, $2, 'philosophy', $3, $4) RETURNING id`,
-    [`This Society should keep the principle: ${p.title}`.slice(0, 500),
-     `${p.body}${p.grounding ? `\n\nWhy: ${p.grounding}` : ''}\n\nOne of this Society's principles. Argue for keeping it as it is, or against (and how it should change).`,
+    [await sealText(a.societyId, `This Society should keep the principle: ${p.title}`.slice(0, 500)),
+     await sealText(a.societyId, `${p.body}${p.grounding ? `\n\nWhy: ${p.grounding}` : ''}\n\nOne of this Society's principles. Argue for keeping it as it is, or against (and how it should change).`),
      a.session!.sub, a.societyId],
   );
   await pool.query(
@@ -34,3 +36,5 @@ export async function POST(req: NextRequest, { params }: Params) {
   );
   return NextResponse.json({ resolutionId: r.id }, { status: 201 });
 }
+
+export const POST = lockSafe(handlePOST);

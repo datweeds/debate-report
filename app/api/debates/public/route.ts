@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { sysAdminSocietySql } from '@/lib/breakGlass';
 import { getSession } from '@/lib/auth';
 import { listableResolutionSql } from '@/lib/debateAccess';
+import { openDeep } from '@/lib/societyCrypto';
 
 // Switch Debate lists debates across Societies, regardless of which one the
 // visitor currently has selected. Who sees what is the shared rule in
@@ -27,11 +29,12 @@ export async function GET() {
      WHERE  s.stat_type = 'resolution'
        AND  s.stat_status IN ('active', 'closed')
        AND  s.stat_hidden IS NOT TRUE
-       AND  ($2::boolean IS TRUE OR ${listableResolutionSql('s', '$1::text')})
+       AND  (($2::boolean IS TRUE AND ${sysAdminSocietySql('s.customer_id', '$1::text')}) OR ${listableResolutionSql('s', '$1::text')})
      GROUP  BY s.id, s.vote_for, s.vote_against, c.name
      ORDER  BY s.created_at DESC`,
     [userId, isSysAdmin]
   );
 
+  await openDeep(rows);
   return NextResponse.json(rows);
 }

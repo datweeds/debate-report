@@ -1,5 +1,6 @@
 'use client';
 
+import MembersOnly from './MembersOnly';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -30,9 +31,13 @@ export default function ThreadList({ societyId }: { societyId: number }) {
   const [saving, setSaving] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
+  const [membersOnly, setMembersOnly] = useState<{ visibility: string; pending: boolean } | null>(null);
   const load = useCallback(async () => {
     const r = await fetch(`/api/societies/${societyId}/threads`);
-    if (r.ok) setData(await r.json()); else setError('Could not load discussions.');
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) setData(d);
+    else if (d.membersOnly) setMembersOnly({ visibility: d.visibility, pending: d.pending });
+    else setError('Could not load discussions.');
   }, [societyId]);
   useEffect(() => { load(); }, [load]);
 
@@ -65,6 +70,7 @@ export default function ThreadList({ societyId }: { societyId: number }) {
     router.push(`/society/${societyId}/discussions/${d.id}`);
   }
 
+  if (membersOnly) return <MembersOnly societyId={societyId} visibility={membersOnly.visibility} pending={membersOnly.pending} />;
   if (!data) return error ? <p className="text-sm text-rose-400">{error}</p> : <div className="h-32 rounded-2xl bg-slate-800/40 animate-pulse" />;
 
   return (

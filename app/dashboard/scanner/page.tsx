@@ -14,9 +14,12 @@ type ContentAlert = {
   society_name?: string | null;
   content_id: string | null;
   resolution_id: string | null;
-  flagged_text: string;
+  flagged_text: string | null;
   flags: string[];
   status: string;
+  content_hidden?: boolean;      // private Society, no break-glass: Sys Admin sees only that it exists
+  reporter_handle?: string | null;
+  report_reason?: string | null;
   created_at: string;
   reviewed_at: string | null;
   appeal_body: string | null;
@@ -182,12 +185,17 @@ const FLAG_COLOURS: Record<string, string> = {
   profanity:   'bg-orange-500/20 text-orange-300 border-orange-500/40',
   hate_speech: 'bg-red-600/20 text-red-300 border-red-500/40',
   pii:         'bg-violet-500/20 text-violet-300 border-violet-500/40',
+  reported:    'bg-amber-500/20 text-amber-300 border-amber-500/40',
 };
 
 const FLAG_LABELS: Record<string, string> = {
   profanity:   'Profanity',
   hate_speech: 'Hate Speech',
   pii:         'Personal Data',
+  reported:      'Reported by a member',
+  inappropriate: 'Inappropriate',
+  personal_data: 'Personal Data',
+  other:         'Other',
 };
 
 const REASON_LABELS: Record<string, string> = {
@@ -208,7 +216,8 @@ function timeAgo(d: string) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-function truncate(s: string, n = 140) {
+function truncate(s: string | null | undefined, n = 140) {
+  if (!s) return '';
   return s.length > n ? s.slice(0, n) + '…' : s;
 }
 
@@ -332,9 +341,27 @@ function ScannerCard({ alert, onAction }: { alert: ContentAlert; onAction: (id: 
         <span className="text-[11px] text-slate-600 whitespace-nowrap flex-shrink-0">{timeAgo(alert.created_at)}</span>
       </div>
 
-      <blockquote className="rounded-lg border-l-2 border-slate-700 bg-slate-900/50 px-3 py-2 text-sm text-slate-300 leading-relaxed italic">
-        {truncate(alert.flagged_text)}
-      </blockquote>
+      {alert.content_hidden ? (
+        <p className="rounded-lg border border-slate-700/60 bg-slate-900/50 px-3 py-2 text-xs text-slate-400">
+          🔐 Private Society: the content is encrypted and handled by its moderators. You can see when they act on it;
+          to see the content itself in an emergency, use Admin → Privacy.
+        </p>
+      ) : (
+        <blockquote className="rounded-lg border-l-2 border-slate-700 bg-slate-900/50 px-3 py-2 text-sm text-slate-300 leading-relaxed italic">
+          {truncate(alert.flagged_text)}
+        </blockquote>
+      )}
+      {alert.flags.includes('reported') && (
+        <p className="text-xs text-amber-300">
+          Reported by {alert.reporter_handle ? `@${alert.reporter_handle}` : 'a member'}
+          {alert.report_reason && <span className="text-slate-400">: “{truncate(alert.report_reason, 300)}”</span>}
+        </p>
+      )}
+      {alert.status !== 'pending' && (
+        <p className="text-xs text-slate-500">
+          {alert.status === 'masked' ? 'Masked' : 'Passed'}{alert.reviewed_by_handle ? ` by @${alert.reviewed_by_handle}` : ''}{alert.reviewed_at ? `, ${timeAgo(alert.reviewed_at)}` : ''}
+        </p>
+      )}
 
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
         {alert.author_handle && <span>By <span className="text-slate-400">@{alert.author_handle}</span></span>}
@@ -356,7 +383,7 @@ function ScannerCard({ alert, onAction }: { alert: ContentAlert; onAction: (id: 
         )}
       </div>
 
-      <div className="flex items-center gap-2 pt-1">
+      {!alert.content_hidden && alert.status === 'pending' && <div className="flex items-center gap-2 pt-1">
         <button
           onClick={() => act('passed')}
           disabled={saving}
@@ -390,7 +417,7 @@ function ScannerCard({ alert, onAction }: { alert: ContentAlert; onAction: (id: 
         )}
 
         <EmailPartiesButton targets={emailTargets} defaultSubject={emailSubject} defaultBody={emailBody} />
-      </div>
+      </div>}
     </div>
   );
 }

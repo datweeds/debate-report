@@ -6,6 +6,8 @@ import { isSocietyModerator } from '@/lib/roles';
 import { runRules, qualityScore, checkDraft, type Finding, type QDebate } from './rules';
 import { aiReview } from './ai';
 import { AiUnavailable } from '@/lib/ai/gateway';
+import { openDeep } from '../societyCrypto';
+import { sealDebate } from '../debateCrypto';
 
 export type DebateRow = { id: string; stat_title: string; stat_description: string | null; customer_id: number | null };
 
@@ -21,7 +23,7 @@ export async function getDebate(resolutionId: string): Promise<DebateRow | null>
      WHERE id = $1 AND stat_type = 'resolution'`,
     [resolutionId],
   );
-  return rows[0] ?? null;
+  return rows[0] ? openDeep(rows[0]) : null;
 }
 
 export async function loadDebate(res: DebateRow): Promise<QDebate> {
@@ -38,7 +40,7 @@ export async function loadDebate(res: DebateRow): Promise<QDebate> {
       [res.id],
     ),
   ]);
-  return { resolution: res, statements, relationships };
+  return { resolution: res, statements: await openDeep(statements), relationships };
 }
 
 // Creates the report row and runs the checks in the background (the AI review
@@ -67,6 +69,7 @@ async function executeReport(reportId: string, res: DebateRow) {
       'SELECT fingerprint, observation FROM quality_dismissals WHERE resolution_id = $1',
       [res.id],
     );
+    await openDeep(dismissedRows);
     const dismissed = new Set(dismissedRows.map(d => d.fingerprint as string));
 
     // Open AI findings from the last completed run, so persisting issues keep their identity
@@ -81,6 +84,7 @@ async function executeReport(reportId: string, res: DebateRow) {
       [res.id, reportId],
     );
 
+    await openDeep(previous);
     const ruleFindings = runRules(debate);
     let aiFindings: Finding[] = [];
     let aiModel: string | null = null, aiSummary: string | null = null, aiError: string | null = null;
@@ -116,7 +120,7 @@ async function executeReport(reportId: string, res: DebateRow) {
               fallacy_name, observation, recommendation)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
           [reportId, f.source, f.ruleId, f.fingerprint, f.severity, f.category, f.statementId, f.ref,
-           f.fallacy ?? null, f.observation, f.recommendation],
+           f.fallacy ?? null, await sealDebate(res.id, f.observation, client), await sealDebate(res.id, f.recommendation, client)],
         );
       }
       await client.query(
@@ -124,7 +128,7 @@ async function executeReport(reportId: string, res: DebateRow) {
          SET status = 'complete', finished_at = now(), statement_count = $2, score = $3,
              ai_model = $4, ai_summary = $5, ai_error = $6
          WHERE id = $1`,
-        [reportId, liveCount, qualityScore(counted, liveCount), aiModel, aiSummary, aiError],
+        [reportId, liveCount, qualityScore(counted, liveCount), aiModel, await sealDebate(res.id, aiSummary, client), aiError],
       );
       await client.query('COMMIT');
     } catch (err) {
@@ -199,12 +203,12 @@ export async function getReport(resolutionId: string, reportId?: string) {
   }));
   const resolved = prevFindings.filter(f => !currentSet.has(f.fingerprint) && !dismissedNote.has(f.fingerprint));
 
-  return {
+  return openDeep({
     history,
     report: { ...report, ...detail, previousId: previous?.id ?? null },
     findings: out,
     resolved,
-  };
+  });
 }
 
 // Quality warnings for one saved statement (returned by the API on create/update).

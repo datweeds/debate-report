@@ -7,6 +7,7 @@ export const SOCIETY_SECTIONS = [
   { slug: '',            label: 'Debate & Vote' },
   { slug: 'news',        label: 'News' },
   { slug: 'discussions', label: 'Discussions' },
+  { slug: 'meet',        label: 'Meet' },
   { slug: 'documents',   label: 'Documents' },
   { slug: 'events',      label: 'Events' },
   { slug: 'projects',    label: 'Projects' },

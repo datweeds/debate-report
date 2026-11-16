@@ -2,6 +2,8 @@
 
 import pool from './db';
 import type { PoolClient } from 'pg';
+import { LOCKED_TEXT, openRows } from './societyCrypto';
+import { SocietyLockedError } from './masterKey';
 
 export const CATEGORIES = ['rule', 'aspiration', 'guideline'] as const;
 export type Category = typeof CATEGORIES[number];
@@ -50,5 +52,9 @@ export async function currentPrinciple(customerId: number, principleId: string) 
      WHERE p.id = $1 AND v.customer_id = $2 AND v.is_current`,
     [principleId, customerId],
   );
-  return p ?? null;
+  if (!p) return null;
+  await openRows(customerId, [p], ['title', 'body', 'grounding']);
+  // Locked: don't let the placeholder be copied into a debate or discussion
+  if (p.title === LOCKED_TEXT) throw new SocietyLockedError();
+  return p;
 }

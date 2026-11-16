@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { sealText } from '@/lib/societyCrypto';
 import { societyContentAccess } from '@/lib/societies';
 import { currentPrinciple } from '@/lib/principles';
+import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ id: string; pid: string }> };
 
 // POST — the principle's discussion thread, created on first use.
-export async function POST(req: NextRequest, { params }: Params) {
+async function handlePOST(req: NextRequest, { params }: Params) {
   const { id, pid } = await params;
   const a = await societyContentAccess(req, id);
   const p = a ? await currentPrinciple(a.societyId, pid) : null;
@@ -24,11 +26,11 @@ export async function POST(req: NextRequest, { params }: Params) {
     await client.query('BEGIN');
     const { rows: [t] } = await client.query(
       `INSERT INTO discussion_threads (customer_id, title, created_by) VALUES ($1, $2, $3) RETURNING id`,
-      [a.societyId, `Principle: ${p.title}`.slice(0, 200), a.session!.sub],
+      [a.societyId, await sealText(a.societyId, `Principle: ${p.title}`.slice(0, 200)), a.session!.sub],
     );
     await client.query(
       `INSERT INTO discussion_posts (thread_id, body, created_by) VALUES ($1, $2, $3)`,
-      [t.id, `${p.body}${p.grounding ? `\n\nWhy: ${p.grounding}` : ''}\n\nDiscuss this principle here.`, a.session!.sub],
+      [t.id, await sealText(a.societyId, `${p.body}${p.grounding ? `\n\nWhy: ${p.grounding}` : ''}\n\nDiscuss this principle here.`), a.session!.sub],
     );
     await client.query(
       `INSERT INTO society_principle_links (lineage_id, customer_id, thread_id) VALUES ($1, $2, $3)
@@ -44,3 +46,5 @@ export async function POST(req: NextRequest, { params }: Params) {
     client.release();
   }
 }
+
+export const POST = lockSafe(handlePOST);
