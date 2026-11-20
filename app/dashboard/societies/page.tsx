@@ -6,6 +6,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import SocietyImageField from '@/components/societies/SocietyImageField';
 import SocietyAiCard from '@/components/societies/SocietyAiCard';
+import FeaturesCard from '@/components/societies/FeaturesCard';
+import NewsCard from '@/components/societies/NewsCard';
+import WebAddressField from '@/components/societies/WebAddressField';
 import AccessLogCard from '@/components/societies/AccessLogCard';
 
 type Visibility = 'public' | 'apply' | 'invite';
@@ -16,7 +19,7 @@ type SocietyRow = {
 };
 
 type Detail = {
-  society: { id: number; name: string; visibility: Visibility; hero_text: string | null; hero_image: string | null; description: string | null; contact_email: string | null; is_default: boolean };
+  society: { id: number; name: string; visibility: Visibility; hero_text: string | null; hero_image: string | null; description: string | null; contact_email: string | null; is_default: boolean; disabled_sections: string[]; subdomain: string | null; allow_sealed: boolean };
   members: { user_id: string; joined_at: string; user_handle: string | null; user_full_name: string | null; is_moderator: boolean }[];
   requests: { id: string; user_id: string; message: string | null; created_at: string; user_handle: string | null; user_full_name: string | null }[];
   invites: { id: string; label: string | null; created_at: string; expires_at: string | null; revoked_at: string | null; use_count: number; last_used_at: string | null }[];
@@ -80,7 +83,7 @@ function ManageSocieties() {
               {list.societies.map(s => (
                 <button key={s.id} onClick={() => router.replace(`/dashboard/societies?society=${s.id}`)}
                   className={`w-full text-left rounded-xl border px-3 py-2.5 transition-colors ${
-                    s.id === selected ? 'border-blue-500/60 bg-blue-500/10' : 'border-slate-800 bg-[#0c1322] hover:border-slate-700'
+                    s.id === selected ? 'border-blue-500/60 bg-blue-500/10' : 'border-slate-800 bg-dr-card hover:border-slate-700'
                   }`}>
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm text-slate-200 truncate">{s.name}</span>
@@ -94,7 +97,7 @@ function ManageSocieties() {
                 </button>
               ))}
               {list.societies.length === 0 && !list.canCreate && (
-                <p className="text-sm text-slate-500 rounded-xl border border-slate-800 bg-[#0c1322] p-4">You don&apos;t moderate any Societies.</p>
+                <p className="text-sm text-slate-500 rounded-xl border border-slate-800 bg-dr-card p-4">You don&apos;t moderate any Societies.</p>
               )}
               {list.canCreate && (
                 <button onClick={() => router.replace('/dashboard/societies?new=1')}
@@ -122,7 +125,7 @@ function ManageSocieties() {
 
 function Card({ title, children, right }: { title: string; children: React.ReactNode; right?: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-5">
+    <div className="rounded-2xl border border-slate-800 bg-dr-card p-5">
       <div className="flex items-center justify-between gap-3 mb-4">
         <h2 className="text-sm font-semibold text-slate-200">{title}</h2>
         {right}
@@ -150,7 +153,19 @@ function VisibilityPicker({ value, onChange }: { value: Visibility; onChange: (v
 
 function CreateSociety({ onCreated }: { onCreated: (id: number) => void }) {
   const [name, setName] = useState('');
+  const [slug, setSlug] = useState('');
+  const [slugEdited, setSlugEdited] = useState(false);
+  const [slugOk, setSlugOk] = useState(false);
   const [visibility, setVisibility] = useState<Visibility>('public');
+  // Suggest an address from the name until the moderator types their own
+  useEffect(() => {
+    if (slugEdited || name.trim().length < 3) return;
+    const t = setTimeout(async () => {
+      const r = await fetch(`/api/manage/societies/slug?suggest=${encodeURIComponent(name)}`);
+      if (r.ok) setSlug((await r.json()).slug);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [name, slugEdited]);
   const [heroText, setHeroText] = useState('');
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
@@ -161,7 +176,7 @@ function CreateSociety({ onCreated }: { onCreated: (id: number) => void }) {
     setSaving(true); setError('');
     const r = await fetch('/api/manage/societies', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, visibility, hero_text: heroText, description }),
+      body: JSON.stringify({ name, slug, visibility, hero_text: heroText, description }),
     });
     const d = await r.json();
     setSaving(false);
@@ -177,6 +192,8 @@ function CreateSociety({ onCreated }: { onCreated: (id: number) => void }) {
             <label className="block text-xs text-slate-400 mb-1">Name</label>
             <input value={name} onChange={e => setName(e.target.value)} required minLength={3} maxLength={120} className={inputCls} placeholder="e.g. Edinburgh Climate Forum" />
           </div>
+          <WebAddressField value={slug} onChange={v => { setSlug(v); setSlugEdited(true); }} onValidity={setSlugOk}
+            note="Choose carefully: this is how members will find and share your Society." />
           <div>
             <label className="block text-xs text-slate-400 mb-1">Who can see it</label>
             <VisibilityPicker value={visibility} onChange={setVisibility} />
@@ -191,7 +208,7 @@ function CreateSociety({ onCreated }: { onCreated: (id: number) => void }) {
           </div>
           <p className="text-xs text-slate-500">You&apos;ll be its moderator. You can add an image once it&apos;s created.</p>
           {error && <p className="text-xs text-rose-400">{error}</p>}
-          <button type="submit" disabled={saving || name.trim().length < 3}
+          <button type="submit" disabled={saving || name.trim().length < 3 || !slugOk}
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50">
             {saving ? 'Creating…' : 'Create Society'}
           </button>
@@ -204,7 +221,8 @@ function CreateSociety({ onCreated }: { onCreated: (id: number) => void }) {
 function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void }) {
   const [data, setData] = useState<Detail | null>(null);
   const [error, setError] = useState('');
-  const [form, setForm] = useState({ name: '', visibility: 'public' as Visibility, hero_text: '', description: '', contact_email: '' });
+  const [form, setForm] = useState({ name: '', slug: '', visibility: 'public' as Visibility, hero_text: '', description: '', contact_email: '' });
+  const [slugOk, setSlugOk] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [newLink, setNewLink] = useState<string | null>(null);
@@ -218,7 +236,7 @@ function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void })
     if (!r.ok) { setError('You don\'t moderate this Society.'); return; }
     const d: Detail = await r.json();
     setData(d);
-    setForm({ name: d.society.name, visibility: d.society.visibility, hero_text: d.society.hero_text ?? '', description: d.society.description ?? '', contact_email: d.society.contact_email ?? '' });
+    setForm({ name: d.society.name, slug: d.society.subdomain ?? '', visibility: d.society.visibility, hero_text: d.society.hero_text ?? '', description: d.society.description ?? '', contact_email: d.society.contact_email ?? '' });
   }, [id]);
   useEffect(() => { load(); }, [load]);
 
@@ -275,12 +293,6 @@ function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void })
     load();
   }
 
-  async function openSettings() {
-    // Topics, groups and site settings work on the current Society
-    await fetch('/api/customer/switch', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ customer_id: id }) });
-    window.location.href = '/scotparl/admin';
-  }
-
   const s = data.society;
   const moderatorCount = data.members.filter(m => m.is_moderator).length;
 
@@ -289,8 +301,7 @@ function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void })
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-slate-100">{s.name}</h2>
         <div className="flex items-center gap-3 text-xs">
-          <Link href={`/society/${s.id}`} className="text-blue-400 hover:underline">View Society →</Link>
-          <button onClick={openSettings} className="text-blue-400 hover:underline">Topics, groups &amp; site settings →</button>
+          <Link href={`/society/${s.subdomain || s.id}`} className="text-blue-400 hover:underline">View Society →</Link>
         </div>
       </div>
       {rowError && <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{rowError}</p>}
@@ -302,6 +313,8 @@ function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void })
               <label className="block text-xs text-slate-400 mb-1">Name</label>
               <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} minLength={3} maxLength={120} className={inputCls} />
             </div>
+            <WebAddressField value={form.slug} exceptId={id} onChange={v => setForm(f => ({ ...f, slug: v }))} onValidity={setSlugOk}
+              note={form.slug !== (s.subdomain ?? '') ? 'Changing it stops links to the old address working; numbered links still work.' : undefined} />
             <div>
               <label className="block text-xs text-slate-400 mb-1">Who can see it</label>
               <VisibilityPicker value={form.visibility} onChange={v => setForm(f => ({ ...f, visibility: v }))} />
@@ -322,7 +335,7 @@ function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void })
               <input value={form.contact_email} onChange={e => setForm(f => ({ ...f, contact_email: e.target.value }))} type="email" className={inputCls} placeholder="e.g. hello@yoursociety.org" />
             </div>
             <SocietyImageField endpoint={`/api/manage/societies/${id}/image`} value={s.hero_image} onChange={() => load()} />
-            <button type="submit" disabled={saving}
+            <button type="submit" disabled={saving || !slugOk}
               className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50">
               {saving ? 'Saving…' : 'Save details'}
             </button>
@@ -330,9 +343,13 @@ function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void })
         </Card>
       </form>
 
+      <FeaturesCard key={s.id} societyId={s.id} initial={s.disabled_sections ?? []} />
+
+      <NewsCard key={`news-${s.id}`} societyId={s.id} switchedOff={(s.disabled_sections ?? []).includes('news')} />
+
       <SocietyAiCard societyId={s.id} />
 
-      <AccessLogCard societyId={s.id} visibility={s.visibility} />
+      <AccessLogCard key={`privacy-${s.id}`} societyId={s.id} visibility={s.visibility} allowSealed={!!s.allow_sealed} />
 
       {(s.visibility === 'apply' || data.requests.length > 0) && (
         <Card title={`Requests to join (${data.requests.length})`}>

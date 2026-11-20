@@ -14,6 +14,17 @@ export default function PrivacyTab() {
   const [openFor, setOpenFor] = useState<number | null>(null);
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
+  const [rekey, setRekey] = useState<{ busy: boolean; done: string | null }>({ busy: false, done: null });
+
+  // Bring every Society's stored content in line with the encryption rules
+  async function rerun() {
+    if (!confirm('Re-check every Society’s stored content and encrypt anything that should be? Safe to run more than once.')) return;
+    setRekey({ busy: true, done: null });
+    const r = await fetch('/api/admin/privacy', { method: 'POST' });
+    const d = await r.json().catch(() => ({}));
+    const changed = (d.results ?? []).reduce((n: number, x: { changed: number }) => n + x.changed, 0);
+    setRekey({ busy: false, done: r.ok ? `Done: ${changed} item${changed === 1 ? '' : 's'} updated across ${(d.results ?? []).length} Societies.` : d.error ?? 'It didn’t run.' });
+  }
 
   const load = useCallback(async () => {
     const r = await fetch('/api/admin/break-glass');
@@ -46,7 +57,19 @@ export default function PrivacyTab() {
 
       <MasterKeyCard />
 
-      <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-5">
+      <div className="rounded-2xl border border-slate-800 bg-dr-card p-5">
+        <h2 className="mb-1 text-sm font-semibold text-slate-200">Bring encryption up to date</h2>
+        <p className="mb-3 text-xs text-slate-500">
+          Encrypts any stored content that should be encrypted under the current rules, such as members-only discussions in public Societies.
+          Run it after an upgrade that changes what is encrypted. The master key must be unlocked.
+        </p>
+        <button onClick={rerun} disabled={rekey.busy} className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-500 disabled:opacity-50">
+          {rekey.busy ? 'Working…' : 'Re-check and encrypt'}
+        </button>
+        {rekey.done && <p className="mt-2 text-xs text-slate-300">{rekey.done}</p>}
+      </div>
+
+      <div className="rounded-2xl border border-slate-800 bg-dr-card p-5">
         <h2 className="mb-3 text-sm font-semibold text-slate-200">Private Societies</h2>
         {data.societies.length === 0 && <p className="text-xs text-slate-500">There are no private Societies.</p>}
         <ul className="divide-y divide-slate-800/60">
@@ -82,7 +105,7 @@ export default function PrivacyTab() {
         </ul>
       </div>
 
-      <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-5">
+      <div className="rounded-2xl border border-slate-800 bg-dr-card p-5">
         <h2 className="mb-3 text-sm font-semibold text-slate-200">Access log</h2>
         {data.log.length === 0 ? <p className="text-xs text-slate-500">No emergency access yet.</p> : (
           <table className="w-full text-left text-xs">

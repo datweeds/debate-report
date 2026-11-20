@@ -54,6 +54,23 @@ export async function moderatedSocietyIds(userId: string): Promise<number[]> {
   return rows.map(r => r.tenant_id as number);
 }
 
+/** Societies this user owns: ones they created, or (where no creator was recorded) administer. */
+export async function ownedSocietyIds(userId: string): Promise<number[]> {
+  const { rows } = await pool.query(
+    `SELECT c.id FROM customers c
+     WHERE c.created_by::text = $1
+        OR (c.created_by IS NULL AND EXISTS (SELECT 1 FROM customer_roles r WHERE r.tenant_id = c.id AND r.user_id::text = $1 AND r.role = 'customer_admin'))`,
+    [userId],
+  );
+  return rows.map(r => r.id as number);
+}
+
+/** Has this user the Moderator plan (the account that creates and owns Societies)? */
+export async function isModeratorAccount(userId: string): Promise<boolean> {
+  const { rows: [u] } = await pool.query('SELECT user_tier FROM users WHERE id::text = $1', [userId]);
+  return u?.user_tier === 'moderator';
+}
+
 /** The Society a statement's debate belongs to. */
 export async function statementSocietyId(statementId: string): Promise<number | null> {
   const { rows } = await pool.query(

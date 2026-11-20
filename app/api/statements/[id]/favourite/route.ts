@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { statementAccess } from '@/lib/debateAccess';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -23,11 +24,7 @@ export async function POST(_req: NextRequest, { params }: Params) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
 
-  const { rows: [stmt] } = await pool.query(
-    `SELECT id FROM statements WHERE id = $1`,
-    [id],
-  );
-  if (!stmt) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!(await statementAccess(session, id))?.viewable) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   // Check current state
   const { rows: existing } = await pool.query(

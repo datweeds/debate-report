@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
-import { openDeep } from '@/lib/societyCrypto';
+import { hideEndToEnd, openDeep } from '@/lib/societyCrypto';
 
 export async function GET() {
   const { rows } = await pool.query(
@@ -28,5 +28,6 @@ export async function GET() {
   );
 
   await openDeep(rows);
+  await hideEndToEnd(rows);  // sealed debates: only members' browsers can open them
   return NextResponse.json(rows);
 }

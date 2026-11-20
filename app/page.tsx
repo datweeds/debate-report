@@ -1,6 +1,7 @@
 'use client';
 
 import PrivacyTile from '@/components/PrivacyTile';
+import { ClosingCta, OnlyHere, SectionHead, ThreeSteps, ToolkitStrip, UseCases } from '@/components/home/HomeSections';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
@@ -69,7 +70,7 @@ export default function HomePage() {
     <div className="flex flex-col">
 
       {/* ── Hero ──────────────────────────────────────────────── */}
-      <section className="dr-dark relative overflow-hidden bg-dr-base pb-24 sm:pb-36">
+      <section className="relative overflow-hidden bg-dr-base pb-12 sm:pb-16">
         {/* Subtle dark background */}
         <div
           aria-hidden="true"
@@ -99,30 +100,33 @@ export default function HomePage() {
         <div className="relative mx-auto max-w-4xl px-4 sm:px-6 text-center pt-10 sm:pt-14">
 
           {/* Headline */}
-          <h1 className="mb-6 text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight">
-            <span style={{ color: '#93c5fd' }}>Question,</span>{' '}
-            <span style={{ color: '#60a5fa' }}>debate,</span><br />
-            <span style={{ color: '#2563eb' }}>justify,</span>{' '}
-            <span style={{ color: '#00d0ff' }}>understand</span>
+          <h1 className="dr-hero-title mb-6 text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight">
+            <span style={{ color: '#93c5fd' }}>Where groups</span>{' '}
+            <span style={{ color: '#60a5fa' }}>reason it through</span><br />
+            <span style={{ color: '#00d0ff' }}>and decide together</span>
           </h1>
 
           {/* Subtext */}
           <p className="mx-auto mb-4 max-w-2xl text-lg sm:text-xl text-slate-400 leading-relaxed">
-            Broaden your mind, deepen your understanding, and justify your position.
-            Interactive debate on the issues that matter.
+            Every Society on new.vote gets its own space to debate with evidence, vote by secret ballot,
+            talk, meet and plan, run by its own members.
           </p>
           <p className="mx-auto mb-10 max-w-2xl text-base text-slate-500 leading-relaxed">
-            Arguments are presented visually — pros and cons supported by evidence — so
-            that you can reach a reasoned position. Courteous, challenging, and always
-            evidence-led.
+            Public when you want to be heard, private and encrypted when you don’t.
           </p>
 
-          <p className="text-sm text-slate-500">
-            Choose a society below to enter the debate, or{' '}
-            <Link href="/about" className="text-blue-500 hover:text-blue-400 underline underline-offset-2 transition-colors">
-              learn how it works
-            </Link>
-            .
+          <div className="flex flex-wrap justify-center gap-3">
+            <a href="#societies" className="rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500 transition-colors">Find a Society</a>
+            <Link href="/features" className="rounded-lg border border-blue-700/50 px-5 py-3 text-sm font-semibold text-slate-200 hover:bg-blue-500/10 transition-colors">See all features</Link>
+          </div>
+          <div className="mt-6 flex flex-wrap justify-center gap-2 text-xs text-slate-400">
+            {['Evidence-led', 'Encrypted private Societies', 'Secret ballots', 'No ads or tracking', 'Your choice of AI'].map(t => (
+              <span key={t} className="rounded-full border border-blue-900/40 px-3 py-1">{t}</span>
+            ))}
+          </div>
+          <p className="mt-5 text-sm text-slate-500">
+            New here?{' '}
+            <a href="#how-it-works" className="text-blue-500 hover:text-blue-400 underline underline-offset-2 transition-colors">Learn how it works</a>.
           </p>
           <p className="mt-4 text-xs text-slate-600">
             Stay informed —{' '}
@@ -133,99 +137,45 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── Stats strip ───────────────────────────────────────── */}
-      <div className="bg-dr-base px-4 sm:px-6 pb-10">
-        <div className="mx-auto max-w-4xl grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { value: 'Public / Private Forums', label: 'debate format',                          color: 'text-blue-400',    bg: 'border-blue-800/30 bg-blue-500/5' },
-            { value: 'Moderated',               label: 'all content reviewed',                   color: 'text-amber-400',   bg: 'border-amber-800/30 bg-amber-500/5' },
-            { value: 'Evidence-led',            label: 'strengthen claims with evidence and data', color: 'text-emerald-400', bg: 'border-emerald-800/30 bg-emerald-500/5' },
-            { value: 'AI-Assisted',             label: 'AI-assisted argumentation',              color: 'text-violet-400',  bg: 'border-violet-800/30 bg-violet-500/5' },
-          ].map(s => (
-            <div key={s.label} className={`rounded-xl border px-4 py-4 text-center ${s.bg}`}>
-              <p className={`font-bold text-sm sm:text-base ${s.color}`}>{s.value}</p>
-              <p className="text-xs text-slate-500 mt-0.5">{s.label}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
       {/* ── Society lists ─────────────────────────────────────── */}
-      <div className="bg-dr-base px-4 sm:px-6 pb-4 space-y-4">
+      <div id="societies" className="scroll-mt-24 bg-dr-base px-4 sm:px-6 pb-4 space-y-4">
         <div className="mx-auto max-w-5xl space-y-4">
 
-          {/* Public Societies */}
-          {societies === null ? (
+          {societies === null && (
             <div className="card-dr px-5 py-6 text-center text-slate-600 text-sm italic">Loading societies…</div>
-          ) : publicSocieties.length > 0 ? (
-            <div className="card-dr overflow-hidden">
-              <div className="px-5 py-4 border-b border-slate-800/60">
-                <h2 className="text-base font-semibold text-slate-100">Open Societies</h2>
-                <p className="text-xs text-slate-500 mt-0.5">Public debate platforms — open to everyone</p>
-              </div>
-              <div className="divide-y divide-slate-800/60">
+          )}
+
+          {/* Public Societies */}
+          {publicSocieties.length > 0 && (
+            <section aria-labelledby="public-societies-h" className="space-y-4 pt-4">
+              <SectionHead id="public-societies-h" eyebrow="Open to everyone" title="Public Societies" />
+              <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {publicSocieties.map(s => (
-                  <div key={s.id} className="px-5 py-4 flex items-center justify-between gap-4 flex-wrap">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-200">{s.name}</p>
-                      {s.description && <p className="text-xs text-slate-500 mt-0.5">{s.description}</p>}
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <Link
-                        href="/chamber"
-                        className="rounded-lg border border-blue-700/40 px-3 py-1.5 text-xs font-medium text-blue-400 hover:bg-blue-500/10 transition-colors"
-                      >
-                        Debate Chamber
-                      </Link>
-                      <button
-                        onClick={() => enterSociety(s.id)}
-                        disabled={entering === s.id}
-                        className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-50 transition-colors"
-                      >
-                        {entering === s.id ? 'Entering…' : 'Society House →'}
-                      </button>
-                    </div>
-                  </div>
+                  <SocietyTile key={s.id} s={s} entering={entering === s.id} onEnter={() => enterSociety(s.id)} chamber />
                 ))}
-              </div>
-            </div>
-          ) : null}
+              </ul>
+            </section>
+          )}
 
           {/* Private Societies: Apply ones for everyone, Invite ones for their members */}
           {privateSocieties.length > 0 && (
-            <div className="card-dr overflow-hidden">
-              <div className="px-5 py-4 border-b border-slate-800/60">
-                <h2 className="text-base font-semibold text-slate-100">Private Societies</h2>
-                <p className="text-xs text-slate-500 mt-0.5">Members-only platforms — ask to join, or join by invitation</p>
-              </div>
-              <div className="divide-y divide-slate-800/60">
+            <section aria-labelledby="private-societies-h" className="space-y-4 pt-8">
+              <SectionHead id="private-societies-h" eyebrow="For 2 or more people collaborating in private" title="Private Societies" />
+              <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {privateSocieties.map(s => (
-                  <div key={s.id} className="px-5 py-4 flex items-center justify-between gap-4 flex-wrap">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-200">{s.name}</p>
-                      {s.description && <p className="text-xs text-slate-500 mt-0.5">{s.description}</p>}
-                      <span className="inline-flex items-center gap-1 mt-1 rounded bg-slate-700/50 px-1.5 py-0.5 text-[10px] text-slate-400 border border-slate-700/60">
-                        🔒 {s.is_member ? 'Member' : s.visibility === 'apply' ? 'Apply to join' : 'Invite only'}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <Link href="/chamber" className="rounded-lg border border-blue-700/40 px-3 py-1.5 text-xs font-medium text-blue-400 hover:bg-blue-500/10 transition-colors">
-                        Debate Chamber
-                      </Link>
-                      <button
-                        onClick={() => enterSociety(s.id)}
-                        disabled={entering === s.id}
-                        className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-50 transition-colors"
-                      >
-                        {entering === s.id ? 'Entering…' : 'Society House →'}
-                      </button>
-                    </div>
-                  </div>
+                  <SocietyTile key={s.id} s={s} entering={entering === s.id} onEnter={() => enterSociety(s.id)} chamber={s.is_member} />
                 ))}
-              </div>
-            </div>
+              </ul>
+            </section>
           )}
 
+        </div>
+      </div>
+
+      {/* ── Privacy: kept prominent, straight after the Societies ── */}
+      <div className="bg-dr-base px-4 sm:px-6 pb-4">
+        <div className="mx-auto max-w-5xl">
+          <PrivacyTile />
         </div>
       </div>
 
@@ -272,15 +222,14 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* ── Privacy ───────────────────────────────────────────── */}
-      <div className="bg-dr-base px-4 sm:px-6 pb-4">
-        <div className="mx-auto max-w-5xl">
-          <PrivacyTile />
-        </div>
-      </div>
+      {/* ── What new.vote is for ───────────────────────────────── */}
+      <OnlyHere />
+      <UseCases />
+      <ThreeSteps />
+      <ToolkitStrip />
 
       {/* ── Blog strip ────────────────────────────────────────── */}
-      <div className="bg-dr-base px-4 sm:px-6 pb-16">
+      <div className="bg-dr-base px-4 sm:px-6 py-12">
         <div className="mx-auto max-w-5xl">
           <div className="card-dr px-5 py-5">
             <div className="flex items-center justify-between mb-4">
@@ -294,7 +243,7 @@ export default function HomePage() {
             </div>
             <div className="rounded-lg border border-blue-900/15 bg-dr-base/60 px-5 py-4 flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-sm font-medium text-slate-200 mb-1">Welcome to debate.report</p>
+                <p className="text-sm font-medium text-slate-200 mb-1">Welcome to new.vote</p>
                 <p className="text-xs text-slate-500 leading-relaxed">
                   Structured, evidence-led debate for everyone. Here&apos;s what we&apos;re building, why it matters, and what comes next.
                 </p>
@@ -315,6 +264,35 @@ export default function HomePage() {
         </div>
       </div>
 
+      <ClosingCta />
     </div>
+  );
+}
+
+// One Society as a tile: its name (to its About page), what it's for, and the way in
+function SocietyTile({ s, entering, onEnter, chamber }: { s: Society; entering: boolean; onEnter: () => void; chamber?: boolean }) {
+  return (
+    <li className="card-dr flex flex-col gap-2 p-4">
+      <Link href={`/society/${s.subdomain || s.id}/about`} className="text-sm font-semibold text-slate-100 hover:text-blue-300 hover:underline underline-offset-4 decoration-blue-400/50">
+        {s.name}
+      </Link>
+      {!s.is_public && (
+        <span className="self-start rounded border border-slate-700/60 bg-slate-700/50 px-1.5 py-0.5 text-[10px] text-slate-400">
+          🔒 {s.is_member ? 'Member' : s.visibility === 'apply' ? 'Apply to join' : 'Invite only'}
+        </span>
+      )}
+      {s.description && <p className="line-clamp-3 text-xs leading-relaxed text-slate-500">{s.description}</p>}
+      <div className="mt-auto flex flex-col gap-2 pt-2">
+        <button onClick={onEnter} disabled={entering}
+          className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-50 transition-colors">
+          {entering ? 'Entering…' : `${s.name} house →`}
+        </button>
+        {chamber && (
+          <Link href="/chamber" className="rounded-lg border border-blue-700/40 px-3 py-1.5 text-center text-xs font-medium text-blue-400 hover:bg-blue-500/10 transition-colors">
+            Debate Chamber
+          </Link>
+        )}
+      </div>
+    </li>
   );
 }

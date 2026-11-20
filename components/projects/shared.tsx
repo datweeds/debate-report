@@ -43,11 +43,13 @@ export function ProgressBar({ done, total }: { done: number; total: number }) {
 }
 
 // A bottom sheet on phones, a centred dialog elsewhere.
+// A pop-up for project forms. Only its ✕ button closes it: a stray click
+// outside mustn't throw away what someone is typing.
 export function Sheet({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm sm:p-4" onClick={onClose}>
-      <div role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}
-        className="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-slate-700 bg-[#0c1322] p-5 sm:max-w-xl shadow-2xl">
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm sm:p-4">
+      <div role="dialog" aria-modal="true" aria-label={title}
+        className="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-slate-700 bg-dr-card p-5 sm:max-w-xl shadow-2xl">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h3 className="text-lg font-semibold text-slate-100">{title}</h3>
           <button onClick={onClose} aria-label="Close" className="rounded-lg p-1 text-slate-500 hover:bg-slate-800 hover:text-slate-200">✕</button>
@@ -58,7 +60,23 @@ export function Sheet({ title, children, onClose }: { title: string; children: R
   );
 }
 
+// A sealed project registers how to seal and open its text here (by its API
+// base); every send() to that project then seals its text fields on the way out.
+type Sealer = { seal: (v: string) => string; open: (v: string | null | undefined) => string | null };
+const sealers = new Map<string, Sealer>();
+const TEXT_FIELDS = ['name', 'description', 'comments', 'body', 'newGroup'];
+export function registerSealer(base: string, s: Sealer | null) { if (s) sealers.set(base, s); else sealers.delete(base); }
+const sealerFor = (url: string) => [...sealers.entries()].find(([b]) => url === b || url.startsWith(`${b}/`))?.[1];
+/** Open text from a sealed project (unchanged elsewhere; null if it can't be opened). */
+export const openFor = (url: string, v: string | null | undefined) => { const s = sealerFor(url); return s ? s.open(v) : v ?? null; };
+
 export async function send(url: string, method: string, body?: unknown): Promise<string | null> {
+  const sealer = sealerFor(url);
+  if (sealer && body && typeof body === 'object' && !Array.isArray(body)) {
+    const b = { ...(body as Record<string, unknown>) };
+    for (const k of TEXT_FIELDS) if (typeof b[k] === 'string' && (b[k] as string).trim()) b[k] = sealer.seal((b[k] as string).trim());
+    body = b;
+  }
   const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body !== undefined ? JSON.stringify(body) : undefined });
   if (!r.ok) return (await r.json().catch(() => ({}))).error ?? 'Something went wrong';
   return null;

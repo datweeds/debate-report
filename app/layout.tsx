@@ -5,6 +5,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { AuthProvider } from '@/components/AuthProvider';
+import SiteBack from '@/components/SiteBack';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -19,11 +20,14 @@ export const metadata: Metadata = {
     template: '%s | new.vote',
   },
   description:
-    'Structured debate, democratic proposals, and civic tools. Evidence-based. Open to all.',
-  icons: { icon: '/favicon.svg', apple: '/favicon.svg' },
+    'Structured debate, democratic proposals, and civic tools. Evidence-led. Open to all.',
+  icons: { icon: '/favicon.svg', apple: '/apple-touch-icon.png' },
+  // Installable as an app (needed for notifications on iPhone and iPad)
+  manifest: '/manifest.webmanifest',
+  appleWebApp: { capable: true, title: 'new.vote', statusBarStyle: 'black-translucent' },
   openGraph: {
     title: 'new.vote — Democracy Tools for Society',
-    description: 'Structured debate, democratic proposals, and civic tools. Evidence-based. Open to all.',
+    description: 'Structured debate, democratic proposals, and civic tools. Evidence-led. Open to all.',
     siteName: 'new.vote',
     url: 'https://new.vote',
     type: 'website',
@@ -36,13 +40,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
         {/* Set theme before React hydrates to avoid flash */}
+        {/* Service worker: notifications only (it caches nothing) */}
+        <script dangerouslySetInnerHTML={{ __html: `if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){})})}` }} />
         <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('dr_theme');document.documentElement.setAttribute('data-theme',t==='light'?'light':'dark');if(localStorage.getItem('dr_menu_pinned')==='1')document.documentElement.setAttribute('data-menu-pinned','');}catch(e){}` }} />
       </head>
       <body className="min-h-screen flex flex-col antialiased bg-dr-base">
         <ThemeProvider>
           <AuthProvider>
             <Header />
-            <main className="dr-pin-main flex-1 pt-16 pb-14 sm:pb-0">{children}</main>
+            <main className="dr-pin-main flex-1 pt-16 pb-14 sm:pb-0"><SiteBack />{children}</main>
             <Footer />
           </AuthProvider>
         </ThemeProvider>

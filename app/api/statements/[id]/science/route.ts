@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { statementAccess } from '@/lib/debateAccess';
+import { AI_OFF, debateE2E, openDebateText, sealDebate } from '@/lib/debateCrypto';
+import { openDeep } from '@/lib/societyCrypto';
+import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ id: string }> };
 
-export async function GET(_req: NextRequest, { params }: Params) {
+async function handleGET(_req: NextRequest, { params }: Params) {
   const { id } = await params;
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+  const access = await statementAccess(session, id);
+  if (!access?.viewable) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (await debateE2E(access.resolutionId)) return NextResponse.json({ analysis: null, refs: [], aiOff: true });
 
   const { rows: [stmt] } = await pool.query(
     'SELECT science_analysis_id FROM statements WHERE id = $1',
@@ -23,19 +30,26 @@ export async function GET(_req: NextRequest, { params }: Params) {
     ),
   ]);
 
-  return NextResponse.json({ analysis: analysis ?? null, refs });
+  return NextResponse.json({ analysis: await openDeep(analysis ?? null), refs });
 }
 
-export async function POST(_req: NextRequest, { params }: Params) {
+async function handlePOST(_req: NextRequest, { params }: Params) {
   const { id } = await params;
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+  const access = await statementAccess(session, id);
+  if (!access?.viewable) return NextResponse.json({ error: 'Statement not found' }, { status: 404 });
+  if (await debateE2E(access.resolutionId)) return NextResponse.json({ error: AI_OFF }, { status: 409 });
+  const resolutionId = access.resolutionId;
 
   const { rows: [stmt] } = await pool.query(
     'SELECT stat_title, stat_description, science_analysis_id FROM statements WHERE id = $1',
     [id],
   );
   if (!stmt) return NextResponse.json({ error: 'Statement not found' }, { status: 404 });
+  // Private debates are stored encrypted: the claim is built from the plain text
+  stmt.stat_title = await openDebateText(stmt.stat_title);
+  stmt.stat_description = await openDebateText(stmt.stat_description);
 
   // Build claim: title + first 3 sentences of description
   const sentences = (stmt.stat_description ?? '')
@@ -85,8 +99,10 @@ export async function POST(_req: NextRequest, { params }: Params) {
     const { rows: [newAnalysis] } = await client.query(
       `INSERT INTO science_analyses (statement_id, claim, pro_analysis, con_analysis, synthesis)
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [id, sciData.claim, sciData.pro_analysis, sciData.con_analysis, sciData.synthesis],
+      [id, await sealDebate(resolutionId, sciData.claim, client), await sealDebate(resolutionId, sciData.pro_analysis, client),
+       await sealDebate(resolutionId, sciData.con_analysis, client), await sealDebate(resolutionId, sciData.synthesis, client)],
     );
+    Object.assign(newAnalysis, { claim: sciData.claim, pro_analysis: sciData.pro_analysis, con_analysis: sciData.con_analysis, synthesis: sciData.synthesis });
 
     // Insert refs
     const refRows: { side: 'supporting' | 'opposing'; pos: number; ref: { title: string; summary: string; link: string } }[] = [];
@@ -126,3 +142,6 @@ export async function POST(_req: NextRequest, { params }: Params) {
     client.release();
   }
 }
+
+export const GET = lockSafe(handleGET);
+export const POST = lockSafe(handlePOST);

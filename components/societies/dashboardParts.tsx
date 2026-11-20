@@ -1,9 +1,9 @@
-// Building blocks of a Society's Debate & Vote dashboard (metrics, statement
+import Link from 'next/link';
+// Building blocks of a Society's Debate dashboard (metrics, statement
 // counts, the debates list), shared by the all-Societies overview and each
 // Society's own page. Server-only.
 
 import pool, { pq } from '@/lib/db';
-import DebatesMetricButton from '@/components/scotparl/DebatesMetricButton';
 import { STAT_LABEL } from '@/components/chamber/constants';
 import { listableResolutionSql } from '@/lib/debateAccess';
 import { openDeep } from '@/lib/societyCrypto';
@@ -14,18 +14,19 @@ export function emptyLozenges(): LozengeCounts {
   return Object.fromEntries(LOZENGE_TYPES.map(t => [t, 0])) as LozengeCounts;
 }
 
-export type Metrics = { debates: number; votes: number; proposals: number; principles: number };
+// One Society's activity, counted for the Dashboard overview
+const METRIC_KEYS = ['debatesPublic', 'debatesPrivate', 'votes', 'polls', 'discussions', 'documents', 'events', 'projects', 'principles', 'proposals', 'nspPrinciples'] as const;
+export type Metrics = Record<typeof METRIC_KEYS[number], number>;
 export function emptyMetrics(): Metrics {
-  return { debates: 0, votes: 0, proposals: 0, principles: 0 };
+  return Object.fromEntries(METRIC_KEYS.map(k => [k, 0])) as Metrics;
 }
 export function addMetrics(a: Metrics, b: Metrics): Metrics {
-  return { debates: a.debates + b.debates, votes: a.votes + b.votes, proposals: a.proposals + b.proposals, principles: a.principles + b.principles };
+  return Object.fromEntries(METRIC_KEYS.map(k => [k, a[k] + b[k]])) as Metrics;
 }
 
-// Debates/votes live directly on statements.customer_id (real attribution).
-// Proposals/principles already have real tenant_id + RLS, so pq() (bypasses
-// RLS) with an explicit GROUP BY tenant_id gets every society's count in one
-// query rather than one tq() call per society.
+// Counts per Society, all-time or created since a date. Debates are split by
+// their own visibility (Public, or Apply/Invite). ScotParl proposals and
+// principles have their own tenant_id + RLS, so pq() (bypasses RLS) is used.
 export async function getMetricsBySociety(since?: string): Promise<Map<number, Metrics>> {
   const bySociety = new Map<number, Metrics>();
   const ensure = (id: number) => {
@@ -33,51 +34,34 @@ export async function getMetricsBySociety(since?: string): Promise<Map<number, M
     return bySociety.get(id)!;
   };
   const params = since ? [since] : [];
-
-  try {
-    const { rows } = await pool.query(
-      `SELECT customer_id, COUNT(*)::int AS n FROM statements
-       WHERE stat_type = 'resolution' AND customer_id IS NOT NULL ${since ? 'AND created_at >= $1' : ''}
-       GROUP BY customer_id`,
-      params
-    );
-    for (const r of rows) ensure(r.customer_id).debates = r.n;
-  } catch (err) { console.error('[getMetricsBySociety:debates]', err); }
-
-  try {
-    const { rows } = await pool.query(
-      `SELECT res.customer_id, COUNT(*)::int AS n
-       FROM stat_votes sv
-       JOIN statements st  ON st.id = sv.statement_id
-       JOIN statements res ON res.id = COALESCE(st.resolution_id, st.id)
-       WHERE res.customer_id IS NOT NULL ${since ? 'AND sv.created_at >= $1' : ''}
-       GROUP BY res.customer_id`,
-      params
-    );
-    for (const r of rows) ensure(r.customer_id).votes = r.n;
-  } catch (err) { console.error('[getMetricsBySociety:votes]', err); }
-
-  try {
-    const { rows } = await pq(
-      `SELECT tenant_id, COUNT(*)::int AS n FROM proposals ${since ? 'WHERE updated_at >= $1' : ''} GROUP BY tenant_id`,
-      params
-    );
-    for (const r of rows) ensure(r.tenant_id).proposals = r.n;
-  } catch (err) { console.error('[getMetricsBySociety:proposals]', err); }
-
-  try {
-    const { rows } = await pq(
-      `SELECT nt.tenant_id, COUNT(np.*)::int AS n
-       FROM nsp_principles np
-       JOIN nsp_principle_sets nps ON nps.id = np.set_id
-       JOIN nsp_topics nt          ON nt.id  = nps.topic_id
-       ${since ? 'WHERE np.created_at >= $1' : ''}
-       GROUP BY nt.tenant_id`,
-      params
-    );
-    for (const r of rows) ensure(r.tenant_id).principles = r.n;
-  } catch (err) { console.error('[getMetricsBySociety:principles]', err); }
-
+  const after = (col: string) => (since ? `AND ${col} >= $1` : '');
+  const QUERIES: [keyof Metrics | 'debates', string, boolean?][] = [
+    ['debates', `SELECT customer_id AS cid, (debate_visibility = 'public') AS pub, COUNT(*)::int AS n FROM statements
+       WHERE stat_type = 'resolution' AND customer_id IS NOT NULL AND stat_status <> 'deleted' ${after('created_at')} GROUP BY 1, 2`],
+    ['votes', `SELECT res.customer_id AS cid, COUNT(*)::int AS n FROM stat_votes sv JOIN statements st ON st.id = sv.statement_id
+       JOIN statements res ON res.id = COALESCE(st.resolution_id, st.id) WHERE res.customer_id IS NOT NULL ${after('sv.created_at')} GROUP BY 1`],
+    ['polls', `SELECT customer_id AS cid, COUNT(*)::int AS n FROM society_polls WHERE deleted_at IS NULL AND status <> 'draft' ${after('opened_at')} GROUP BY 1`],
+    ['discussions', `SELECT customer_id AS cid, COUNT(*)::int AS n FROM discussion_threads WHERE deleted_at IS NULL ${after('created_at')} GROUP BY 1`],
+    ['documents', `SELECT customer_id AS cid, COUNT(*)::int AS n FROM documents WHERE deleted_at IS NULL ${after('created_at')} GROUP BY 1`],
+    ['events', `SELECT customer_id AS cid, COUNT(*)::int AS n FROM society_events WHERE deleted_at IS NULL ${after('created_at')} GROUP BY 1`],
+    ['projects', `SELECT customer_id AS cid, COUNT(*)::int AS n FROM projects WHERE deleted_at IS NULL ${after('created_at')} GROUP BY 1`],
+    ['principles', `SELECT v.customer_id AS cid, COUNT(*)::int AS n FROM society_principles p JOIN society_principle_versions v ON v.id = p.version_id
+       WHERE v.is_current ${after('p.created_at')} GROUP BY 1`],
+    ['proposals', `SELECT tenant_id AS cid, COUNT(*)::int AS n FROM proposals ${since ? 'WHERE updated_at >= $1' : ''} GROUP BY 1`, true],
+    ['nspPrinciples', `SELECT nt.tenant_id AS cid, COUNT(np.*)::int AS n FROM nsp_principles np
+       JOIN nsp_principle_sets nps ON nps.id = np.set_id JOIN nsp_topics nt ON nt.id = nps.topic_id
+       ${since ? 'WHERE np.created_at >= $1' : ''} GROUP BY 1`, true],
+  ];
+  await Promise.all(QUERIES.map(async ([key, sql, rls]) => {
+    try {
+      const { rows } = await (rls ? pq(sql, params) : pool.query(sql, params));
+      for (const r of rows) {
+        if (r.cid == null) continue;
+        if (key === 'debates') ensure(r.cid)[r.pub ? 'debatesPublic' : 'debatesPrivate'] += r.n;
+        else ensure(r.cid)[key] = r.n;
+      }
+    } catch (err) { console.error(`[getMetricsBySociety:${key}]`, err); }
+  }));
   return bySociety;
 }
 
@@ -150,7 +134,7 @@ const LOZENGE_STYLE: Record<typeof LOZENGE_TYPES[number], string> = {
 
 export function MetricBox({ label, value, colour, bg }: { label: string; value: number; colour: string; bg: string }) {
   return (
-    <div className={`rounded-xl border px-3 py-3 text-center ${bg}`}>
+    <div className={`rounded-xl border px-3 py-2 text-center ${bg}`}>
       <p className={`font-bold text-xl ${colour}`}>{value}</p>
       <p className="text-xs text-slate-500 mt-0.5">{label}</p>
     </div>
@@ -171,8 +155,9 @@ export function Lozenges({ counts }: { counts: LozengeCounts }) {
 }
 
 export function SocietySection({
-  title, metrics, lozenges, isSysAdmin, highlight, societyId,
+  title, metrics, lozenges, isSysAdmin, highlight, societyId, slug,
 }: {
+  slug?: string | null;   // the Society's web-address name
   title: string;
   metrics: Metrics;
   lozenges: LozengeCounts | null;
@@ -180,15 +165,39 @@ export function SocietySection({
   highlight?: boolean;
   societyId: number | 'all';
 }) {
+  const base = typeof societyId === 'number' ? `/society/${slug || societyId}` : null;
+  const rows: { label: string; value: number; href?: string }[] = [
+    { label: 'Public debates', value: metrics.debatesPublic, href: base ?? undefined },
+    { label: 'Private debates', value: metrics.debatesPrivate, href: base ?? undefined },
+    { label: 'Votes', value: metrics.votes },
+    { label: 'Polls', value: metrics.polls, href: base ? `${base}/polls` : undefined },
+    { label: 'Discussions', value: metrics.discussions, href: base ? `${base}/discussions` : undefined },
+    { label: 'Documents', value: metrics.documents, href: base ? `${base}/documents` : undefined },
+    { label: 'Events', value: metrics.events, href: base ? `${base}/events` : undefined },
+    { label: 'Projects', value: metrics.projects, href: base ? `${base}/projects` : undefined },
+    { label: 'Principles', value: metrics.principles, href: base ? `${base}/principles` : undefined },
+    ...(isSysAdmin ? [{ label: 'ScotParl proposals', value: metrics.proposals }, { label: 'ScotParl principles', value: metrics.nspPrinciples }] : []),
+  ];
   return (
-    <div className={`rounded-2xl border p-4 space-y-3 ${highlight ? 'border-blue-800/40 bg-blue-500/5' : 'border-slate-800 bg-[#0c1322]'}`}>
-      <p className="text-sm font-semibold text-slate-200">{title}</p>
-      <div className={`grid gap-2.5 ${isSysAdmin ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2'} max-w-md`}>
-        <DebatesMetricButton value={metrics.debates} societyId={societyId} />
-        <MetricBox label="Votes" value={metrics.votes} colour="text-emerald-400" bg="border-emerald-800/30 bg-emerald-500/5" />
-        {isSysAdmin && <MetricBox label="Proposals" value={metrics.proposals} colour="text-violet-400" bg="border-violet-800/30 bg-violet-500/5" />}
-        {isSysAdmin && <MetricBox label="Principles" value={metrics.principles} colour="text-rose-400" bg="border-rose-800/30 bg-rose-500/5" />}
-      </div>
+    <div className={`rounded-2xl border p-4 space-y-3 ${highlight ? 'border-blue-800/40 bg-blue-500/5' : 'border-slate-800 bg-dr-card'}`}>
+      {base ? <Link href={`${base}/about`} className="text-sm font-semibold text-slate-200 hover:text-blue-300">{title}</Link>
+        : <p className="text-sm font-semibold text-slate-200">{title}</p>}
+      <ul className="grid gap-x-6 sm:grid-cols-2">
+        {rows.map(r => {
+          const line = (
+            <>
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{r.label}</span>
+              <span className="tabular-nums text-slate-100">{r.value}</span>
+            </>
+          );
+          return (
+            <li key={r.label} className="border-b border-slate-700/30">
+              {r.href ? <Link href={r.href} className="flex items-baseline justify-between gap-3 py-1 text-sm hover:text-blue-300">{line}</Link>
+                : <span className="flex items-baseline justify-between gap-3 py-1 text-sm">{line}</span>}
+            </li>
+          );
+        })}
+      </ul>
       {lozenges && <Lozenges counts={lozenges} />}
     </div>
   );
@@ -201,7 +210,7 @@ export function SocietySection({
 export async function getVisibleSocietyTotals(customerId: number, userId: string | null, sysAdminSeesAll: boolean) {
   const visible = sysAdminSeesAll ? 'TRUE' : listableResolutionSql('res', '$2::text');
   const params = [customerId, userId];
-  const metrics = emptyMetrics();
+  const metrics = { debates: 0, votes: 0 };
   const lozenges = emptyLozenges();
   let hidden = 0;
   try {
@@ -226,3 +235,4 @@ export async function getVisibleSocietyTotals(customerId: number, userId: string
   } catch (err) { console.error('[getVisibleSocietyTotals]', err); }
   return { metrics, lozenges, hidden };
 }
+

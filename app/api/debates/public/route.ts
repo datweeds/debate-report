@@ -18,23 +18,25 @@ export async function GET() {
   const { rows } = await pool.query(
     `SELECT s.id, s.stat_title, s.subject_area, s.customer_id, s.debate_visibility,
             s.vote_for, s.vote_against,
-            c.name AS society_name,
+            c.name AS society_name, ss.item_id AS sealed_id,
             COUNT(DISTINCT ch.id)::int AS child_count,
             COUNT(DISTINCT ch.id) FILTER (WHERE ch.science_analysis_id IS NOT NULL)::int AS science_count,
             COUNT(DISTINCT cm.id)::int AS chat_count
      FROM   statements s
      LEFT   JOIN customers c      ON c.id = s.customer_id
+     LEFT   JOIN society_sealed_sections ss ON ss.customer_id = s.customer_id AND ss.section = 'debates'
      LEFT   JOIN statements ch    ON ch.resolution_id = s.id
      LEFT   JOIN comments cm      ON cm.statement_id = s.id
      WHERE  s.stat_type = 'resolution'
        AND  s.stat_status IN ('active', 'closed')
        AND  s.stat_hidden IS NOT TRUE
        AND  (($2::boolean IS TRUE AND ${sysAdminSocietySql('s.customer_id', '$1::text')}) OR ${listableResolutionSql('s', '$1::text')})
-     GROUP  BY s.id, s.vote_for, s.vote_against, c.name
+     GROUP  BY s.id, s.vote_for, s.vote_against, c.name, ss.item_id
      ORDER  BY s.created_at DESC`,
     [userId, isSysAdmin]
   );
 
+  // sealed_id: the Society's debates are sealed, and members' browsers open their titles
   await openDeep(rows);
   return NextResponse.json(rows);
 }

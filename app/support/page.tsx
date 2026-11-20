@@ -2,8 +2,8 @@ import Link from 'next/link';
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Support & Investors — new.vote',
-  description: 'new.vote is currently being developed. We are looking for investors and local supporters to help us launch.',
+  title: 'Support & Investors',
+  description: 'new.vote is live and growing. We are looking for investors and local supporters to help it reach more groups.',
 };
 
 export default function SupportPage() {
@@ -25,7 +25,7 @@ export default function SupportPage() {
             Help us reset the political culture of our nation
           </h1>
           <p className="mx-auto max-w-2xl text-lg text-slate-400 leading-relaxed">
-            new.vote is currently being developed, due to launch at the end of 2026. We are looking for investors and passionate local supporters to make it happen.
+            new.vote is live, and growing one Society at a time. We are looking for investors and passionate local supporters to help it reach more groups.
           </p>
         </div>
       </section>
@@ -44,10 +44,10 @@ export default function SupportPage() {
             <div>
               <h2 className="text-base font-semibold text-slate-100 mb-2">What we are building</h2>
               <p className="text-sm text-slate-400 leading-relaxed">
-                new.vote is an online platform for structured, evidence-led public debate and democratic participation. We are developing tools for debating the issues that matter — from local planning decisions to national legislation — with the rigour and courtesy that good democracy demands.
+                new.vote is an online platform for structured, evidence-led public debate and democratic participation. It gives groups the tools to debate the issues that matter — from local planning decisions to national legislation — with the rigour and courtesy that good democracy demands.
               </p>
               <p className="mt-3 text-sm text-slate-400 leading-relaxed">
-                Our platform is due to launch at the end of 2026. The foundations are already in place: the Debate Chamber, Law Monitor, and Society tools you can see here on debate.report are early expressions of what new.vote will become.
+                It carries forward the debate engine of debate.report, and adds what groups need around it: Societies with their own members and moderators, secret-ballot polls, discussions, documents, events, projects and calls, with private Societies encrypted. See the <Link href="/features" className="text-blue-400 hover:underline">full list of features</Link>.
               </p>
             </div>
           </div>

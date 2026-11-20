@@ -4,6 +4,7 @@
 // kept here as delivered. Server-only.
 
 import crypto from 'crypto';
+import { notifyNew } from './notify';
 import pool from './db';
 import { loadSocietyAi } from './ai/gateway';
 import { decryptSecret } from './ai/secrets';
@@ -58,12 +59,13 @@ export type NewsSection = {
 export type NewsSettings = {
   enabled: boolean; title: string | null; cadence: 'daily' | 'weekly'; publish_time: string; publish_weekday: number;
   locations: NewsLocation[]; min_score: number; max_items: number; use_llm: boolean;
+  include_papers: boolean;   // scientific papers and preprints in a research part of each edition
   subscription_id: string | null; sections: NewsSection[];
 };
 
 export const DEFAULT_SETTINGS: Omit<NewsSettings, 'sections' | 'subscription_id'> = {
   enabled: true, title: null, cadence: 'daily', publish_time: '07:00', publish_weekday: 0,
-  locations: [], min_score: 35, max_items: 12, use_llm: true,
+  locations: [], min_score: 35, max_items: 12, use_llm: true, include_papers: false,
 };
 
 export function editionTitle(societyName: string, s: { title: string | null; cadence: string }) {
@@ -79,7 +81,8 @@ export async function loadSettings(societyId: number): Promise<NewsSettings | nu
   return {
     enabled: row.enabled, title: row.title, cadence: row.cadence, publish_time: row.publish_time,
     publish_weekday: row.publish_weekday, locations: row.locations, min_score: row.min_score,
-    max_items: row.max_items, use_llm: row.use_llm, subscription_id: row.subscription_id, sections,
+    max_items: row.max_items, use_llm: row.use_llm, include_papers: row.include_papers ?? false,
+    subscription_id: row.subscription_id, sections,
   };
 }
 
@@ -102,6 +105,7 @@ export function definition(societyName: string, s: Omit<NewsSettings, 'subscript
     })),
     min_score: s.min_score,
     max_items: s.max_items,
+    include_papers: s.include_papers,
   };
 }
 
@@ -157,15 +161,21 @@ export async function syncSubscription(societyId: number, societyName: string): 
 
 export type Digest = {
   id: string; external_ref: string | null; edition_date: string; cadence: string; overview: string | null;
-  items: Record<string, unknown>[]; created_at: string;
+  items: Record<string, unknown>[]; papers?: Record<string, unknown>[]; created_at: string;
 };
 
 export async function storeEdition(societyId: number, d: Digest) {
-  await pool.query(
-    `INSERT INTO society_news_editions (customer_id, digest_id, edition_date, cadence, overview, items, item_count)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (digest_id) DO NOTHING`,
-    [societyId, d.id, d.edition_date, d.cadence, d.overview, JSON.stringify(d.items), d.items.length],
+  const { rowCount } = await pool.query(
+    `INSERT INTO society_news_editions (customer_id, digest_id, edition_date, cadence, overview, items, item_count, papers)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (digest_id) DO NOTHING`,
+    [societyId, d.id, d.edition_date, d.cadence, d.overview, JSON.stringify(d.items), d.items.length, JSON.stringify(d.papers ?? [])],
   );
+  // A new, recent edition (not one caught up from days ago): tell the members
+  const recent = Date.now() - new Date(d.edition_date).getTime() < 2 * 86400_000;
+  if (rowCount && recent) notifyNew({
+    societyId, kind: 'news', authorId: null, private: true,
+    heading: 'A new News edition for {society}', url: `/society/${societyId}/news`,
+  });
 }
 
 // Fetch editions the webhook may have missed (at most every 10 minutes)

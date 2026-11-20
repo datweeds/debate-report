@@ -17,6 +17,10 @@ export async function POST(req: NextRequest) {
   if (!incognito && !password) {
     return NextResponse.json({ error: 'Password is required' }, { status: 400 });
   }
+  // At least 12 characters (no upper limit worth meeting): Cyber Essentials password quality
+  if (!incognito && (typeof password !== 'string' || password.length < 12 || password.length > 1000)) {
+    return NextResponse.json({ error: 'Your password must be at least 12 characters' }, { status: 400 });
+  }
   if (!['follower', 'voter', 'debater', 'moderator'].includes(tier)) {
     return NextResponse.json({ error: 'Invalid tier' }, { status: 400 });
   }

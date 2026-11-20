@@ -80,13 +80,16 @@ export function forgetSociety(customerId: number) {
   privCache.delete(customerId);
 }
 
+/** Sealed in members' browsers (end-to-end): the server can't read it and leaves it as it is. */
+export const isEndToEnd = (v: unknown): v is string => typeof v === 'string' && v.startsWith('sn1:');
+
 export const isSealed = (v: unknown): v is string => typeof v === 'string' && (v.startsWith(PREFIX2) || v.startsWith(PREFIX));
 
 // ── Text ─────────────────────────────────────────────────────────────────────
 
 /** For storing: encrypted if the Society is private, unchanged otherwise. */
 export async function sealText<T extends string | null | undefined>(customerId: number | null, text: T, force?: boolean): Promise<T> {
-  if (text == null || isSealed(text)) return text;
+  if (text == null || isSealed(text) || isEndToEnd(text)) return text;
   if (!(force ?? await isPrivateSociety(customerId))) return text;
   return (`${PREFIX2}${customerId}:` + seal(await societyKey(customerId!), Buffer.from(text, 'utf8')).toString('base64')) as T;
 }
@@ -110,6 +113,20 @@ export async function openText<T extends string | null | undefined>(customerId: 
  */
 export async function openDeep<T>(value: T): Promise<T> {
   return walk(value, v => openText(null, v)) as Promise<T>;
+}
+
+/** Replace text sealed in members' browsers (which the server can't open) with a placeholder, for lists. */
+export async function hideEndToEnd<T>(value: T, placeholder = '🔐 Sealed'): Promise<T> {
+  const walkE2E = (v: unknown): unknown => {
+    if (isEndToEnd(v)) return placeholder;
+    if (Array.isArray(v)) { for (let i = 0; i < v.length; i++) v[i] = walkE2E(v[i]); return v; }
+    if (v && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype) {
+      const o = v as Record<string, unknown>;
+      for (const k of Object.keys(o)) o[k] = walkE2E(o[k]);
+    }
+    return v;
+  };
+  return walkE2E(value) as T;
 }
 
 /** Replace every encrypted string with a placeholder: for admin views without access. */

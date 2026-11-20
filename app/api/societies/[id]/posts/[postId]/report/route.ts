@@ -21,7 +21,7 @@ async function handlePOST(req: NextRequest, { params }: { params: Promise<{ id: 
   const a = await discussionAccess(req, id);
   if (!a?.session || !UUID_RE.test(postId)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (!a.isMember && !a.canModerate) return NextResponse.json({ error: 'Only members can report messages' }, { status: 403 });
-  const { reason, note } = await req.json().catch(() => ({}));
+  const { reason, note, text: shown } = await req.json().catch(() => ({}));
   if (!REPORT_REASONS[reason]) return NextResponse.json({ error: 'Choose a reason' }, { status: 400 });
 
   const { rows: [p] } = await pool.query(
@@ -35,15 +35,20 @@ async function handlePOST(req: NextRequest, { params }: { params: Promise<{ id: 
     `SELECT 1 FROM content_alerts WHERE content_type = 'discussion_post' AND content_key = $1 AND reported_by = $2`, [postId, a.session.sub]);
   if (already) return NextResponse.json({ error: 'You have already reported this message' }, { status: 409 });
 
-  const text = (await openText(a.societyId, p.body as string)).slice(0, 2000);
+  // A sealed message can't be read here: the reporter's browser sends the text they saw
+  const sealedPost = typeof p.body === 'string' && p.body.startsWith('sn1:');
+  if (sealedPost && (typeof shown !== 'string' || !shown.trim())) return NextResponse.json({ error: 'Include the message text to report it' }, { status: 400 });
+  const text = sealedPost
+    ? `[From a sealed discussion: the text as the reporter saw it]\n${(shown as string).trim()}`.slice(0, 2000)
+    : (await openText(a.societyId, p.body as string)).slice(0, 2000);
   const cleanNote = typeof note === 'string' ? note.trim().slice(0, 1000) : '';
   await pool.query(
     `INSERT INTO content_alerts (content_type, content_id, content_key, customer_id, content_href, flagged_text, flags, author_id,
                                  status, text_hash, reported_by, report_reason)
      VALUES ('discussion_post', $1::uuid, $10::text, $2, $3, $4, ARRAY['reported', $5::text], $6, 'pending', $7, $8, $9)`,
-    [postId, a.societyId, `/society/${a.societyId}/discussions/${p.thread_id}`, await sealText(a.societyId, text), reason,
+    [postId, a.societyId, `/society/${a.societyId}/discussions/${p.thread_id}`, await sealText(a.societyId, text, true), reason,
      p.created_by, crypto.createHash('md5').update(`report:${a.session.sub}:${text}`).digest('hex'), a.session.sub,
-     cleanNote ? await sealText(a.societyId, cleanNote) : null, postId]);
+     cleanNote ? await sealText(a.societyId, cleanNote, true) : null, postId]);
 
   // Tell the Society and the site. No message text in emails: they leave our servers.
   const msg = `A member reported a discussion message in ${p.society} (${REPORT_REASONS[reason]}).\n\n`

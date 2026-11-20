@@ -65,7 +65,7 @@ export default function AiTab() {
       </p>
       {!d.newsReachable && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">The News service isn’t reachable, so the switch and cap can’t be changed right now.</p>}
 
-      <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-5 space-y-4">
+      <div className="rounded-2xl border border-slate-800 bg-dr-card p-5 space-y-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-sm font-semibold text-slate-200">Today</h2>
           <span className={`text-xs ${d.available ? 'text-emerald-400' : 'text-amber-300'}`}>{d.available ? '● AI available' : `● ${d.reason || 'AI not available'}`}</span>
@@ -100,7 +100,7 @@ export default function AiTab() {
         <p className="text-xs text-slate-500">When the cap is reached, platform AI pauses until midnight UTC; features use their non-AI versions. Model choice and prices for the platform’s own AI are in the News service’s llm.yaml.</p>
       </div>
 
-      <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-5">
+      <div className="rounded-2xl border border-slate-800 bg-dr-card p-5">
         <h2 className="mb-3 text-sm font-semibold text-slate-200">Societies (last 30 days)</h2>
         <table className="w-full text-left text-xs">
           <thead className="text-slate-500"><tr>
@@ -122,7 +122,7 @@ export default function AiTab() {
         </table>
       </div>
 
-      <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-5">
+      <div className="rounded-2xl border border-slate-800 bg-dr-card p-5">
         <h2 className="mb-3 text-sm font-semibold text-slate-200">By day {problems > 0 && <span className="ml-2 text-xs font-normal text-amber-300">{problems} failed calls in the last 30 days</span>}</h2>
         <table className="w-full text-left text-xs">
           <thead className="text-slate-500"><tr><th className="py-1 font-normal">Day</th><th className="text-right font-normal">News</th><th className="text-right font-normal">Quality Reports</th><th className="text-right font-normal">Societies’ own</th></tr></thead>

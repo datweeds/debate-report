@@ -1,6 +1,7 @@
 // Society Principles: versions and validation. Server-only.
 
 import pool from './db';
+import { sealedFor, sealedSection } from './sealed/server';
 import type { PoolClient } from 'pg';
 import { LOCKED_TEXT, openRows } from './societyCrypto';
 import { SocietyLockedError } from './masterKey';
@@ -29,8 +30,22 @@ export async function ensureCurrentVersion(customerId: number, userId: string, q
   return nv as { id: string; version: number };
 }
 
-export function readPrinciple(body: Record<string, unknown>):
+// `sealed`: the principles are sealed, so text arrives encrypted in the browser
+// and must pass this check whole (it's never cut).
+export function readPrinciple(body: Record<string, unknown>, sealed?: (v: unknown) => boolean):
   { ok: true; category: Category; title: string; body: string; grounding: string | null; section: string | null } | { ok: false; error: string } {
+  if (sealed) {
+    const opt = (v: unknown) => v == null || v === '' || sealed(v);
+    if (!sealed(body.title) || !sealed(body.body) || !opt(body.grounding) || !opt(body.section)) {
+      return { ok: false, error: 'The sealed principles’ keys have changed: reload the page and try again' };
+    }
+    const category = CATEGORIES.includes(body.category as Category) ? body.category as Category : 'rule';
+    const or = (v: unknown) => (typeof v === 'string' && v ? v : null);
+    return { ok: true, category, title: body.title as string, body: body.body as string, grounding: or(body.grounding), section: or(body.section) };
+  }
+  if ([body.title, body.body, body.grounding, body.section].some(v => typeof v === 'string' && v.startsWith('sn1:'))) {
+    return { ok: false, error: 'The principles aren’t sealed' };
+  }
   const title = typeof body.title === 'string' ? body.title.trim() : '';
   const text = typeof body.body === 'string' ? body.body.trim() : '';
   if (!title) return { ok: false, error: 'A title is required' };
@@ -41,6 +56,12 @@ export function readPrinciple(body: Record<string, unknown>):
     grounding: typeof body.grounding === 'string' && body.grounding.trim() ? body.grounding.trim().slice(0, 3000) : null,
     section: typeof body.section === 'string' && body.section.trim() ? body.section.trim().slice(0, 80) : null,
   };
+}
+
+/** The check for text in sealed principles, or undefined if they aren't sealed. */
+export async function principlesSealedCheck(customerId: number) {
+  const s = await sealedSection(customerId, 'principles');
+  return s ? (v: unknown) => sealedFor(s, v, 30000) : undefined;
 }
 
 // A principle in the Society's current version (only the current version is editable).

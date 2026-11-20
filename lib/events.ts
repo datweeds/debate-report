@@ -7,9 +7,19 @@ export function parseTime(v: unknown): Date | null {
 }
 
 // Validates an event body; shared by create and update.
-export function readEvent(body: Record<string, unknown>):
+// `sealed`: the calendar is sealed, so title, description and location arrive
+// already encrypted in the browser and must pass this check (they're never cut).
+export function readEvent(body: Record<string, unknown>, sealed?: (v: unknown) => boolean):
   { ok: true; title: string; description: string | null; location: string | null; startsAt: Date; endsAt: Date | null; allDay: boolean }
   | { ok: false; error: string } {
+  if (sealed) {
+    const opt = (v: unknown) => v == null || v === '' || sealed(v);
+    if (!sealed(body.title) || !opt(body.description) || !opt(body.location)) {
+      return { ok: false, error: 'This sealed calendar’s keys have changed: reload the page and try again' };
+    }
+  } else if ([body.title, body.description, body.location].some(v => typeof v === 'string' && v.startsWith('sn1:'))) {
+    return { ok: false, error: 'This calendar isn’t sealed' };
+  }
   const title = typeof body.title === 'string' ? body.title.trim() : '';
   if (!title) return { ok: false, error: 'A title is required' };
   const startsAt = parseTime(body.startsAt);
@@ -17,11 +27,12 @@ export function readEvent(body: Record<string, unknown>):
   const endsAt = body.endsAt ? parseTime(body.endsAt) : null;
   if (body.endsAt && !endsAt) return { ok: false, error: 'The end date is not valid' };
   if (endsAt && endsAt < startsAt) return { ok: false, error: 'The event must end after it starts' };
+  const text = (v: unknown, max: number) => typeof v === 'string' && v.trim() ? (sealed ? v : v.trim().slice(0, max)) : null;
   return {
     ok: true,
-    title: title.slice(0, 200),
-    description: typeof body.description === 'string' && body.description.trim() ? body.description.trim().slice(0, 5000) : null,
-    location: typeof body.location === 'string' && body.location.trim() ? body.location.trim().slice(0, 500) : null,
+    title: sealed ? title : title.slice(0, 200),
+    description: text(body.description, 5000),
+    location: text(body.location, 500),
     startsAt, endsAt, allDay: body.allDay === true,
   };
 }

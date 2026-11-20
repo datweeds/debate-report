@@ -39,7 +39,7 @@ export default function BillingPage() {
         <p className="text-sm text-slate-500 mt-1">Manage your subscription and payment details.</p>
       </div>
 
-      <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-6">
+      <div className="rounded-2xl border border-slate-800 bg-dr-card p-6">
         <div className="flex items-start justify-between gap-4 mb-6">
           <div>
             <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-1">Current plan</p>

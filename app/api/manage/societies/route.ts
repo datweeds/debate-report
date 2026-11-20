@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSessionFromRequest } from '@/lib/auth';
 import { slugify } from '@/lib/societies';
+import { slugAvailable, slugProblem } from '@/lib/societyRef';
 
 const VISIBILITIES = ['public', 'apply', 'invite'];
 
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
   if (session.tier !== 'moderator') {
     return NextResponse.json({ error: 'Creating a Society needs the Moderator plan' }, { status: 403 });
   }
-  const { name, visibility, hero_text, description } = await req.json().catch(() => ({}));
+  const { name, visibility, hero_text, description, slug: chosen } = await req.json().catch(() => ({}));
   if (typeof name !== 'string' || name.trim().length < 3) {
     return NextResponse.json({ error: 'Name must be at least 3 characters' }, { status: 400 });
   }
@@ -39,14 +40,22 @@ export async function POST(req: NextRequest) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    // Unique subdomain-style slug from the name
-    const base = slugify(name);
-    const { rows: taken } = await client.query(
-      `SELECT subdomain FROM customers WHERE subdomain = $1 OR subdomain LIKE $1 || '-%'`, [base],
-    );
-    const used = new Set(taken.map(t => t.subdomain));
-    let slug = base;
-    for (let n = 2; used.has(slug); n++) slug = `${base}-${n}`;
+    // Its web address: the name the moderator chose, or one made from the Society's name
+    let slug: string;
+    if (typeof chosen === 'string' && chosen.trim()) {
+      slug = chosen.trim().toLowerCase();
+      const problem = slugProblem(slug);
+      if (problem) { await client.query('ROLLBACK'); return NextResponse.json({ error: problem }, { status: 400 }); }
+      if (!(await slugAvailable(slug))) { await client.query('ROLLBACK'); return NextResponse.json({ error: 'That web address is already taken' }, { status: 409 }); }
+    } else {
+      const base = slugify(name);
+      const { rows: taken } = await client.query(
+        `SELECT subdomain FROM customers WHERE subdomain = $1 OR subdomain LIKE $1 || '-%'`, [base],
+      );
+      const used = new Set(taken.map(t => t.subdomain));
+      slug = base;
+      for (let n = 2; used.has(slug); n++) slug = `${base}-${n}`;
+    }
 
     const { rows: [society] } = await client.query(
       `INSERT INTO customers (name, subdomain, status, visibility, hero_text, description, created_by)

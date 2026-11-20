@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { statementAccess } from '@/lib/debateAccess';
 
 const PF_ALLOWED_CHILDREN: Record<string, string[]> = {
   resolution: ['framework', 'claim'],
@@ -28,15 +29,18 @@ export async function POST(req: NextRequest) {
   }
 
   const { rows } = await pool.query(
-    'SELECT id, stat_type FROM statements WHERE id = ANY($1::uuid[])',
+    'SELECT id, stat_type, COALESCE(resolution_id, id) AS debate FROM statements WHERE id = ANY($1::uuid[])',
     [[parentId, childId]],
   );
-  const byId = new Map(rows.map((r: { id: string; stat_type: string }) => [r.id, r]));
+  const byId = new Map(rows.map((r: { id: string; stat_type: string; debate: string }) => [r.id, r]));
   const parent = byId.get(parentId);
   const child  = byId.get(childId);
 
   if (!parent) return NextResponse.json({ error: 'Parent statement not found' }, { status: 404 });
   if (!child)  return NextResponse.json({ error: 'Child statement not found' },  { status: 404 });
+  // Both in the same debate, and one this person can see
+  if (parent.debate !== child.debate) return NextResponse.json({ error: 'Statements are in different debates' }, { status: 422 });
+  if (!(await statementAccess(session, parentId))?.viewable) return NextResponse.json({ error: 'Parent statement not found' }, { status: 404 });
 
   const allowed = PF_ALLOWED_CHILDREN[parent.stat_type] ?? [];
   if (!allowed.includes(child.stat_type)) {

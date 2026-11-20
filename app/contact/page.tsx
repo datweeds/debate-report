@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { COMPANY } from '@/lib/company';
 
 export default function ContactPage() {
   const [name,    setName]    = useState('');
@@ -46,7 +47,12 @@ export default function ContactPage() {
           <h1 className="text-3xl font-bold text-slate-100">Contact Us</h1>
           <p className="mt-2 text-slate-400">
             Have a question, suggestion, or concern? We&apos;d love to hear from you.
-            Messages go directly to the new.vote team.
+            Messages go directly to the new.vote team. You can also email us at{' '}
+            <a href={`mailto:${COMPANY.contactEmail}`} className="text-blue-400 hover:underline">{COMPANY.contactEmail}</a>.
+          </p>
+          <p className="mt-2 text-xs text-slate-500">
+            {COMPANY.name}, a private limited company registered in {COMPANY.registeredIn}, company number {COMPANY.number}
+            {COMPANY.registeredOffice ? <>. Registered office: {COMPANY.registeredOffice}</> : null}.
           </p>
         </div>
 

@@ -48,9 +48,14 @@ export async function recryptDocument(q: Q, docId: string, from: number, to: num
 }
 
 // Every encrypted-at-rest column: table, key, columns, and SQL for its Society
-const TARGETS: { table: string; cols: string[]; society: string; join?: string }[] = [
-  { table: 'discussion_threads', cols: ['title'], society: 't.customer_id' },
-  { table: 'discussion_posts', cols: ['body'], society: 'th.customer_id', join: 'JOIN discussion_threads th ON th.id = t.thread_id' },
+// (always: encrypted whatever the Society's privacy, e.g. poll ballots)
+const TARGETS: { table: string; cols: string[]; society: string; join?: string; always?: boolean }[] = [
+  // Discussions are members-only in every Society, so always encrypted
+  { table: 'discussion_threads', cols: ['title'], society: 't.customer_id', always: true },
+  { table: 'society_polls', cols: ['payload'], society: 't.customer_id' },
+  { table: 'poll_ballots', cols: ['response'], society: 'sp.customer_id', join: 'JOIN society_polls sp ON sp.id = t.poll_id', always: true },
+  { table: 'poll_codes', cols: ['label'], society: 'sp.customer_id', join: 'JOIN society_polls sp ON sp.id = t.poll_id', always: true },
+  { table: 'discussion_posts', cols: ['body'], society: 'th.customer_id', join: 'JOIN discussion_threads th ON th.id = t.thread_id', always: true },
   { table: 'documents', cols: ['title', 'description', 'url', 'file_name'], society: 't.customer_id' },
   { table: 'document_folders', cols: ['name'], society: 't.customer_id' },
   { table: 'society_events', cols: ['title', 'description', 'location'], society: 't.customer_id' },
@@ -86,7 +91,9 @@ export async function reencryptSociety(customerId: number): Promise<number> {
         const plain = await openText(customerId, r[c]);
         // Couldn't be decrypted: leave it exactly as it is
         if (isSealed(r[c]) && (plain === UNREADABLE || plain === LOCKED_TEXT)) { vals.push(r[c]); continue; }
-        const next = await sealText(customerId, plain, priv);
+        const seal = priv || !!t.always;
+        // Already encrypted for this Society and should stay so: leave it
+        const next = seal && isSealed(r[c]) && r[c].startsWith(`enc2:${customerId}:`) ? r[c] : await sealText(customerId, plain, seal);
         vals.push(next);
         if (next !== r[c]) diff = true;
       }

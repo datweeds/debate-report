@@ -262,7 +262,7 @@ export default function AiGeneratorPage() {
       </div>
 
       {/* Step 1: Pick debate + statement */}
-      <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-5 mb-5 space-y-4">
+      <div className="rounded-2xl border border-slate-800 bg-dr-card p-5 mb-5 space-y-4">
         <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">1 · Select target</p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -310,7 +310,7 @@ export default function AiGeneratorPage() {
 
       {/* Step 2: Generate */}
       {stmtId && (
-        <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-5 mb-5">
+        <div className="rounded-2xl border border-slate-800 bg-dr-card p-5 mb-5">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">2 · Generate arguments</p>

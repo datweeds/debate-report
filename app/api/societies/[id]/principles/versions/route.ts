@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { principlesSealedCheck } from '@/lib/principles';
+import { notifyNew } from '@/lib/notify';
 import pool from '@/lib/db';
 import { societyContentAccess } from '@/lib/societies';
 import { currentVersion } from '@/lib/principles';
@@ -18,7 +20,11 @@ async function handlePOST(req: NextRequest, { params }: Params) {
   if (typeof changeNote !== 'string' || !changeNote.trim()) {
     return NextResponse.json({ error: 'Say what changes in this version' }, { status: 400 });
   }
-  const note = await sealText(a.societyId, changeNote.trim().slice(0, 2000));
+  const sealedCheck = await principlesSealedCheck(a.societyId);
+  if (sealedCheck ? !sealedCheck(changeNote) : changeNote.startsWith('sn1:')) {
+    return NextResponse.json({ error: sealedCheck ? 'The sealed principles’ keys have changed: reload the page and try again' : 'The principles aren’t sealed' }, { status: 400 });
+  }
+  const note = sealedCheck ? changeNote : await sealText(a.societyId, changeNote.trim().slice(0, 2000));
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -36,6 +42,8 @@ async function handlePOST(req: NextRequest, { params }: Params) {
       [nv.id, cur.id],
     );
     await client.query('COMMIT');
+    notifyNew({ societyId: a.societyId, kind: 'principles', authorId: a.session!.sub, private: true,
+      heading: `Principles version ${nv.version} in {society}`, url: `/society/${a.societyId}/principles` });
     return NextResponse.json({ version: nv.version }, { status: 201 });
   } catch (err) {
     await client.query('ROLLBACK');

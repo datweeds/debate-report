@@ -94,5 +94,6 @@ export const TIERS = {
 export const AI_TASKS = [
   { id: 'news.digest_writer', label: 'News editions: overview, headlines, summaries', tier: 'standard', uses: 'society', fallback: 'The outlets’ own headlines and snippets' },
   { id: 'debate.quality_review', label: 'Debate Quality Report: AI review', tier: 'standard', uses: 'society', fallback: 'The rule checks only' },
+  { id: 'debate.argue', label: 'AI Arg Generator: suggested arguments for a statement', tier: 'standard', uses: 'society', fallback: 'Not available' },
   { id: 'news.extract', label: 'News: tagging stories with topics and places', tier: 'light', uses: 'platform', fallback: 'Stories still grouped and ranked, without tags' },
 ] as const;

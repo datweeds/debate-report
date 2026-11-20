@@ -16,6 +16,8 @@ export async function GET(req: NextRequest, { params }: Params) {
     [docId, a.societyId],
   );
   if (!d) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  // A sealed link's address can only be opened in a member's browser
+  if (String(d.url).startsWith('sn1:')) return NextResponse.json({ error: 'This link is sealed: open it from the Documents page', sealed: true }, { status: 409 });
   const url = await openText(a.societyId, d.url as string);
   return new NextResponse(null, { status: 302, headers: { Location: url, 'Referrer-Policy': 'no-referrer' } });
 }

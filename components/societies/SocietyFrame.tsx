@@ -1,15 +1,25 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
-import SocietyTabs, { SOCIETY_SECTIONS, isSectionActive } from './SocietyTabs';
+import SocietyTabs, { SOCIETY_SECTIONS, isSectionActive, societyRef } from './SocietyTabs';
 
 // The Society's tab bar. Also makes this the visitor's current Society (used
 // as the default for things like New Debate) and records which section they
 // looked at, so "new since you last looked" counts can be shown.
-export default function SocietyFrame({ societyId, manage }: { societyId: number; loggedIn: boolean; manage: React.ReactNode }) {
+export default function SocietyFrame({ societyId, slug, manage, disabled }: { societyId: number; slug?: string | null; loggedIn: boolean; manage: React.ReactNode; disabled?: string[] }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const ref = societyRef(societyId, slug);
+
+  // Reached by its number? Show the Society's name in the address instead
+  useEffect(() => {
+    const prefix = `/society/${societyId}`;
+    if (slug && (pathname === prefix || pathname.startsWith(prefix + '/'))) {
+      router.replace(`/society/${slug}${pathname.slice(prefix.length)}${window.location.search}${window.location.hash}`, { scroll: false });
+    }
+  }, [pathname, societyId, slug, router]);
   const { user } = useAuth();
   const [counts, setCounts] = useState<Record<string, number>>({});
 
@@ -19,7 +29,7 @@ export default function SocietyFrame({ societyId, manage }: { societyId: number;
 
   useEffect(() => {
     if (!user) { setCounts({}); return; }
-    const section = SOCIETY_SECTIONS.find(s => isSectionActive(pathname, societyId, s.slug));
+    const section = SOCIETY_SECTIONS.find(s => isSectionActive(pathname, ref, s.slug));
     const key = section ? (section.slug || 'debates') : null;
     (async () => {
       if (key && key !== 'about' && key !== 'meet') {
@@ -31,5 +41,5 @@ export default function SocietyFrame({ societyId, manage }: { societyId: number;
     })();
   }, [pathname, societyId, user]);
 
-  return <SocietyTabs societyId={societyId} counts={counts} right={manage} />;
+  return <SocietyTabs societyId={societyId} slug={slug} counts={counts} right={manage} disabled={disabled} />;
 }

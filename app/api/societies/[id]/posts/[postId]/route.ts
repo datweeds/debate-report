@@ -3,13 +3,14 @@ import pool from '@/lib/db';
 import { sealText } from '@/lib/societyCrypto';
 import { discussionAccess, UUID_RE } from '@/lib/discussions';
 import { lockSafe } from '@/lib/lockSafe';
+import { threadText } from '@/lib/sealed/server';
 
 type Params = { params: Promise<{ id: string; postId: string }> };
 
 async function loadPost(societyId: number, postId: string) {
   if (!UUID_RE.test(postId)) return null;
   const { rows: [p] } = await pool.query(
-    `SELECT p.id, p.created_by, p.deleted_at FROM discussion_posts p
+    `SELECT p.id, p.thread_id, p.created_by, p.deleted_at FROM discussion_posts p
      JOIN discussion_threads t ON t.id = p.thread_id
      WHERE p.id = $1 AND t.customer_id = $2 AND t.deleted_at IS NULL`,
     [postId, societyId],
@@ -25,10 +26,10 @@ async function handlePATCH(req: NextRequest, { params }: Params) {
   if (!a || !post || post.deleted_at) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (post.created_by !== a.session?.sub) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const { body } = await req.json().catch(() => ({}));
-  if (typeof body !== 'string' || !body.trim() || body.length > 5000) {
-    return NextResponse.json({ error: 'Message must be 1–5,000 characters' }, { status: 400 });
-  }
-  await pool.query('UPDATE discussion_posts SET body = $1, edited_at = now() WHERE id = $2', [await sealText(a.societyId, body.trim()), postId]);
+  const msg = await threadText(a.societyId, post.thread_id, body, 5000, 'Message');
+  if ('error' in msg) return NextResponse.json({ error: msg.error }, { status: 400 });
+  await pool.query('UPDATE discussion_posts SET body = $1, edited_at = now() WHERE id = $2',
+    [msg.sealed ? msg.text : await sealText(a.societyId, msg.text, true), postId]);
   return NextResponse.json({ ok: true });
 }
 

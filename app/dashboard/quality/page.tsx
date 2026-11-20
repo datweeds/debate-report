@@ -175,7 +175,7 @@ function QualityInner() {
           {debates === null ? (
             <div className="h-20 rounded-xl bg-slate-800/40 animate-pulse" />
           ) : debates.length === 0 ? (
-            <p className="text-sm text-slate-500 rounded-xl border border-slate-800 bg-[#0c1322] p-4">
+            <p className="text-sm text-slate-500 rounded-xl border border-slate-800 bg-dr-card p-4">
               You don&apos;t moderate any debates yet. Society Admins can review their Society&apos;s debates here.
             </p>
           ) : debates.map(d => (
@@ -183,7 +183,7 @@ function QualityInner() {
               key={d.id}
               onClick={() => router.replace(`/dashboard/quality?debate=${d.id}`)}
               className={`w-full text-left rounded-xl border px-3 py-2.5 transition-colors ${
-                d.id === selectedId ? 'border-blue-500/60 bg-blue-500/10' : 'border-slate-800 bg-[#0c1322] hover:border-slate-700'
+                d.id === selectedId ? 'border-blue-500/60 bg-blue-500/10' : 'border-slate-800 bg-dr-card hover:border-slate-700'
               }`}
             >
               <div className="flex items-start justify-between gap-2">
@@ -201,7 +201,7 @@ function QualityInner() {
         {/* ── Report ────────────────────────────────────────────── */}
         <section className="min-w-0">
           {!selectedId ? (
-            <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-10 text-center text-sm text-slate-500">
+            <div className="rounded-2xl border border-slate-800 bg-dr-card p-10 text-center text-sm text-slate-500">
               Choose a debate to see or run its quality report.
             </div>
           ) : !data ? (
@@ -209,7 +209,7 @@ function QualityInner() {
           ) : (
             <div className="space-y-5">
               {/* Header */}
-              <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-5">
+              <div className="rounded-2xl border border-slate-800 bg-dr-card p-5">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <h2 className="text-base font-semibold text-slate-100 leading-snug">{data.debate.title}</h2>
@@ -282,7 +282,7 @@ function QualityInner() {
               </div>
 
               {!report && !running && (
-                <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-8 text-center text-sm text-slate-500">
+                <div className="rounded-2xl border border-slate-800 bg-dr-card p-8 text-center text-sm text-slate-500">
                   This debate hasn&apos;t been reviewed yet. Run the report to see its findings.
                 </div>
               )}
@@ -331,13 +331,13 @@ function QualityInner() {
 
                   {/* Findings */}
                   {visible.length === 0 ? (
-                    <p className="rounded-xl border border-slate-800 bg-[#0c1322] p-6 text-center text-sm text-slate-500">
+                    <p className="rounded-xl border border-slate-800 bg-dr-card p-6 text-center text-sm text-slate-500">
                       {showDismissed ? 'No dismissed findings.' : 'Nothing to show with these filters.'}
                     </p>
                   ) : (
                     <ul className="space-y-3">
                       {visible.map(f => (
-                        <li key={f.id} className={`rounded-xl border bg-[#0c1322] p-4 ${f.status === 'dismissed' ? 'border-slate-800 opacity-70' : 'border-slate-800'}`}>
+                        <li key={f.id} className={`rounded-xl border bg-dr-card p-4 ${f.status === 'dismissed' ? 'border-slate-800 opacity-70' : 'border-slate-800'}`}>
                           <div className="flex flex-wrap items-center gap-2">
                             <span className={`rounded-md border px-2 py-0.5 text-[11px] font-bold ${SEV[f.severity].cls}`}>{SEV[f.severity].label}</span>
                             {f.status === 'new' && report.previousId && (

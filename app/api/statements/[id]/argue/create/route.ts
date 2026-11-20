@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { AI_OFF, debateE2E, openDebateJson, sealDebate, sealDebateJson } from '@/lib/debateCrypto';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -43,8 +44,9 @@ export async function POST(req: NextRequest, { params }: Params) {
   );
   if (!sess) return NextResponse.json({ error: 'Session not found' }, { status: 404 });
 
-  const results: Results = sess.results;
+  const results = await openDebateJson<Results>(sess.results);
   const resolutionId: string = sess.resolution_id ?? statementId;
+  if (await debateE2E(resolutionId)) return NextResponse.json({ error: AI_OFF }, { status: 409 });
 
   // Get statement type (to validate allowed children)
   const { rows: [stmt] } = await pool.query(
@@ -72,7 +74,8 @@ export async function POST(req: NextRequest, { params }: Params) {
         `INSERT INTO statements (stat_type, stat_title, stat_description, stat_direction, resolution_id, created_by)
          VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING id`,
-        [type, title.trim(), desc?.trim() || null, direction, resolutionId, userId],
+        [type, await sealDebate(resolutionId, title.trim(), client), await sealDebate(resolutionId, desc?.trim() || null, client),
+         direction, resolutionId, userId],
       );
       await client.query(
         'INSERT INTO stat_relationships (stat_id_supported, stat_id_supported_by, created_by) VALUES ($1, $2, $3)',
@@ -146,8 +149,8 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     // Update session with new IDs
     await client.query(
-      'UPDATE ai_arg_sessions SET results = $1, updated_at = NOW() WHERE id = $2',
-      [JSON.stringify(results), sessionId],
+      'UPDATE ai_arg_sessions SET results = $1::jsonb, updated_at = NOW() WHERE id = $2',
+      [await sealDebateJson(resolutionId, results), sessionId],
     );
 
     await client.query('COMMIT');

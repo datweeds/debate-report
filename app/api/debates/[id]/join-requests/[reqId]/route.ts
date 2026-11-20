@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { canSetDebateVisibility } from '@/lib/roles';
+import { notifyJoinDecision } from '@/lib/joinNotice';
 
 type Params = { params: Promise<{ id: string; reqId: string }> };
 
@@ -40,6 +41,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       [id, reqRow.user_id]
     );
   }
+  void notifyJoinDecision(reqRow.user_id, debate.customer_id, action === 'accept', 'debate');
 
   return NextResponse.json({ ok: true });
 }

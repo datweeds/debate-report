@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { COMPANY } from '@/lib/company';
 
 export const metadata: Metadata = {
   title: 'Terms & Conditions',
@@ -27,26 +28,31 @@ export default function TermsPage() {
             <span className="text-slate-300">Terms &amp; Conditions</span>
           </div>
           <h1 className="text-4xl font-bold text-slate-100">Terms &amp; Conditions</h1>
-          <p className="mt-2 text-slate-500 text-sm">Last updated: July 2026</p>
+          <p className="mt-2 text-slate-500 text-sm">Last updated: 18 November 2026</p>
         </div>
 
         <div className="space-y-6">
 
           <Section title="1. Acceptance of Terms">
             <p>
-              By accessing or using new.vote (the &quot;Platform&quot;), you agree to be bound by these Terms and
-              Conditions. If you do not agree to these terms, please do not use the Platform.
+              new.vote (the &quot;Platform&quot;) is run by {COMPANY.name}, a private limited company registered in{' '}
+              {COMPANY.registeredIn}, company number {COMPANY.number}
+              {COMPANY.registeredOffice ? <>, registered office {COMPANY.registeredOffice}</> : null}{' '}(&quot;we&quot;, &quot;us&quot;). By accessing or
+              using the Platform, you agree to be bound by these Terms and Conditions. If you do not agree to these
+              terms, please do not use the Platform.
             </p>
             <p>
-              We reserve the right to update these terms at any time. Continued use of the Platform after changes
-              are posted constitutes acceptance of the revised terms.
+              We may update these terms. We will change the date above and, for significant changes, tell account
+              holders on the Platform before they take effect. Continued use of the Platform after that constitutes
+              acceptance of the revised terms.
             </p>
           </Section>
 
           <Section title="2. User Accounts">
             <p>You must create an account to participate in debates. You are responsible for:</p>
             <ul className="list-disc pl-5 space-y-1">
-              <li>Maintaining the confidentiality of your account credentials.</li>
+              <li>Keeping your passkey device and your recovery code safe. If you register with only a username and lose
+                both, we cannot restore your account.</li>
               <li>All activity that occurs under your account.</li>
               <li>Providing accurate information when registering.</li>
               <li>Notifying us immediately of any unauthorised use of your account.</li>
@@ -72,19 +78,52 @@ export default function TermsPage() {
             </ul>
           </Section>
 
-          <Section title="4. Moderation">
+          <Section title="4. Societies and Moderation">
             <p>
-              All contributions are subject to review by our moderation team before publication. We reserve the
-              right to reject, edit, or remove any content that does not meet our quality standards or violates
-              these terms, without obligation to provide reasons.
+              Each Society is run by its own moderators, who decide who may join, set its principles, and moderate
+              its content. Moderators must run their Societies within these terms and the law, and are responsible
+              for what they choose to publish and for the members they admit.
             </p>
             <p>
-              Moderation decisions are final. If you believe a decision was made in error, you may contact us
-              via the Contact page.
+              New content is scanned automatically for abuse and may be flagged for review. Society moderators and
+              our own team may hide, remove or refuse content that breaks these terms, a Society&apos;s principles or
+              the law, and may suspend accounts. If your content is masked or removed, you can appeal from the{' '}
+              <Link href="/dashboard/alerts" className="text-blue-400 hover:underline">Alerts &amp; Flags</Link> page, or contact us.
             </p>
           </Section>
 
-          <Section title="5. Prohibited Conduct">
+          <Section title="5. Paid Plans">
+            <p>
+              Some features, such as running your own Societies, are part of paid plans described on the{' '}
+              <Link href="/pricing" className="text-blue-400 hover:underline">Pricing page</Link>. Prices include VAT
+              where it applies. Plans are billed in advance through Stripe and renew automatically until you cancel.
+              You can cancel at any time; your plan then runs to the end of the period you have paid for, and is not
+              refunded for part-periods unless the law requires it.
+            </p>
+            <p>
+              While billing is in preview, paid features are switched on free of charge at our discretion. We will
+              give you at least 30 days&apos; notice, and ask for your agreement, before charging you.
+            </p>
+            <p>
+              If a plan ends, your Societies and their content are kept for at least 90 days, so you can renew or
+              export what you need.
+            </p>
+          </Section>
+
+          <Section title="6. AI Features and the Debate API">
+            <p>
+              AI features (such as suggested arguments and quality reports) produce text automatically. It can be
+              wrong or incomplete: check it before you rely on it or publish it, and you are responsible for AI
+              suggestions you choose to post.
+            </p>
+            <p>
+              The Debate API and guest review links are for the Societies that issue them. Keep tokens secret, use
+              them only within the scope they were issued for, and don&apos;t use them to overload the Platform. We
+              may revoke a token that is misused.
+            </p>
+          </Section>
+
+          <Section title="7. Prohibited Conduct">
             <p>You agree not to:</p>
             <ul className="list-disc pl-5 space-y-1">
               <li>Submit false, fabricated, or deliberately misleading content.</li>
@@ -96,9 +135,9 @@ export default function TermsPage() {
             </ul>
           </Section>
 
-          <Section title="6. Intellectual Property">
+          <Section title="8. Intellectual Property">
             <p>
-              The Platform software, design, and branding are the intellectual property of new.vote.
+              The Platform software, design, and branding are the intellectual property of {COMPANY.name}.
               You may not copy, reproduce, or distribute any part of the Platform without express written permission.
             </p>
             <p>
@@ -107,11 +146,12 @@ export default function TermsPage() {
             </p>
           </Section>
 
-          <Section title="7. Limitation of Liability">
+          <Section title="9. Limitation of Liability">
             <p>
               The Platform is provided &quot;as is&quot; without warranties of any kind. To the maximum extent permitted
-              by law, new.vote shall not be liable for any indirect, incidental, or consequential damages
-              arising from your use of the Platform.
+              by law, we shall not be liable for any indirect, incidental, or consequential damages arising from
+              your use of the Platform. Nothing in these terms limits liability that cannot be limited by law, or
+              your statutory rights as a consumer.
             </p>
             <p>
               We do not warrant that content submitted by users is accurate, complete, or reliable. You rely
@@ -119,17 +159,20 @@ export default function TermsPage() {
             </p>
           </Section>
 
-          <Section title="8. Governing Law">
+          <Section title="10. Governing Law">
             <p>
-              These terms are governed by the laws of England and Wales. Any disputes shall be subject to
-              the exclusive jurisdiction of the courts of England and Wales.
+              These terms are governed by the laws of Scotland. Any disputes shall be subject to the jurisdiction of
+              the Scottish courts, but if you live elsewhere in the UK you may also bring proceedings in your home
+              courts.
             </p>
           </Section>
 
-          <Section title="9. Contact">
+          <Section title="11. Contact">
             <p>
-              For questions about these terms, please use our{' '}
-              <Link href="/contact" className="text-blue-400 hover:underline">Contact page</Link>.
+              For questions about these terms, email{' '}
+              <a href={`mailto:${COMPANY.contactEmail}`} className="text-blue-400 hover:underline">{COMPANY.contactEmail}</a>{' '}
+              or use our <Link href="/contact" className="text-blue-400 hover:underline">Contact page</Link>. How we
+              handle personal data is set out in our <Link href="/privacy" className="text-blue-400 hover:underline">Privacy Policy</Link>.
             </p>
           </Section>
 

@@ -115,13 +115,21 @@ export default function SocietyAiCard({ societyId }: { societyId: number }) {
   const recent = data.usage.filter(u => u.cost_usd > 0 || u.not_run > 0).slice(0, 14);
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-5 space-y-5">
+    <div className="rounded-2xl border border-slate-800 bg-dr-card p-5 space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-sm font-semibold text-slate-200">AI</h2>
         <span className={`text-xs ${data.available ? 'text-emerald-400' : 'text-amber-300'}`}>
-          {data.available ? '● AI available' : `● ${data.reason}`}
+          {data.available ? '● AI available' : '● AI paused'}
         </span>
       </div>
+      {!data.available && <p className="-mt-2 text-xs leading-relaxed text-amber-200/90">{data.reason}</p>}
+      {data.settings.mode !== 'own' && data.settings.mode !== 'off' && (
+        <p className="-mt-2 text-xs text-slate-500">
+          new.vote’s AI today (all Societies): ${data.platform.spent_today_usd.toFixed(2)} of ${data.platform.daily_budget_usd.toFixed(2)} ·
+          this Society this month: ${data.month.platform_usd.toFixed(2)}.
+          {!data.available && ' Connect your own provider to keep using AI when the shared budget runs out.'}
+        </p>
+      )}
 
       {/* Which AI */}
       <div className="grid gap-2 sm:grid-cols-3">

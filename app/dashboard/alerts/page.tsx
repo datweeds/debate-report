@@ -181,7 +181,7 @@ function MyAlertCard({ alert, onAppealed }: { alert: MyAlert; onAppealed: (id: s
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-[#0c1322] p-4 space-y-3">
+    <div className="rounded-xl border border-slate-800 bg-dr-card p-4 space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="rounded-full border bg-slate-700/50 text-slate-400 border-slate-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
@@ -306,7 +306,7 @@ export default function AlertsPage() {
   return (
     <div className="px-6 py-8 max-w-none">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-100">My Alerts &amp; Flags</h1>
+        <h1 className="text-2xl font-bold text-slate-100">Alerts &amp; Flags</h1>
         <p className="text-sm text-slate-500 mt-1">Automated scan alerts on your content, and flags raised by you or on your statements</p>
       </div>
 
@@ -338,7 +338,7 @@ export default function AlertsPage() {
           {[0,1,2].map(i => <div key={i} className="h-32 rounded-xl bg-slate-800/40 animate-pulse" />)}
         </div>
       ) : alerts.length === 0 ? (
-        <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-10 text-center">
+        <div className="rounded-2xl border border-slate-800 bg-dr-card p-10 text-center">
           <svg className="h-10 w-10 mx-auto text-slate-700 mb-3" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
           </svg>

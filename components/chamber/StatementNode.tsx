@@ -86,7 +86,7 @@ function TypePickerPanel({
   onCancel?: () => void;
 }) {
   return (
-    <div className="bg-[#0c1322] border border-slate-600 rounded-xl p-2 shadow-2xl" style={{ minWidth: 160 }}>
+    <div className="bg-dr-card border border-slate-600 rounded-xl p-2 shadow-2xl" style={{ minWidth: 160 }}>
       <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1.5 px-0.5">
         Statement type
       </p>
@@ -124,7 +124,7 @@ function DirectionPickerPanel({
   onCancel: () => void;
 }) {
   return (
-    <div className="bg-[#0c1322] border border-slate-600 rounded-xl p-2 shadow-2xl" style={{ minWidth: 170 }}>
+    <div className="bg-dr-card border border-slate-600 rounded-xl p-2 shadow-2xl" style={{ minWidth: 170 }}>
       <div className="flex items-center gap-1.5 mb-2 px-0.5">
         <span className={`rounded border px-1.5 py-0.5 text-[10px] font-bold ${
           STAT_BADGE[type] ?? 'bg-slate-700 text-slate-200 border-slate-600'
@@ -268,7 +268,7 @@ function StatementNode({ id, data, selected }: NodeProps & { data: StatementNode
     : isResolution ? 'bg-slate-800'
     : data.direction === 'for' ? 'bg-[#071810]'
     : data.direction === 'against' ? 'bg-[#180a0a]'
-    : 'bg-[#0c1322]';
+    : 'bg-dr-card';
 
   // Border based on selection + direction — wider by default so each
   // statement type's colour reads clearly, thicker still when selected so
@@ -306,7 +306,7 @@ function StatementNode({ id, data, selected }: NodeProps & { data: StatementNode
             onMouseLeave={closeTooltip}
             onClick={e => e.stopPropagation()}
           >
-            <div className="bg-[#0c1322] border border-slate-600/80 rounded-xl p-3 shadow-2xl">
+            <div className="bg-dr-card border border-slate-600/80 rounded-xl p-3 shadow-2xl">
               <p className="text-[11px] text-slate-100 font-medium leading-snug">
                 {data.label}
               </p>

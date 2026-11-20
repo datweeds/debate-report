@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { isSocietyModerator, statementSocietyId } from '@/lib/roles';
 import { getStatementForOwnershipCheck, updateStatementText } from '@/lib/statements';
+import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ id: string }> };
 
-export async function PATCH(req: NextRequest, { params }: Params) {
+async function handlePATCH(req: NextRequest, { params }: Params) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
 
@@ -26,3 +27,5 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
   return NextResponse.json(result.data);
 }
+
+export const PATCH = lockSafe(handlePATCH);

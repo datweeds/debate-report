@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
-import { openDeep } from '@/lib/societyCrypto';
+import { hideEndToEnd, openDeep } from '@/lib/societyCrypto';
 
 export async function GET() {
   const session = await getSession();
@@ -33,5 +33,6 @@ export async function GET() {
   );
 
   await openDeep(rows);
+  await hideEndToEnd(rows);  // sealed debates: only members' browsers can open them
   return NextResponse.json({ votes: rows });
 }

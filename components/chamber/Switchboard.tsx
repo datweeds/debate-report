@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { SUBJECT_LABELS, SUBJECT_COLOURS } from './constants';
 import type { PublicDebate } from './types';
+import { openDebateTitles } from './sealedDebate';
 
 type SocietyOption = { id: number; name: string };
 type SocietyList = { current: SocietyOption | null; public: SocietyOption[]; private: SocietyOption[] };
@@ -40,9 +41,9 @@ export default function Switchboard({ currentId, onSelect, onClose, initialTopic
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
-      .then((data: PublicDebate[]) => {
+      .then(async (data: PublicDebate[]) => {
         if (!Array.isArray(data)) throw new Error('Unexpected response');
-        setDebates(data);
+        setDebates(await openDebateTitles(data));   // sealed Societies' titles open here
       })
       .catch(e => setFetchError(e?.message ?? 'Could not load debates'))
       .finally(() => setLoading(false));
@@ -123,7 +124,7 @@ export default function Switchboard({ currentId, onSelect, onClose, initialTopic
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={handleClose}>
       <div className="absolute inset-0 bg-slate-950/55" />
       <div
-        className="relative z-10 w-full max-w-lg rounded-2xl border border-slate-700 bg-[#0c1322] shadow-2xl flex flex-col max-h-[80vh]"
+        className="relative z-10 w-full max-w-lg rounded-2xl border border-slate-700 bg-dr-card shadow-2xl flex flex-col max-h-[80vh]"
         onClick={e => e.stopPropagation()}
       >
 

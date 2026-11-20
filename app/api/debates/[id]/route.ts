@@ -5,7 +5,8 @@ import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { isSocietyModerator } from '@/lib/roles';
 import { openDeep } from '@/lib/societyCrypto';
-import { sealDebate } from '@/lib/debateCrypto';
+import { debateE2E, sealDebate } from '@/lib/debateCrypto';
+import { lockSafe } from '@/lib/lockSafe';
 
 
 const VALID_SUBJECTS = new Set([
@@ -47,10 +48,12 @@ export async function GET(_req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
-  return NextResponse.json(debate);
+  // Sealed debates: the browser opens and seals the text with the Society's debate keys
+  const e2e = await debateE2E(id);
+  return NextResponse.json({ ...debate, sealed: e2e ? { id: e2e.id, epoch: e2e.epoch } : null });
 }
 
-export async function PATCH(req: NextRequest, { params }: Params) {
+async function handlePATCH(req: NextRequest, { params }: Params) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
 
@@ -89,7 +92,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   if (title !== undefined) {
     if (!title.trim()) return NextResponse.json({ error: 'Title cannot be empty' }, { status: 400 });
-    if (title.trim().length > 500) return NextResponse.json({ error: 'Title too long' }, { status: 400 });
+    if (title.trim().length > 500 && !title.startsWith('sn1:')) return NextResponse.json({ error: 'Title too long' }, { status: 400 });
   }
   if (subjectArea !== undefined && !VALID_SUBJECTS.has(subjectArea)) {
     return NextResponse.json({ error: 'Invalid subject area' }, { status: 400 });
@@ -137,3 +140,5 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   await pool.query('DELETE FROM statements WHERE id = $1', [id]);
   return NextResponse.json({ ok: true });
 }
+
+export const PATCH = lockSafe(handlePATCH);

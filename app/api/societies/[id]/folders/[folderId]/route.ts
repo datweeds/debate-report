@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { sealedFor } from '@/lib/sealed/server';
+import { sealRootOf } from '@/lib/sealed/folders';
 import pool from '@/lib/db';
 import { societyContentAccess } from '@/lib/societies';
 import { sealText } from '@/lib/societyCrypto';
@@ -21,7 +23,12 @@ async function handlePATCH(req: NextRequest, { params }: Params) {
   if (!c.a.canModerate) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const { name } = await req.json().catch(() => ({}));
   if (typeof name !== 'string' || !name.trim()) return NextResponse.json({ error: 'Folder name is required' }, { status: 400 });
-  await pool.query('UPDATE document_folders SET name = $1 WHERE id = $2', [await sealText(c.a.societyId, name.trim().slice(0, 120)), c.folderId]);
+  // In (or itself) a sealed folder: the name arrives sealed
+  const root = await sealRootOf(c.a.societyId, c.folderId);
+  if (root ? !sealedFor(root, name, 2000) : name.startsWith('sn1:')) {
+    return NextResponse.json({ error: root ? 'This sealed folder’s keys have changed: reload the page and try again' : 'This folder isn’t sealed' }, { status: 400 });
+  }
+  await pool.query('UPDATE document_folders SET name = $1 WHERE id = $2', [root ? name : await sealText(c.a.societyId, name.trim().slice(0, 120)), c.folderId]);
   return NextResponse.json({ ok: true });
 }
 

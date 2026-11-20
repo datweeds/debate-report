@@ -40,6 +40,8 @@ export async function POST(req: NextRequest) {
       userVerification: 'preferred',
       authenticatorAttachment: 'platform',
     },
+    // Ask the passkey to support PRF, so it can also unlock secure access (Sealed items)
+    extensions: { prf: {} } as AuthenticationExtensionsClientInputs,
   });
 
   const token = await signChallengeToken({

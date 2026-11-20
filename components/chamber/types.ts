@@ -10,6 +10,8 @@ export type Resolution = {
   customer_id: number | null;
   debate_visibility: string; // 'public' | 'apply' | 'invite'
   society_is_public: boolean | null;
+  society_name: string | null;
+  society_slug: string | null;
   can_set_visibility: boolean;
   image_path: string | null;
   created_at: string;
@@ -35,6 +37,10 @@ export type ChamberData = {
   resolution: Resolution;
   statements: FullStatement[];
   relationships: ChamberRelationship[];
+  // The Society's debates are sealed (end-to-end): opened in the browser
+  sealed?: { id: string; epoch: number } | null;
+  // Sealed, and this browser holds the current key (so it can open and write)
+  canWriteSealed?: boolean;
 };
 
 export type PublicDebate = {
@@ -49,4 +55,5 @@ export type PublicDebate = {
   chat_count: number;
   society_name: string | null;
   customer_id: number | null;
+  sealed_id?: string | null;   // the Society's debates are sealed
 };

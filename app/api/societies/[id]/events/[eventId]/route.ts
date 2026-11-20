@@ -4,6 +4,7 @@ import { societyContentAccess } from '@/lib/societies';
 import { readEvent } from '@/lib/events';
 import { sealText } from '@/lib/societyCrypto';
 import { lockSafe } from '@/lib/lockSafe';
+import { sealedFor, sealedSection } from '@/lib/sealed/server';
 
 type Params = { params: Promise<{ id: string; eventId: string }> };
 
@@ -19,7 +20,8 @@ async function handlePATCH(req: NextRequest, { params }: Params) {
   const a = await societyContentAccess(req, id);
   if (!a || !await exists(a.societyId, eventId)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (!a.canModerate) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  const e = readEvent(await req.json().catch(() => ({})));
+  const sealed = await sealedSection(a.societyId, 'calendar');
+  const e = readEvent(await req.json().catch(() => ({})), sealed ? v => sealedFor(sealed, v, 30000) : undefined);
   if (!e.ok) return NextResponse.json({ error: e.error }, { status: 400 });
   await pool.query(
     `UPDATE society_events SET title = $1, description = $2, location = $3, starts_at = $4, ends_at = $5, all_day = $6, updated_at = now()

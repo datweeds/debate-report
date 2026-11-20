@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { startRegistration, browserSupportsWebAuthn } from '@simplewebauthn/browser';
 import { useAuth } from '@/components/AuthProvider';
+import NotificationSettings from '@/components/NotificationSettings';
+import SecureAccessCard from '@/components/sealed/SecureAccessCard';
+import RecoveryCodeCard from '@/components/RecoveryCodeCard';
 
 // Voter and Debater are free; only Moderator is paid. (Earlier prices kept in
 // comments in case paid Voter/Debater tiers return: Voter £2, Debater £4.)
@@ -470,6 +473,8 @@ export default function ProfilePage() {
           </p>
         </Section>
 
+        <NotificationSettings />
+
         {/* ── Security / Passkeys ───────────────────────── */}
         <Section title="Passkeys & security">
           {revokeError && <p className="text-xs text-red-400 mb-3">{revokeError}</p>}
@@ -512,11 +517,10 @@ export default function ProfilePage() {
           <p className="mt-2 text-xs text-slate-500">
             Use this device, or choose another option in the prompt to use your phone or a security key.
           </p>
-          <p className="mt-4 text-xs text-slate-600">
-            Your recovery code can always be used to log in if you lose access to your passkey device.
-            Keep it somewhere safe.
-          </p>
+          <RecoveryCodeCard />
         </Section>
+
+        <SecureAccessCard passkeyCount={passkeys.length} />
 
       </div>
     </div>

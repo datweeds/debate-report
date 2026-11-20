@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { societyContentAccess } from '@/lib/societies';
-import { ensureCurrentVersion, readPrinciple } from '@/lib/principles';
+import { ensureCurrentVersion, principlesSealedCheck, readPrinciple } from '@/lib/principles';
+import { allowsSealed, sealedSection } from '@/lib/sealed/server';
 import { openRows, openText, sealText } from '@/lib/societyCrypto';
 import { lockSafe } from '@/lib/lockSafe';
 
@@ -37,8 +38,23 @@ export async function GET(req: NextRequest, { params }: Params) {
 
   await openRows(a.societyId, principles, ['title', 'body', 'grounding', 'section']);
   for (const p of principles) for (const r of p.reviews) r.text = await openText(a.societyId, r.text);
+  // ?all=1 (moderators, to seal or unseal): every version's principles and every review request
+  let all = null;
+  if (req.nextUrl.searchParams.get('all') === '1' && a.canModerate) {
+    const [{ rows: ps }, { rows: rs }] = await Promise.all([
+      pool.query(`SELECT p.id, p.title, p.body, p.grounding, p.section FROM society_principles p
+                  JOIN society_principle_versions v ON v.id = p.version_id WHERE v.customer_id = $1`, [a.societyId]),
+      pool.query('SELECT id, request_text AS text FROM society_principle_reviews WHERE customer_id = $1', [a.societyId]),
+    ]);
+    await openRows(a.societyId, ps, ['title', 'body', 'grounding', 'section']);
+    await openRows(a.societyId, rs, ['text']);
+    all = { principles: ps, reviews: rs };
+  }
+  const sealed = await sealedSection(a.societyId, 'principles');
   return NextResponse.json({
-    version, versions, principles,
+    version, versions, principles, all,
+    sealed: sealed ? { id: sealed.id, epoch: sealed.epoch } : null,
+    canSeal: a.canModerate && a.isMember && await allowsSealed(a.societyId),
     canPost: a.canPost, canModerate: a.canModerate,
   });
 }
@@ -48,7 +64,7 @@ async function handlePOST(req: NextRequest, { params }: Params) {
   const a = await societyContentAccess(req, (await params).id);
   if (!a) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (!a.canModerate) return NextResponse.json({ error: 'Only moderators can change the principles' }, { status: 403 });
-  const p = readPrinciple(await req.json().catch(() => ({})));
+  const p = readPrinciple(await req.json().catch(() => ({})), await principlesSealedCheck(a.societyId));
   if (!p.ok) return NextResponse.json({ error: p.error }, { status: 400 });
   const v = await ensureCurrentVersion(a.societyId, a.session!.sub);
   const { rows: [row] } = await pool.query(

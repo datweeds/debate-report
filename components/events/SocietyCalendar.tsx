@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import RichText from '@/components/discussions/RichText';
+import SecureAccessDialog from '@/components/sealed/SecureAccessDialog';
+import { useSecureAccess } from '@/components/sealed/useSecureAccess';
+import { keysFor, newItemKeys, openItemText, sealItemText, sealItemTextOrNull, societyMembers, type ItemKeys } from '@/components/sealed/items';
+import { toIcs } from '@/lib/events';
 
 type Ev = {
   id: string; title: string; description: string | null; location: string | null;
@@ -61,7 +65,14 @@ export default function SocietyCalendar({ societyId }: { societyId: number }) {
   const [view, setView] = useState<'month' | 'list'>('month');
   const [showEvents, setShowEvents] = useState(true);
   const [showTasks, setShowTasks] = useState(true);
-  const [data, setData] = useState<{ events: Ev[]; tasks: Task[]; canModerate: boolean } | null>(null);
+  const [data, setData] = useState<{ events: Ev[]; tasks: Task[]; canModerate: boolean; sealed: { id: string; epoch: number } | null; canSeal: boolean } | null>(null);
+  // A sealed calendar: its text is opened and sealed here, with this person's keys
+  const societyBase = `/api/societies/${societyId}`;
+  const access = useSecureAccess();
+  const [keys, setKeys] = useState<ItemKeys | null>(null);
+  const [keyError, setKeyError] = useState(false);
+  const [dialog, setDialog] = useState<'setup' | 'unlock' | null>(null);
+  const [busy, setBusy] = useState('');
   const [selectedDay, setSelectedDay] = useState(localKey(today));
   const [open, setOpen] = useState<Ev | null>(null);
   const [editing, setEditing] = useState<Partial<FormState> | null>(null);
@@ -78,7 +89,21 @@ export default function SocietyCalendar({ societyId }: { societyId: number }) {
   }, [base, grid, view]);
   useEffect(() => { load(); }, [load]);
 
-  const events = showEvents ? data?.events ?? [] : [];
+  const sealedId = data?.sealed?.id ?? null;
+  useEffect(() => {
+    if (!sealedId || access.status !== 'ready' || !access.identity || keys?.id === sealedId) return;
+    keysFor(societyBase, 'calendar', sealedId, access.identity).then(setKeys).catch(() => setKeyError(true));
+  }, [sealedId, access.status, access.identity, keys?.id, societyBase]);
+
+  // Events as people read them: sealed text opened, or a placeholder without a key
+  const opened = useMemo(() => (data?.events ?? []).map(e => !sealedId ? e : {
+    ...e,
+    title: openItemText(keys, e.title) ?? 'Sealed event',
+    description: openItemText(keys, e.description),
+    location: openItemText(keys, e.location),
+  }), [data?.events, sealedId, keys]);
+
+  const events = showEvents ? opened : [];
   const tasks = showTasks ? data?.tasks ?? [] : [];
   const dayItems = (key: string) => ({
     ev: events.filter(e => onDay(e, key)),
@@ -95,13 +120,75 @@ export default function SocietyCalendar({ societyId }: { societyId: number }) {
     setOpen(null); load();
   }
 
-  if (!data) return error ? <p className="text-sm text-rose-400">{error}</p> : <div className="h-96 rounded-2xl bg-slate-800/40 animate-pulse" />;
+  // Seal (or unseal) the whole calendar: this browser re-encrypts every event
+  async function allEvents(): Promise<Ev[]> {
+    const r = await fetch(`${base}?from=1970-01-01T00:00:00Z&to=2200-01-01T00:00:00Z`);
+    if (!r.ok) throw new Error('Couldn’t load the events');
+    return (await r.json()).events;
+  }
+  async function sealCalendar() {
+    if (!confirm('Seal this calendar? Every event’s title, place and details will be encrypted in members’ browsers, so only members can read them, not new.vote. Dates and times stay visible. Members need secure access to read it, and Sys Admin emergency access won’t reach it.')) return;
+    if (access.status !== 'ready') { setDialog(access.status === 'locked' ? 'unlock' : 'setup'); return; }
+    setBusy('Sealing…'); setError('');
+    try {
+      const [all, { members }] = await Promise.all([allEvents(), societyMembers(societyBase)]);
+      const itemId = crypto.randomUUID();
+      const { keys: k, locks } = newItemKeys('calendar', itemId, members);
+      const r = await fetch(`${base}/seal`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'seal', itemId, locks, events: all.map(e => ({
+          id: e.id, title: sealItemText(k, e.title), description: sealItemTextOrNull(k, e.description), location: sealItemTextOrNull(k, e.location),
+        })) }),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? 'Couldn’t seal the calendar');
+      setKeys(k); await load();
+    } catch (e) { setError((e as Error).message); } finally { setBusy(''); }
+  }
+  async function unsealCalendar() {
+    if (!keys) return;
+    if (!confirm('Unseal this calendar? Events go back to being encrypted on the server with the Society’s key, so AI, scanning and Sys Admin emergency access can reach them again.')) return;
+    setBusy('Unsealing…'); setError('');
+    try {
+      const all = await allEvents();
+      const plain = all.map(e => ({ id: e.id, title: openItemText(keys, e.title), description: openItemText(keys, e.description), location: openItemText(keys, e.location) }));
+      if (plain.some(e => e.title == null)) throw new Error('Some events can’t be opened with your keys, so the calendar can’t be unsealed from here');
+      const r = await fetch(`${base}/seal`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'unseal', events: plain }) });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? 'Couldn’t unseal the calendar');
+      setKeys(null); await load();
+    } catch (e) { setError((e as Error).message); } finally { setBusy(''); }
+  }
+  // "Add to my calendar" for a sealed event: the file is made here, from the opened text
+  function downloadIcs(e: Ev) {
+    const body = toIcs({ ...e, starts_at: new Date(e.starts_at), ends_at: e.ends_at ? new Date(e.ends_at) : null }, 'new.vote', `${window.location.origin}/society/${societyId}/events`);
+    const url = URL.createObjectURL(new Blob([body], { type: 'text/calendar' }));
+    const link = document.createElement('a');
+    link.href = url; link.download = `${e.title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 60) || 'event'}.ics`;
+    link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  const canWrite = !sealedId || !!keys?.keys.has(keys.epoch);
+  const seal = sealedId && keys ? (v: string) => (v ? sealItemText(keys, v) : v) : undefined;
+
+  // Still fetching a sealed calendar's keys: hold the placeholder, rather than draw it locked first
+  const keysPending = !!sealedId && !keys && !keyError && (access.status === 'loading' || access.status === 'ready');
+  if (!data || keysPending) return error ? <p className="text-sm text-rose-400">{error}</p> : <div className="h-96 rounded-2xl bg-slate-800/40 animate-pulse" />;
 
   const monthName = new Date(cursor.y, cursor.m, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
   const sel = dayItems(selectedDay);
 
   return (
     <div className="space-y-4">
+      {dialog && <SecureAccessDialog mode={dialog} onDone={() => setDialog(null)} onClose={() => setDialog(null)} />}
+      {sealedId && (
+        <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 px-3 py-2 text-xs text-slate-300">
+          <span className="font-semibold text-emerald-300">🔐 Sealed calendar:</span> events’ titles, places and details are end-to-end encrypted, so only
+          members can read them, not new.vote. Dates and times are visible. No AI, abuse scanning or Sys Admin emergency access.
+          {access.status === 'none' && <> <button onClick={() => setDialog('setup')} className="font-semibold text-blue-300 hover:underline">Set up secure access</button> to read it.</>}
+          {access.status === 'locked' && <> <button onClick={() => setDialog('unlock')} className="font-semibold text-blue-300 hover:underline">Unlock secure access</button> on this device to read it.</>}
+          {access.status === 'ready' && keys && !keys.keys.size && <span className="text-amber-200"> Waiting for access: another member’s browser shares the key next time they open the calendar.</span>}
+          {data.canModerate && keys?.keys.size ? <> <button onClick={unsealCalendar} disabled={!!busy} className="text-slate-400 hover:text-slate-200 hover:underline">Unseal</button></> : null}
+        </div>
+      )}
+      {error && <p className="text-xs text-rose-400">{error}</p>}
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
         {view === 'month' && (
@@ -128,14 +215,19 @@ export default function SocietyCalendar({ societyId }: { societyId: number }) {
             </button>
           ))}
         </div>
-        {data.canModerate && (
+        {data.canSeal && !sealedId && (
+          <button onClick={sealCalendar} disabled={!!busy} title="End-to-end encrypt this calendar’s events" className="rounded-lg border border-emerald-600/50 px-3 py-1.5 text-xs text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-50">
+            {busy || '🔐 Seal calendar'}
+          </button>
+        )}
+        {data.canModerate && canWrite && (
           <button onClick={() => setEditing({ date: selectedDay })} className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-500">+ Add event</button>
         )}
       </div>
 
       {view === 'month' ? (
         <>
-          <div className="overflow-hidden rounded-2xl border border-slate-800 bg-[#0c1322]">
+          <div className="overflow-hidden rounded-2xl border border-slate-800 bg-dr-card">
             <div className="grid grid-cols-7 border-b border-slate-800 text-center text-[11px] font-semibold uppercase tracking-wider text-slate-500">
               {WEEKDAYS.map(d => <div key={d} className="py-2">{d}</div>)}
             </div>
@@ -149,7 +241,7 @@ export default function SocietyCalendar({ societyId }: { societyId: number }) {
                 return (
                   <div key={key}
                     onClick={() => setSelectedDay(key)}
-                    onDoubleClick={() => data.canModerate && setEditing({ date: key })}
+                    onDoubleClick={() => data.canModerate && canWrite && setEditing({ date: key })}
                     className={`min-h-[3.25rem] sm:min-h-[6.5rem] cursor-pointer border-b border-r border-slate-800/70 p-1 sm:p-1.5 transition-colors ${
                       selectedDay === key ? 'bg-blue-500/10' : 'hover:bg-slate-800/30'} ${inMonth ? '' : 'opacity-40'}`}>
                     <div className="flex items-center justify-between">
@@ -202,8 +294,10 @@ export default function SocietyCalendar({ societyId }: { societyId: number }) {
           {open.location && <div className="mt-3 flex gap-2 text-sm text-slate-300"><span aria-hidden>📍</span><RichText text={open.location} /></div>}
           {open.description && <div className="mt-3"><RichText text={open.description} /></div>}
           <div className="mt-5 flex flex-wrap items-center gap-3 text-sm">
-            <a href={`${base}/${open.id}/ics`} className="rounded-lg border border-slate-600 px-3 py-1.5 text-slate-200 hover:border-slate-400">Add to my calendar</a>
-            {data.canModerate && (
+            {sealedId
+              ? <button onClick={() => downloadIcs(open)} className="rounded-lg border border-slate-600 px-3 py-1.5 text-slate-200 hover:border-slate-400">Add to my calendar</button>
+              : <a href={`${base}/${open.id}/ics`} className="rounded-lg border border-slate-600 px-3 py-1.5 text-slate-200 hover:border-slate-400">Add to my calendar</a>}
+            {data.canModerate && canWrite && (
               <>
                 <button onClick={() => { setEditing(toForm(open)); setOpen(null); }} className="text-slate-400 hover:text-slate-200">Edit</button>
                 <button onClick={() => remove(open)} className="text-rose-400 hover:text-rose-300">Delete</button>
@@ -216,7 +310,7 @@ export default function SocietyCalendar({ societyId }: { societyId: number }) {
       )}
 
       {editing && (
-        <EventForm initial={editing} base={base} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
+        <EventForm initial={editing} base={base} seal={seal} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
       )}
     </div>
   );
@@ -224,7 +318,7 @@ export default function SocietyCalendar({ societyId }: { societyId: number }) {
 
 function DayList({ title, events, tasks, onOpen, empty }: { title: string; events: Ev[]; tasks: Task[]; onOpen: (e: Ev) => void; empty: string }) {
   return (
-    <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-4">
+    <div className="rounded-2xl border border-slate-800 bg-dr-card p-4">
       <p className="text-sm font-semibold text-slate-200 mb-2">{title}</p>
       {events.length + tasks.length === 0 ? (
         <p className="text-xs text-slate-500">{empty}</p>
@@ -259,7 +353,7 @@ function UpcomingList({ events, tasks, onOpen }: { events: Ev[]; tasks: Task[]; 
   for (const e of events) { const [a, b] = eventDays(e); add(a < todayKey && b >= todayKey ? todayKey : a).ev.push(e); }
   for (const t of tasks) add(t.due_at).tk.push(t);
   const keys = [...groups.keys()].filter(k => k >= todayKey).sort();
-  if (!keys.length) return <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-10 text-center text-sm text-slate-500">Nothing coming up.</div>;
+  if (!keys.length) return <div className="rounded-2xl border border-slate-800 bg-dr-card p-10 text-center text-sm text-slate-500">Nothing coming up.</div>;
   return (
     <div className="space-y-3">
       {keys.map(k => (
@@ -270,16 +364,17 @@ function UpcomingList({ events, tasks, onOpen }: { events: Ev[]; tasks: Task[]; 
   );
 }
 
-function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+// Viewing closes on a click outside; edit/create forms (keepOpen) close only via their own buttons
+function Modal({ children, onClose, keepOpen = false }: { children: React.ReactNode; onClose: () => void; keepOpen?: boolean }) {
   useEffect(() => {
     const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', k);
     return () => document.removeEventListener('keydown', k);
   }, [onClose]);
   return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm sm:p-4" onClick={keepOpen ? undefined : onClose}>
       <div role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}
-        className="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-slate-700 bg-[#0c1322] p-5 sm:max-w-lg shadow-2xl">
+        className="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-slate-700 bg-dr-card p-5 sm:max-w-lg shadow-2xl">
         {children}
       </div>
     </div>
@@ -303,7 +398,11 @@ function toForm(e: Ev): Partial<FormState> {
   };
 }
 
-function EventForm({ initial, base, onClose, onSaved }: { initial: Partial<FormState>; base: string; onClose: () => void; onSaved: () => void }) {
+function EventForm({ initial, base, seal, onClose, onSaved }: {
+  initial: Partial<FormState>; base: string; seal?: (v: string) => string; onClose: () => void; onSaved: () => void;
+}) {
+  // A sealed calendar: the text is encrypted here before it's sent
+  const out = (v: string) => (seal ? seal(v.trim()) : v);
   const [f, setF] = useState<FormState>({
     title: '', date: initial.date ?? localKey(new Date()), startTime: '19:00', endDate: '', endTime: '20:00',
     allDay: false, location: '', description: '', ...initial,
@@ -323,7 +422,7 @@ function EventForm({ initial, base, onClose, onSaved }: { initial: Partial<FormS
     setSaving(true); setError('');
     const r = await fetch(f.id ? `${base}/${f.id}` : base, {
       method: f.id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: f.title, startsAt, endsAt, allDay: f.allDay, location: f.location, description: f.description }),
+      body: JSON.stringify({ title: out(f.title), startsAt, endsAt, allDay: f.allDay, location: out(f.location), description: out(f.description) }),
     });
     setSaving(false);
     if (!r.ok) { setError((await r.json()).error ?? 'Could not save'); return; }
@@ -331,7 +430,7 @@ function EventForm({ initial, base, onClose, onSaved }: { initial: Partial<FormS
   }
 
   return (
-    <Modal onClose={onClose}>
+    <Modal onClose={onClose} keepOpen>
       <form onSubmit={save} className="space-y-3">
         <h3 className="text-lg font-semibold text-slate-100">{f.id ? 'Edit event' : 'New event'}</h3>
         <input value={f.title} onChange={e => set('title', e.target.value)} required maxLength={200} placeholder="Title" className={inputCls} autoFocus />

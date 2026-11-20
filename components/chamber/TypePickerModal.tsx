@@ -24,7 +24,7 @@ export default function TypePickerModal({ parentTitle, allowedTypes, onSelect, o
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative z-10 w-full max-w-md rounded-2xl border border-slate-700 bg-[#0c1322] shadow-2xl p-5">
+      <div className="relative z-10 w-full max-w-md rounded-2xl border border-slate-700 bg-dr-card shadow-2xl p-5">
         <div className="mb-5">
           <p className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-1.5">
             What type of statement?

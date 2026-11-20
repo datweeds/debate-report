@@ -96,3 +96,22 @@ export async function sendContactNotification({ name, email, subject, message, t
   if (!res.ok) throw new Error(`Postmark error ${res.status}: ${await res.text()}`);
   return res.json();
 }
+
+// A plain notice to one member (e.g. the decision on their join request).
+// Sent from the account's sender; never throws, as the decision already stands.
+export async function sendMemberNotice({ to, subject, text }: { to: string; subject: string; text: string }) {
+  if (!TOKEN) return;
+  try {
+    const res = await fetch(`${POSTMARK_API}/email`, {
+      method:  'POST',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Postmark-Server-Token': TOKEN },
+      body: JSON.stringify({
+        From: `${PRODUCT_NAME} <${FROM}>`, To: to, Subject: subject.slice(0, 250),
+        TextBody: `${text}\n\n— ${PRODUCT_NAME}\n${BASE_URL}/my-content`, MessageStream: 'outbound',
+      }),
+    });
+    if (!res.ok) console.error('[member notice]', res.status, await res.text());
+  } catch (err) {
+    console.error('[member notice]', err);
+  }
+}

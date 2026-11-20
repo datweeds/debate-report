@@ -3,13 +3,14 @@ import pool from '@/lib/db';
 import { openRows, openText, sealText } from '@/lib/societyCrypto';
 import { discussionAccess, membersOnly, UUID_RE } from '@/lib/discussions';
 import { lockSafe } from '@/lib/lockSafe';
+import { threadText } from '@/lib/sealed/server';
 
 type Params = { params: Promise<{ id: string; threadId: string }> };
 
 async function loadThread(societyId: number, threadId: string) {
   if (!UUID_RE.test(threadId)) return null;
   const { rows: [t] } = await pool.query(
-    `SELECT t.id, t.title, t.created_at, t.pinned, t.locked, t.created_by, u.user_handle AS author
+    `SELECT t.id, t.title, t.created_at, t.pinned, t.locked, t.created_by, t.protection, t.sealed_epoch, u.user_handle AS author
      FROM discussion_threads t LEFT JOIN users u ON u.id = t.created_by
      WHERE t.id = $1 AND t.customer_id = $2 AND t.deleted_at IS NULL`,
     [threadId, societyId],
@@ -22,7 +23,7 @@ async function loadThread(societyId: number, threadId: string) {
 export async function GET(req: NextRequest, { params }: Params) {
   const { id, threadId } = await params;
   const a = await discussionAccess(req, id);
-  if (a && !a.isMember && !a.canModerate && !a.breakGlass) return membersOnly(a.societyId, a.session);
+  if (a && !a.isMember && !a.canModerate && !a.breakGlass && !a.isDemo) return membersOnly(a.societyId, a.session);
   const thread = a ? await loadThread(a.societyId, threadId) : null;
   if (!a || !thread) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
@@ -41,6 +42,10 @@ export async function GET(req: NextRequest, { params }: Params) {
     [threadId, me],
   );
   await openRows(a.societyId, posts, ['body']);
+  // Opening a thread marks its messages as seen (clears its "new" badge in the list)
+  if (me) await pool.query(
+    `INSERT INTO discussion_thread_seen (user_id, thread_id) VALUES ($1, $2)
+     ON CONFLICT (user_id, thread_id) DO UPDATE SET seen_at = now()`, [me, threadId]).catch(() => {});
   return NextResponse.json({
     thread, posts, me,
     canPost: a.canPost && !thread.locked, canModerate: a.canModerate, canTakeDown: a.canTakeDown,
@@ -62,7 +67,11 @@ async function handlePATCH(req: NextRequest, { params }: Params) {
   const set = (c: string, v: unknown) => { vals.push(v); sets.push(`${c} = $${vals.length}`); };
   if (typeof body.pinned === 'boolean') set('pinned', body.pinned);
   if (typeof body.locked === 'boolean') set('locked', body.locked);
-  if (typeof body.title === 'string' && body.title.trim()) set('title', await sealText(a.societyId, body.title.trim().slice(0, 200)));
+  if (typeof body.title === 'string' && body.title.trim()) {
+    const t = await threadText(a.societyId, threadId, body.title, 200, 'The title');
+    if ('error' in t) return NextResponse.json({ error: t.error }, { status: 400 });
+    set('title', t.sealed ? t.text : await sealText(a.societyId, t.text, true));
+  }
   if (sets.length) {
     vals.push(threadId);
     await pool.query(`UPDATE discussion_threads SET ${sets.join(', ')} WHERE id = $${vals.length}`, vals);

@@ -5,6 +5,7 @@ import { PF_ALLOWED_CHILDREN, STAT_LABEL, STAT_BADGE, TYPE_DIRECTION_MODE } from
 import type { ChamberRelationship } from './ChamberGraph';
 import type { QDebate } from '@/lib/quality/rules';
 import DraftWarnings from './DraftWarnings';
+import { sealDebateText, sealDebateTextOrNull } from './sealedDebate';
 
 type StatStub = { id: string; stat_type: string; stat_title: string };
 
@@ -89,8 +90,8 @@ function EvidenceViaWarrantForm({
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           parentId, resolutionId, statType: 'warrant',
-          statTitle: wTitle, statDirection: effectiveWarrantDir,
-          statDescription: warrantDescription.trim() || null,
+          statTitle: sealDebateText(wTitle), statDirection: effectiveWarrantDir,
+          statDescription: sealDebateTextOrNull(warrantDescription.trim() || null),
         }),
       });
       if (!wRes.ok) { const d = await wRes.json(); setError(d.error ?? 'Could not create warrant'); return; }
@@ -102,8 +103,8 @@ function EvidenceViaWarrantForm({
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           parentId: warrant.id, resolutionId, statType: 'evidence',
-          statTitle: eTitle, statDirection: null,
-          statDescription: evidenceDescription.trim() || null,
+          statTitle: sealDebateText(eTitle), statDirection: null,
+          statDescription: sealDebateTextOrNull(evidenceDescription.trim() || null),
         }),
       });
       if (!eRes.ok) {
@@ -114,7 +115,7 @@ function EvidenceViaWarrantForm({
       const { statement: evidence, relationship: eRel } = await eRes.json();
       onCreated(evidence, eRel);
       onClose();
-    } catch { setError('Network error — please try again.'); }
+    } catch (e) { setError(e instanceof Error && e.message.includes('sealed') ? e.message : 'Network error — please try again.'); }
     finally { setSaving(false); }
   }
 
@@ -213,8 +214,8 @@ function WarrantWithEvidenceForm({
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           parentId, resolutionId, statType: 'warrant',
-          statTitle: trimTitle, statDirection: effectiveDir,
-          statDescription: description.trim() || null,
+          statTitle: sealDebateText(trimTitle), statDirection: effectiveDir,
+          statDescription: sealDebateTextOrNull(description.trim() || null),
         }),
       });
       if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Could not create warrant'); return; }
@@ -236,7 +237,7 @@ function WarrantWithEvidenceForm({
       }
 
       onClose();
-    } catch { setError('Network error — please try again.'); }
+    } catch (e) { setError(e instanceof Error && e.message.includes('sealed') ? e.message : 'Network error — please try again.'); }
     finally { setSaving(false); }
   }
 
@@ -353,15 +354,15 @@ function StandardForm({
       const res = await fetch('/api/statements', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          parentId, resolutionId, statType, statTitle: trimTitle,
-          statDirection: effectiveDirection, statDescription: description.trim() || null,
+          parentId, resolutionId, statType, statTitle: sealDebateText(trimTitle),
+          statDirection: effectiveDirection, statDescription: sealDebateTextOrNull(description.trim() || null),
         }),
       });
       if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Could not create statement'); return; }
       const { statement, relationship } = await res.json();
       onCreated(statement, relationship);
       onClose();
-    } catch { setError('Network error — please try again.'); }
+    } catch (e) { setError(e instanceof Error && e.message.includes('sealed') ? e.message : 'Network error — please try again.'); }
     finally { setSaving(false); }
   }
 
@@ -496,8 +497,8 @@ function ModalShell({ title, subtitle, onClose, children }: {
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-2xl rounded-2xl border border-slate-700 bg-[#0c1322] shadow-2xl">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+      <div className="relative z-10 w-full max-w-2xl rounded-2xl border border-slate-700 bg-dr-card shadow-2xl">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
           <div>
             <h2 className="text-base font-semibold text-slate-100">{title}</h2>

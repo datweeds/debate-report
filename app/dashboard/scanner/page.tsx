@@ -49,6 +49,8 @@ type StatFlag = {
   resolution_id: string | null;
   resolution_title: string | null;
   total_flags: number;
+  resolved_at?: string | null;
+  resolver_handle?: string | null;
 };
 
 // ── Email parties ─────────────────────────────────────────────────────────────
@@ -85,8 +87,8 @@ function EmailModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="rounded-2xl border border-slate-700 bg-[#0c1322] w-full max-w-xl p-6 relative flex flex-col gap-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="rounded-2xl border border-slate-700 bg-dr-card w-full max-w-xl p-6 relative flex flex-col gap-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <button onClick={onClose} className="absolute top-4 right-4 text-slate-500 hover:text-slate-300">
           <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
         </button>
@@ -326,7 +328,7 @@ function ScannerCard({ alert, onAction }: { alert: ContentAlert; onAction: (id: 
   }
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-[#0c1322] p-4 space-y-3">
+    <div className="rounded-xl border border-slate-800 bg-dr-card p-4 space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-wrap items-center gap-1.5 min-w-0">
           <span className="rounded-full border bg-slate-700/50 text-slate-400 border-slate-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
@@ -424,7 +426,16 @@ function ScannerCard({ alert, onAction }: { alert: ContentAlert; onAction: (id: 
 
 // ── Stat flag card ────────────────────────────────────────────────────────────
 
-function StatFlagCard({ flag }: { flag: StatFlag }) {
+function StatFlagCard({ flag, onCleared }: { flag: StatFlag; onCleared: (id: string) => void }) {
+  const [clearing, setClearing] = useState(false);
+  const [clearErr, setClearErr] = useState('');
+  async function clear() {
+    setClearing(true); setClearErr('');
+    const r = await fetch('/api/alerts/flags', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: flag.id }) });
+    setClearing(false);
+    if (r.ok) { onCleared(flag.id); window.dispatchEvent(new Event('dr:alerts-changed')); }
+    else setClearErr((await r.json().catch(() => ({}))).error ?? 'Could not clear the flag');
+  }
   const emailTargets: EmailTarget[] = [];
   if (flag.owner_email)   emailTargets.push({ label: 'Debate owner',  email: flag.owner_email,   handle: flag.owner_handle });
   if (flag.author_email)  emailTargets.push({ label: 'Content author', email: flag.author_email, handle: flag.author_handle });
@@ -436,7 +447,7 @@ function StatFlagCard({ flag }: { flag: StatFlag }) {
     `Please review your content and ensure it complies with our community guidelines.\n\nKind regards,\nnew.vote`;
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-[#0c1322] p-4 space-y-3">
+    <div className="rounded-xl border border-slate-800 bg-dr-card p-4 space-y-3">
       <div className="flex items-start justify-between gap-3">
         <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${FLAG_COLOURS[flag.reason === 'personal_data' ? 'pii' : flag.reason] ?? 'bg-slate-700 text-slate-300 border-slate-600'}`}>
           {REASON_LABELS[flag.reason] ?? flag.reason}
@@ -460,8 +471,19 @@ function StatFlagCard({ flag }: { flag: StatFlag }) {
           </span>
         )}
       </div>
-      <div className="pt-1">
+      <div className="flex flex-wrap items-center gap-2 pt-1">
+        {flag.resolved_at ? (
+          <span className="rounded-full border border-emerald-600/40 bg-emerald-600/10 px-2.5 py-1 text-xs font-semibold text-emerald-300">
+            Cleared{flag.resolver_handle ? ` by @${flag.resolver_handle}` : ''} · {new Date(flag.resolved_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+          </span>
+        ) : (
+          <button onClick={clear} disabled={clearing} title="Reviewed: no action needed. Closes this flag."
+            className="rounded-lg border border-emerald-600/40 bg-emerald-600/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-600/20 disabled:opacity-50 transition-colors">
+            {clearing ? 'Clearing…' : 'Clear (no action)'}
+          </button>
+        )}
         <EmailPartiesButton targets={emailTargets} defaultSubject={emailSubject} defaultBody={emailBody} />
+        {clearErr && <span className="text-xs text-rose-300">{clearErr}</span>}
       </div>
     </div>
   );
@@ -478,6 +500,7 @@ export default function ScannerPage() {
 
   const [tab,           setTab]           = useState<Tab>('scan');
   const [alertStatus,   setAlertStatus]   = useState<AlertStatus>('pending');
+  const [flagStatus,    setFlagStatus]    = useState<'open' | 'cleared'>('open');
   const [alerts,        setAlerts]        = useState<ContentAlert[]>([]);
   const [appeals,       setAppeals]       = useState<ContentAlert[]>([]);
   const [statFlags,     setStatFlags]     = useState<StatFlag[]>([]);
@@ -521,14 +544,14 @@ export default function ScannerPage() {
     } catch { /* silent */ }
   }, []);
 
-  const loadFlags = useCallback(async () => {
+  const loadFlags = useCallback(async (status: 'open' | 'cleared' = 'open') => {
     setFlagsLoading(true);
     try {
-      const res = await fetch('/api/alerts/flags');
+      const res = await fetch(`/api/alerts/flags?status=${status}`);
       if (!res.ok) throw new Error('Failed');
       const d = await res.json();
       setStatFlags(d.flags ?? []);
-      setFlagsTotal(d.total ?? 0);
+      if (status === 'open') setFlagsTotal(d.total ?? 0);   // the tab's badge counts open flags
     } catch { /* silent */ }
     finally { setFlagsLoading(false); }
   }, []);
@@ -541,16 +564,21 @@ export default function ScannerPage() {
 
   useEffect(() => {
     if (!user) return;
-    loadFlags();
-  }, [user, loadFlags]);
+    loadFlags(flagStatus);
+  }, [user, loadFlags, flagStatus]);
 
   const handleAlertAction = (id: string) => {
-    setAlerts(prev => prev.filter(a => a.id !== id));
+    const left = alerts.filter(a => a.id !== id);
+    setAlerts(left);
     setAlertsTotal(t => Math.max(0, t - 1));
+    window.dispatchEvent(new Event('dr:alerts-changed'));
+    // The server sends alerts a page at a time: load the next page once this one is done
+    if (left.length === 0 && alertsTotal - 1 > 0) void loadAlerts(alertStatus);
   };
 
   const handleAppealHandled = (id: string) => {
     setAppeals(prev => prev.filter(a => a.id !== id));
+    window.dispatchEvent(new Event('dr:alerts-changed'));
   };
 
   if (loading || !user) return null;
@@ -646,7 +674,7 @@ export default function ScannerPage() {
               {[0,1,2].map(i => <div key={i} className="h-32 rounded-xl bg-slate-800/40 animate-pulse" />)}
             </div>
           ) : alerts.length === 0 ? (
-            <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-10 text-center">
+            <div className="rounded-2xl border border-slate-800 bg-dr-card p-10 text-center">
               <svg className="h-10 w-10 mx-auto text-slate-700 mb-3" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
               </svg>
@@ -672,17 +700,26 @@ export default function ScannerPage() {
       {/* User-reported tab */}
       {tab === 'user' && (
         <div className="space-y-3">
+          <div className="flex gap-1">
+            {(['open', 'cleared'] as const).map(s => (
+              <button key={s} onClick={() => setFlagStatus(s)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold capitalize transition-colors ${
+                  flagStatus === s ? 'bg-slate-700 text-slate-100' : 'bg-slate-800/50 text-slate-500 hover:bg-slate-800 hover:text-slate-300'}`}>
+                {s}
+              </button>
+            ))}
+          </div>
           {flagsLoading ? (
             <div className="space-y-3">
               {[0,1,2].map(i => <div key={i} className="h-28 rounded-xl bg-slate-800/40 animate-pulse" />)}
             </div>
           ) : statFlags.length === 0 ? (
-            <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-10 text-center">
-              <p className="text-sm text-slate-400 font-medium">No user-reported flags</p>
-              <p className="text-xs text-slate-600 mt-1">Statements flagged by users will appear here</p>
+            <div className="rounded-2xl border border-slate-800 bg-dr-card p-10 text-center">
+              <p className="text-sm text-slate-400 font-medium">{flagStatus === 'cleared' ? 'No cleared flags' : 'No open user-reported flags'}</p>
+              <p className="text-xs text-slate-600 mt-1">{flagStatus === 'cleared' ? 'Flags a moderator has cleared are kept here as a record' : 'Statements flagged by users will appear here'}</p>
             </div>
           ) : (
-            statFlags.map(f => <StatFlagCard key={f.id} flag={f} />)
+            statFlags.map(f => <StatFlagCard key={f.id} flag={f} onCleared={id => { setStatFlags(fs => fs.filter(x => x.id !== id)); setFlagsTotal(n => Math.max(0, n - 1)); }} />)
           )}
         </div>
       )}

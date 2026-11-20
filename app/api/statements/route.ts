@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { createStatement } from '@/lib/statements';
+import { statementAccess } from '@/lib/debateAccess';
+import { lockSafe } from '@/lib/lockSafe';
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
 
   const body = await req.json();
+  if (typeof body.resolutionId !== 'string' || !(await statementAccess(session, body.resolutionId))?.viewable) {
+    return NextResponse.json({ error: 'Debate not found' }, { status: 404 });
+  }
   const result = await createStatement({
     resolutionId: body.resolutionId,
     parentId: body.parentId,
@@ -20,3 +25,5 @@ export async function POST(req: NextRequest) {
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
   return NextResponse.json(result.data, { status: 201 });
 }
+
+export const POST = lockSafe(handlePOST);

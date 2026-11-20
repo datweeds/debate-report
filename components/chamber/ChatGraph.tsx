@@ -71,7 +71,7 @@ function ChatMessageNode({ data }: { data: Record<string, unknown> }) {
       className={`rounded-xl p-3 ${
         d.isDeleted
           ? 'bg-[#1a1f2e] border border-slate-700'
-          : 'bg-[#0c1322] border border-slate-600'
+          : 'bg-dr-card border border-slate-600'
       }`}
       style={{ width: NODE_W, fontSize: 11 }}
     >

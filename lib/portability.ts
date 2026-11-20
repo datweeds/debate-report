@@ -2,7 +2,7 @@
 // Everything happens inside the caller's transaction. Server-only.
 
 import crypto from 'crypto';
-import { copyFile, rename, mkdir } from 'fs/promises';
+import { copyFile, rename, mkdir, unlink } from 'fs/promises';
 import path from 'path';
 import type { PoolClient } from 'pg';
 import { storedPath } from './documents';
@@ -170,7 +170,13 @@ async function transferDoc(client: PoolClient, doc: DocRow, target: number, fold
       await rename(storedPath(doc.customer_id, doc.stored_name), storedPath(target, doc.stored_name));
     }
     // Re-encrypt for the target Society (its key; or plain if it is public)
-    if (doc.customer_id !== target) await recryptDocument(client, doc.id, doc.customer_id, target);
+    if (doc.customer_id !== target) {
+      await recryptDocument(client, doc.id, doc.customer_id, target);
+      // Share links belong to the Society that made them: they stop (private links' copies are deleted)
+      const { rows: gone } = await client.query(
+        'UPDATE document_shares SET revoked_at = now() WHERE document_id = $1 AND revoked_at IS NULL RETURNING customer_id, stored_name', [doc.id]);
+      for (const g of gone) if (g.stored_name) await unlink(storedPath(g.customer_id, g.stored_name)).catch(() => {});
+    }
     return;
   }
   // Copy: a fresh file and row; open/download counts start again

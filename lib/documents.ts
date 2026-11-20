@@ -34,6 +34,16 @@ export async function saveFile(customerId: number, file: File): Promise<{ stored
   return { storedName };
 }
 
+/** A file already encrypted in a member's browser (a sealed folder): stored exactly as it came. */
+export async function saveSealedBytes(customerId: number, data: Buffer): Promise<{ storedName: string }> {
+  const storedName = `${crypto.randomUUID()}.sn1`;
+  await mkdir(societyDir(customerId), { recursive: true });
+  await writeFile(storedPath(customerId, storedName), data);
+  return { storedName };
+}
+
+export const isBrowserSealed = (b: Buffer) => b.length > 32 && b.subarray(0, 4).toString('latin1') === 'SN1F';
+
 export async function removeFile(customerId: number, storedName: string | null) {
   if (storedName) await unlink(storedPath(customerId, storedName)).catch(() => {});
 }

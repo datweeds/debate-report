@@ -9,7 +9,7 @@ const PERIODS = [1, 7, 30, 90, 365];
 
 // Activity in the Society: a tile per section with its total and what's new
 // in the last N days, each linking to the section.
-export default function SocietyMetrics({ societyId }: { societyId: number }) {
+export default function SocietyMetrics({ societyId, disabled = [] }: { societyId: number; disabled?: string[] }) {
   const [days, setDays] = useState(7);
   const [custom, setCustom] = useState('');
   const [m, setM] = useState<Metrics | null>(null);
@@ -33,23 +33,25 @@ export default function SocietyMetrics({ societyId }: { societyId: number }) {
   const base = `/society/${societyId}`;
   const tiles: { label: string; href: string; total: number; recent: number; detail?: string }[] = m ? [
     { label: 'Debates', href: base, total: m.debates, recent: m.debates_recent,
-      detail: `${m.arguments} arguments · ${m.arguments_recent} new` },
+      detail: `${m.arguments} arguments, ${m.arguments_recent} new` },
+    { label: 'Polls', href: `${base}/polls`, total: m.polls, recent: m.polls_recent,
+      detail: `${m.polls_open} open, ${m.poll_votes} votes cast` },
     { label: 'News editions', href: `${base}/news`, total: m.news, recent: m.news_recent },
     { label: 'Discussions', href: `${base}/discussions`, total: m.threads, recent: m.threads_recent,
-      detail: `${m.posts} messages · ${m.posts_recent} new` },
+      detail: `${m.posts} messages, ${m.posts_recent} new` },
     { label: 'Calls joined', href: `${base}/meet`, total: m.call_joins, recent: m.call_joins_recent },
     { label: 'Documents', href: `${base}/documents`, total: m.documents, recent: m.documents_recent },
     { label: 'Events', href: `${base}/events`, total: m.events, recent: m.events_recent,
       detail: `${m.events_upcoming} upcoming` },
     { label: 'Projects', href: `${base}/projects`, total: m.projects, recent: m.projects_recent,
-      detail: `${m.tasks} tasks · ${m.tasks_recent} new` },
+      detail: `${m.tasks} tasks, ${m.tasks_recent} new` },
     { label: 'Principles', href: `${base}/principles`, total: m.principles, recent: m.principle_versions_recent,
       detail: m.principle_versions_recent ? undefined : 'no new versions' },
     { label: 'Members', href: `${base}/about`, total: m.members, recent: m.members_recent },
   ] : [];
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-[#0c1322] p-5">
+    <section className="rounded-2xl border border-slate-800 bg-dr-card p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-sm font-semibold text-slate-200">Activity</h2>
         <div className="flex flex-wrap items-center gap-1 text-xs" role="group" aria-label="Period">
@@ -73,18 +75,17 @@ export default function SocietyMetrics({ societyId }: { societyId: number }) {
       {!m ? (
         <div className="h-28 rounded-xl bg-slate-800/40 animate-pulse" />
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {tiles.map(t => (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+          {tiles.filter(t => !disabled.includes(featureOfTile(t.href, base))).map(t => (
             <Link key={t.label} href={t.href}
-              className="group rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3 transition-colors hover:border-blue-500/40 hover:bg-blue-500/5">
-              <p className="text-[11px] uppercase tracking-wider text-slate-500 group-hover:text-blue-300">{t.label}</p>
-              <p className="mt-1 flex items-baseline gap-2">
-                <span className="text-2xl font-bold tabular-nums text-slate-100">{t.total}</span>
-                {t.recent > 0
-                  ? <span className="text-xs font-semibold text-emerald-400">+{t.recent}</span>
-                  : <span className="text-xs text-slate-600">+0</span>}
+              className="group rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2 transition-colors hover:border-blue-500/40 hover:bg-blue-500/5">
+              {/* Two lines: "METRIC: N, +N", then its detail */}
+              <p className="flex items-baseline gap-1.5 text-sm">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 group-hover:text-blue-300">{t.label}:</span>
+                <span className="font-bold tabular-nums text-slate-100">{t.total},</span>
+                <span className={`tabular-nums ${t.recent > 0 ? 'font-semibold text-emerald-400' : 'text-slate-500'}`}>+{t.recent}</span>
               </p>
-              {t.detail && <p className="mt-0.5 text-[11px] text-slate-500">{t.detail}</p>}
+              <p className="mt-0.5 min-h-[1rem] text-[11px] text-slate-500">{t.detail ?? '\u00a0'}</p>
             </Link>
           ))}
         </div>
@@ -92,4 +93,10 @@ export default function SocietyMetrics({ societyId }: { societyId: number }) {
       <p className="mt-3 text-[11px] text-slate-500">Totals, with how many are new in the last {days === 1 ? 'day' : `${days} days`}. Debates you can’t see aren’t counted.</p>
     </section>
   );
+}
+
+// A tile's feature, from where it links ('' is Debate; About and members are always shown)
+function featureOfTile(href: string, base: string) {
+  const slug = href.slice(base.length).replace(/^\//, '');
+  return slug === '' ? 'debates' : slug;
 }

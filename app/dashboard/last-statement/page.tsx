@@ -41,7 +41,7 @@ export default function LastStatementPage() {
       {fetching ? (
         <div className="text-sm text-slate-600 py-8">Loading…</div>
       ) : statement ? (
-        <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-6">
+        <div className="rounded-2xl border border-slate-800 bg-dr-card p-6">
           <p className="text-xs text-slate-600 uppercase tracking-wider mb-1">{statement.subject_area}</p>
           <p className="text-base font-semibold text-slate-100 mb-4 leading-snug">{statement.stat_title}</p>
           <Link
@@ -55,7 +55,7 @@ export default function LastStatementPage() {
           </Link>
         </div>
       ) : (
-        <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-10 text-center">
+        <div className="rounded-2xl border border-slate-800 bg-dr-card p-10 text-center">
           <p className="text-sm text-slate-400 font-medium">No recent statement</p>
           <p className="text-xs text-slate-600 mt-1 mb-4">Visit the Chamber to start exploring debates</p>
           <Link

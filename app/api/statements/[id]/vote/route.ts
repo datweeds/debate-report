@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { statementAccess } from '@/lib/debateAccess';
+import { sealDebate } from '@/lib/debateCrypto';
+import { openText } from '@/lib/societyCrypto';
+import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ id: string }> };
 
 // GET — current user's vote + statement totals
-export async function GET(_req: NextRequest, { params }: Params) {
+async function handleGET(_req: NextRequest, { params }: Params) {
   const { id } = await params;
   const session = await getSession();
+  if (!(await statementAccess(session, id))?.viewable) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const { rows: [stmt] } = await pool.query(
     `SELECT s.id, s.stat_direction, s.vote_for, s.vote_against,
@@ -27,7 +32,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     );
     userVote      = (v?.vote as 'agree' | 'disagree') ?? null;
     userImpact    = v?.vote_debate_impact ?? null;
-    userRationale = v?.vote_rationale ?? null;
+    userRationale = await openText(null, v?.vote_rationale ?? null);   // sealed ones are opened in the browser
   }
 
   return NextResponse.json({
@@ -41,7 +46,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 // POST — cast, change, or remove a vote
 // Body: { vote: 'agree' | 'disagree' | null, impact?: number, rationale?: string }
-export async function POST(req: NextRequest, { params }: Params) {
+async function handlePOST(req: NextRequest, { params }: Params) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
 
@@ -56,11 +61,10 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Invalid vote value' }, { status: 400 });
   }
 
-  const { rows: [stmt] } = await pool.query(
-    'SELECT id FROM statements WHERE id = $1',
-    [id],
-  );
-  if (!stmt) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  const access = await statementAccess(session, id);
+  if (!access?.viewable) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  // The reason given with a vote is stored like the debate's other text
+  const storedRationale = await sealDebate(access.resolutionId, rationale?.slice(0, rationale.startsWith('sn1:') ? 60000 : 5000) ?? null);
 
   const client = await pool.connect();
   try {
@@ -78,7 +82,7 @@ export async function POST(req: NextRequest, { params }: Params) {
          VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (statement_id, created_by) DO UPDATE
            SET vote = $3, vote_debate_impact = $4, vote_rationale = $5, updated_at = NOW()`,
-        [id, session.sub, vote, impact, rationale],
+        [id, session.sub, vote, impact, storedRationale],
       );
     }
 
@@ -158,3 +162,6 @@ export async function POST(req: NextRequest, { params }: Params) {
     client.release();
   }
 }
+
+export const GET = lockSafe(handleGET);
+export const POST = lockSafe(handlePOST);

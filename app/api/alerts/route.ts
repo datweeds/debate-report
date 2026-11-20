@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { moderatedSocietyIds } from '@/lib/roles';
-import { openDeep, openText } from '@/lib/societyCrypto';
+import { hideEndToEnd, openDeep, openText } from '@/lib/societyCrypto';
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -95,6 +95,7 @@ export async function GET(req: NextRequest) {
       al.report_reason = await openText(sid, al.report_reason);
     }
   }
-  await openDeep(alerts);  // the rest: debate titles in the queue
+  await openDeep(alerts);
+  await hideEndToEnd(alerts);  // sealed debates: only members' browsers can open them  // the rest: debate titles in the queue
   return NextResponse.json({ alerts, total, page, limit });
 }

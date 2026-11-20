@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { statementAccess } from '@/lib/debateAccess';
 
 type Params = { params: Promise<{ id: string; messageId: string }> };
 
@@ -16,7 +17,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Your account tier cannot react to messages' }, { status: 403 });
   }
 
-  const { messageId } = await params;
+  const { id, messageId } = await params;
+  if (!(await statementAccess(session, id))?.viewable) return NextResponse.json({ error: 'Message not found' }, { status: 404 });
   const body = await req.json();
   const emoji: string = (body.emoji ?? '').toString().trim();
 
@@ -26,8 +28,8 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   // Check message exists and is not deleted
   const { rows: [msg] } = await pool.query(
-    'SELECT id, is_deleted FROM comments WHERE id = $1',
-    [messageId],
+    'SELECT id, is_deleted FROM comments WHERE id = $1 AND statement_id = $2',
+    [messageId, id],
   );
   if (!msg) return NextResponse.json({ error: 'Message not found' }, { status: 404 });
   if (msg.is_deleted) return NextResponse.json({ error: 'Cannot react to deleted message' }, { status: 409 });

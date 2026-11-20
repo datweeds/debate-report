@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
+import { societyRef } from '@/components/societies/SocietyTabs';
 import { SUBJECT_LABELS, SUBJECT_COLOURS } from './constants';
 import type { ChamberData } from './types';
 
@@ -202,6 +204,19 @@ export default function ControlBar({
       {/* Row 2: meta — desktop only */}
       {res && (
         <div className="hidden sm:flex items-center gap-4 px-5 h-9 text-xs text-slate-500">
+          {res.customer_id != null && res.society_name && (
+            <>
+              <span>
+                Society:{' '}
+                <Link href={`/society/${societyRef(res.customer_id, res.society_slug)}/about`}
+                  title={`About ${res.society_name}`}
+                  className="font-semibold text-blue-400 hover:text-blue-300 hover:underline">
+                  {res.society_name}
+                </Link>
+              </span>
+              <span className="text-slate-700">|</span>
+            </>
+          )}
           <span>
             Subject Area:{' '}
             <span className={`font-semibold ${SUBJECT_COLOURS[res.subject_area]?.split(' ')[1] ?? 'text-slate-300'}`}>

@@ -1,5 +1,6 @@
 'use client';
 
+import ApiParties from '@/components/admin/ApiParties';
 import AiTab from '@/components/admin/AiTab';
 import PrivacyTab from '@/components/admin/PrivacyTab';
 import { useEffect, useState, useCallback } from 'react';
@@ -9,15 +10,12 @@ import Link from 'next/link';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+type Series = { label: string; color: string; data: { month: string; count: number }[] };
+type Metric = { key: string; label: string; total: number; parts: { label: string; color: string; value: number }[]; series: Series[]; error?: boolean };
 interface Stats {
-  totals: { users: number; debates: number; statements: number; votes: number };
+  metrics: Metric[];
   popularDebates: { id: string; stat_title: string; child_count: number; votes: number }[];
   staleDebates: { id: string; stat_title: string; idle_days: number }[];
-  debatesByMonth: { month: string; count: number }[];
-  scienceTotal: number;
-  scienceByMonth: { month: string; count: number }[];
-  aiArgTotal: number;
-  aiArgByMonth: { month: string; count: number }[];
   server: { uptimeSeconds: number; memoryMB: number };
 }
 
@@ -30,39 +28,35 @@ function fmtUptime(s: number) {
   return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
-// ── Mini chart ────────────────────────────────────────────────────────────────
+// ── Chart: one line per part, last 12 months ─────────────────────────────────
 
-function MiniLineChart({ data, color = '#3b82f6' }: { data: { month: string; count: number }[]; color?: string }) {
-  if (!data.length) {
-    return <p className="text-xs text-slate-600 text-center py-6">No data yet</p>;
-  }
-  const max = Math.max(...data.map(d => d.count), 1);
-  const W = 480, H = 100, PAD = 16;
-  const pts = data.map((d, i) => ({
-    x: PAD + (i / Math.max(data.length - 1, 1)) * (W - PAD * 2),
-    y: H - PAD - ((d.count / max) * (H - PAD * 2)),
-    ...d,
-  }));
-  const path = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
-  const area = `${path} L ${pts[pts.length - 1].x} ${H - PAD} L ${pts[0].x} ${H - PAD} Z`;
-  const gradId = `grad-${color.replace('#', '')}`;
-
+function MetricChart({ series }: { series: Series[] }) {
+  const months = series[0]?.data.map(d => d.month) ?? [];
+  if (!months.length) return <p className="py-6 text-center text-xs text-slate-600">No data yet</p>;
+  const max = Math.max(1, ...series.flatMap(s => s.data.map(d => d.count)));
+  const W = 640, H = 180, L = 32, R = 12, T = 12, B = 22;
+  const x = (i: number) => L + (i / Math.max(months.length - 1, 1)) * (W - L - R);
+  const y = (n: number) => H - B - (n / max) * (H - T - B);
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-20" preserveAspectRatio="none">
-      <defs>
-        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={area} fill={`url(#${gradId})`} />
-      <path d={path} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-      {pts.map(p => <circle key={p.month} cx={p.x} cy={p.y} r="3" fill={color} />)}
-      {pts.map(p => (
-        <text key={`l-${p.month}`} x={p.x} y={H} fontSize="8" fill="#475569" textAnchor="middle">
-          {p.month}
-        </text>
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-48 w-full" role="img" aria-label="Last 12 months">
+      {[0, 0.5, 1].map(f => (
+        <g key={f}>
+          <line x1={L} x2={W - R} y1={y(max * f)} y2={y(max * f)} stroke="#334155" strokeOpacity="0.5" strokeDasharray={f ? '3 4' : undefined} />
+          <text x={L - 6} y={y(max * f) + 3} fontSize="9" fill="#64748b" textAnchor="end">{Math.round(max * f)}</text>
+        </g>
       ))}
+      {months.map((m, i) => (
+        <text key={m} x={x(i)} y={H - 6} fontSize="9" fill="#64748b" textAnchor="middle">{m}</text>
+      ))}
+      {series.map(s => {
+        const path = s.data.map((d, i) => `${i ? 'L' : 'M'} ${x(i)} ${y(d.count)}`).join(' ');
+        return (
+          <g key={s.label}>
+            <path d={path} fill="none" stroke={s.color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+            {s.data.map((d, i) => <circle key={i} cx={x(i)} cy={y(d.count)} r="2.5" fill={s.color}><title>{`${s.label}, ${d.month}: ${d.count}`}</title></circle>)}
+          </g>
+        );
+      })}
     </svg>
   );
 }
@@ -75,64 +69,52 @@ function AnalyticsTab({ stats, staleDays, setStaleDays }: {
   setStaleDays: (n: number) => void;
 }) {
   const filteredStale = stats.staleDebates.filter(d => d.idle_days >= staleDays);
+  const [open, setOpen] = useState<string | null>(null);   // the metric whose chart is shown
+  const shown = stats.metrics.find(m => m.key === open);
 
   return (
     <div className="space-y-6">
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {[
-          { label: 'Users',      value: stats.totals.users,      color: 'text-blue-400' },
-          { label: 'Debates',    value: stats.totals.debates,    color: 'text-amber-400' },
-          { label: 'Statements', value: stats.totals.statements, color: 'text-emerald-400' },
-          { label: 'Votes',      value: stats.totals.votes,      color: 'text-blue-400' },
-        ].map(k => (
-          <div key={k.label} className="card-dr p-5 text-center">
-            <p className={`text-3xl font-extrabold ${k.color}`}>{k.value.toLocaleString()}</p>
-            <p className="text-xs text-slate-500 mt-1">{k.label}</p>
-          </div>
-        ))}
+      {/* Metric tiles: click one for its chart */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {stats.metrics.map(m => {
+          const active = open === m.key;
+          return (
+            <button key={m.key} onClick={() => setOpen(active ? null : m.key)} aria-expanded={active}
+              title={active ? 'Hide chart' : 'Show chart'}
+              className={`card-dr p-4 text-left transition-colors ${active ? 'ring-1 ring-blue-500/60 bg-blue-500/5' : 'hover:bg-blue-500/5'}`}>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{m.label}</p>
+              <p className="mt-1 text-2xl font-extrabold tabular-nums text-slate-100">{m.error ? '–' : m.total.toLocaleString()}</p>
+              {m.parts.length > 1 && (
+                <p className="mt-1 space-x-2 text-[11px] text-slate-400">
+                  {m.parts.map(p => (
+                    <span key={p.label} className="whitespace-nowrap">
+                      <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle" style={{ background: p.color }} />
+                      {p.label} {p.value.toLocaleString()}
+                    </span>
+                  ))}
+                </p>
+              )}
+            </button>
+          );
+        })}
       </div>
 
-      {/* AI API metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {shown && (
         <div className="card-dr p-5">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold">#ScienceReports</p>
-              <p className="text-2xl font-bold text-emerald-400 mt-0.5">{stats.scienceTotal.toLocaleString()}</p>
-            </div>
-            <div className="rounded-full bg-emerald-500/10 p-2.5">
-              <svg className="h-5 w-5 text-emerald-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 0 1 4.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0 1 12 15a9.065 9.065 0 0 1-6.23-.693L4.001 14.5m15.799.8 1.5 4.2m-4.8-4.2-.75-2.1M4.001 14.5l-1.5 4.2m4.5-4.5.75-2.1" />
-              </svg>
-            </div>
-          </div>
-          <p className="text-xs text-slate-600 mb-2">Science analysis API calls — last 12 months</p>
-          <MiniLineChart data={stats.scienceByMonth} color="#34d399" />
-        </div>
-
-        <div className="card-dr p-5">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold">#AI-Generated-Debates</p>
-              <p className="text-2xl font-bold text-violet-400 mt-0.5">{stats.aiArgTotal.toLocaleString()}</p>
-            </div>
-            <div className="rounded-full bg-violet-500/10 p-2.5">
-              <svg className="h-5 w-5 text-violet-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
-              </svg>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-slate-200">{shown.label}: new each month, last 12 months</h2>
+            <div className="flex flex-wrap gap-3 text-xs text-slate-400">
+              {shown.series.map(s => (
+                <span key={s.label} className="flex items-center gap-1.5">
+                  <span className="inline-block h-2 w-3 rounded-sm" style={{ background: s.color }} />{s.label}
+                </span>
+              ))}
+              <button onClick={() => setOpen(null)} className="text-slate-500 hover:text-slate-300">Close</button>
             </div>
           </div>
-          <p className="text-xs text-slate-600 mb-2">AI argument generation calls — last 12 months</p>
-          <MiniLineChart data={stats.aiArgByMonth} color="#a78bfa" />
+          <MetricChart series={shown.series} />
         </div>
-      </div>
-
-      {/* Debates over time */}
-      <div className="card-dr p-6">
-        <h2 className="text-sm font-semibold text-slate-200 mb-4">Debates created — last 12 months</h2>
-        <MiniLineChart data={stats.debatesByMonth} />
-      </div>
+      )}
 
       {/* Popular debates */}
       <div className="card-dr p-6">
@@ -221,160 +203,6 @@ function AnalyticsTab({ stats, staleDays, setStaleDays }: {
   );
 }
 
-// ── Blog tab ──────────────────────────────────────────────────────────────────
-
-interface BlogInfo {
-  subscriberCount: number;
-  posts: Array<{ slug: string; title: string; date: string; excerpt: string; image?: string; sent: boolean }>;
-  sends: Array<{ post_slug: string; sent_count: number; created_at: string }>;
-}
-
-function BlogTab() {
-  const [info,      setInfo]      = useState<BlogInfo | null>(null);
-  const [loading,   setLoading]   = useState(true);
-  const [sending,   setSending]   = useState<string | null>(null);
-  const [result,    setResult]    = useState<{ slug: string; sent: number; failed: number; total: number } | null>(null);
-  const [error,     setError]     = useState('');
-
-  useEffect(() => {
-    fetch('/api/admin/blog')
-      .then(r => r.json())
-      .then(setInfo)
-      .catch(() => setError('Could not load blog data'))
-      .finally(() => setLoading(false));
-  }, []);
-
-  async function send(slug: string) {
-    if (!confirm(`Send this post to all ${info?.subscriberCount ?? 0} subscribers?`)) return;
-    setSending(slug); setResult(null); setError('');
-    try {
-      const res = await fetch('/api/admin/blog', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ slug }),
-      });
-      const d = await res.json();
-      if (!res.ok) { setError(d.error ?? 'Send failed'); return; }
-      setResult({ slug, sent: d.sent, failed: d.failed, total: d.total });
-      // Mark post as sent locally
-      setInfo(prev => prev ? {
-        ...prev,
-        posts: prev.posts.map(p => p.slug === slug ? { ...p, sent: true } : p),
-      } : prev);
-    } catch {
-      setError('Network error');
-    } finally {
-      setSending(null);
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex justify-center py-20">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* Subscriber count */}
-      <div className="card-dr p-5 flex items-center justify-between">
-        <div>
-          <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold">Active subscribers</p>
-          <p className="text-3xl font-extrabold text-blue-400 mt-1">{info?.subscriberCount ?? 0}</p>
-        </div>
-        <div className="rounded-full bg-blue-500/10 p-3">
-          <svg className="h-6 w-6 text-blue-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
-          </svg>
-        </div>
-      </div>
-
-      {error && (
-        <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">{error}</p>
-      )}
-
-      {result && (
-        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
-          Sent <strong>{result.sent}</strong> of <strong>{result.total}</strong> emails for &ldquo;{result.slug}&rdquo;
-          {result.failed > 0 && <span className="text-amber-300 ml-2">({result.failed} failed)</span>}
-        </div>
-      )}
-
-      {/* Posts list */}
-      <div className="card-dr overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-800">
-          <h2 className="text-sm font-semibold text-slate-200">Blog posts</h2>
-          <p className="text-xs text-slate-500 mt-0.5">Send a post as a newsletter to all active subscribers</p>
-        </div>
-
-        {!info?.posts.length ? (
-          <div className="px-5 py-10 text-center">
-            <p className="text-sm text-slate-500">No posts yet — add markdown files to the <code className="text-blue-400">posts/</code> directory</p>
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-800">
-            {info.posts.map(post => (
-              <div key={post.slug} className="px-5 py-4 flex items-start justify-between gap-4">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="text-sm font-medium text-slate-200 truncate">{post.title}</p>
-                    {post.sent && (
-                      <span className="rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide whitespace-nowrap">
-                        Sent
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-slate-500 truncate">{post.excerpt}</p>
-                  <p className="text-xs text-slate-700 mt-1">{post.date}</p>
-                </div>
-                <button
-                  onClick={() => send(post.slug)}
-                  disabled={!!sending || post.sent}
-                  title={post.sent ? 'Already sent' : `Send to ${info.subscriberCount} subscribers`}
-                  className="flex-shrink-0 rounded-lg border border-blue-700/40 bg-blue-500/10 px-3 py-1.5 text-xs font-semibold text-blue-300 hover:bg-blue-500/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-                >
-                  {sending === post.slug ? 'Sending…' : post.sent ? 'Sent ✓' : 'Send newsletter'}
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Send history */}
-      {info?.sends && info.sends.length > 0 && (
-        <div className="card-dr overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-800">
-            <h2 className="text-sm font-semibold text-slate-200">Send history</h2>
-          </div>
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-slate-800 text-slate-500">
-                <th className="text-left px-5 py-2.5 font-medium">Post</th>
-                <th className="text-right px-5 py-2.5 font-medium">Sent to</th>
-                <th className="text-right px-5 py-2.5 font-medium">Date</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/50">
-              {info.sends.map(s => (
-                <tr key={s.post_slug} className="hover:bg-slate-800/20">
-                  <td className="px-5 py-2.5 text-slate-300">{s.post_slug}</td>
-                  <td className="px-5 py-2.5 text-right text-slate-400">{s.sent_count}</td>
-                  <td className="px-5 py-2.5 text-right text-slate-600">
-                    {new Date(s.created_at).toLocaleDateString('en-GB')}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Customers tab ─────────────────────────────────────────────────────────────
 
 interface CustomerRow {
@@ -382,8 +210,8 @@ interface CustomerRow {
   hero_text: string | null; contact_email: string | null;
   hero_image: string | null; description: string | null;
   platform_contact_email: string | null; created_at: string;
-  proposal_count: number; debate_count: number;
-  is_public: boolean; visibility: 'public' | 'apply' | 'invite'; is_default: boolean;
+  alert_count: number; debate_count: number;
+  is_public: boolean; visibility: 'public' | 'apply' | 'invite'; is_default: boolean; is_demo: boolean;
 }
 
 interface CustomerAdmin { user_id: string; handle: string; created_at: string; }
@@ -585,6 +413,14 @@ function CustomersTab() {
     } finally { setSaving(false); }
   }
 
+  async function setDemo(c: { id: number; name: string; visibility: string }, demo: boolean) {
+    if (demo && !confirm(`Make ${c.name} the demo Society? It becomes public, all its debates become public, and its discussions open to everyone, even without an account.${c.visibility !== 'public' ? ' Its encrypted content will be decrypted.' : ''}`)) return;
+    setErr('');
+    const r = await fetch(`/api/admin/customers/${c.id}/demo`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ demo }) });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); setErr(d.error ?? 'Failed'); return; }
+    load();
+  }
+
   async function setDefault(id: number) {
     setErr('');
     const r = await fetch(`/api/admin/customers/${id}/set-default`, { method: 'POST' });
@@ -738,11 +574,14 @@ function CustomersTab() {
                     {c.is_default && (
                       <span className="rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-amber-500/15 text-amber-300 border-amber-500/30">Default</span>
                     )}
+                    {c.is_demo && (
+                      <span className="rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-emerald-500/15 text-emerald-300 border-emerald-500/30">Demo</span>
+                    )}
                     <span className="text-xs text-slate-500 font-mono">{c.subdomain}</span>
                   </div>
                   {c.hero_text && <p className="text-xs text-slate-400 mb-1">{c.hero_text}</p>}
                   <div className="flex flex-wrap gap-4 mt-1.5 text-xs text-slate-500">
-                    <span>{c.proposal_count} proposals</span>
+                    <span title="Open alerts and flags: scan alerts pending review, and user flags not yet cleared">{c.alert_count} open alerts/flags</span>
                     <span>{c.debate_count} debates</span>
                     {c.contact_email && <span>Contact: {c.contact_email}</span>}
                   </div>
@@ -761,6 +600,11 @@ function CustomersTab() {
                       Set as default
                     </button>
                   )}
+                  <button onClick={() => setDemo(c, !c.is_demo)}
+                    className="rounded-lg border border-emerald-700/40 px-3 py-1.5 text-xs text-emerald-400 hover:border-emerald-500 transition-colors"
+                    title={c.is_demo ? 'Stop this being the demo Society' : 'Make this the demo: public, every debate public, discussions open to all'}>
+                    {c.is_demo ? 'Stop demo' : 'Make demo'}
+                  </button>
                   <button onClick={() => { setEditing(c); setErr(''); }} className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200 hover:border-slate-500 transition-colors">
                     Edit
                   </button>
@@ -984,7 +828,30 @@ function AccessKeysTab() {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-type AdminTab = 'analytics' | 'blog' | 'customers' | 'keys' | 'moderators' | 'library' | 'scanning' | 'ai' | 'privacy';
+type AdminTab = 'analytics' | 'customers' | 'keys' | 'moderators' | 'library' | 'scanning' | 'ai' | 'privacy' | 'apiparties';
+
+// A reminder, at the top of each section, of what the Sys Admin is responsible
+// for there and how to carry it out
+const TAB_HELP: Record<AdminTab, string> = {
+  analytics:
+    'Keep an eye on the platform’s health and growth. Look in weekly: click a tile to see its last 12 months. A rise in Alerts & flags means moderators may need support, so check the Review queue. Use Stale debates to nudge owners or close debates that have run their course. If System health shows memory climbing or uptime resetting unexpectedly, the server needs attention.',
+  customers:
+    'You decide which Societies exist and who runs them. Create a Society here and you become its admin and first member; appoint or remove its admins, set its visibility, and choose the Demo Society. A Society with many open alerts/flags may need its moderators prompting. Day-to-day settings belong to each Society’s own moderators, under Manage Societies.',
+  keys:
+    'Access keys let named guests, such as reviewers or journalists, read chosen private debates without an account. Create one key per person, pick the debates, and send the link at once: it is shown only once. Revoke a key as soon as the review is over, and use “last used” to spot keys no longer needed.',
+  moderators:
+    'Moderators can create and run Societies, so approving a request is a trust decision. Check the person’s handle, message and activity before approving; approval takes effect at once. If unsure, decline, and contact them to explain or ask for more.',
+  library:
+    'These principles are starting templates that moderators copy into their Societies. Keep them clear, neutral and grounded, with a “why” for each. Editing here doesn’t change copies Societies already hold, so tell moderators about important improvements.',
+  scanning:
+    'The abuse scanner checks all text automatically; your job is to keep it running and fair. Check that it is configured and that pending alerts aren’t piling up. After the scanner’s rules change, use “Rescan everything”. Alerts about profiles come to you; everything else goes to each Society’s moderators.',
+  ai:
+    'You control what the platform’s AI costs. Set the daily cap to what you’re willing to pay: when it’s reached, platform AI pauses until midnight UTC and features use their non-AI versions. Review failed calls and each Society’s usage here; Societies with their own AI provider pay for their own use.',
+  privacy:
+    'You can reach private Societies’ content, but should never do so routinely. Keep the master key offline when you can. Open emergency access only for a serious report or a legal request, with a clear reason: it is time-limited, logged, and the Society is told straight away. Review the access log regularly.',
+  apiparties:
+    'API Parties are external platforms that post statements for their own users. Issue a token only to platforms you have agreed terms with, limit each to the debates it needs, and revoke a token straight away if it is leaked or misused.',
+};
 
 // ── Abuse scanning ───────────────────────────────────────────────────────────
 type ScanRun = { id: string; kind: string; started_at: string; finished_at: string | null; items_scanned: number; alerts_raised: number; error: string | null; started_by: string | null };
@@ -1023,7 +890,7 @@ function ScanningTab() {
       {!data.configured && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">The scanner service isn&apos;t configured on this server.</p>}
       <div className="grid grid-cols-3 gap-3">
         {[['Items scanned', data.totals.scanned], ['Alerts pending', data.totals.pending], ['Alerts in total', data.totals.alerts]].map(([l, n]) => (
-          <div key={l as string} className="rounded-xl border border-slate-800 bg-[#0c1322] px-4 py-3">
+          <div key={l as string} className="rounded-xl border border-slate-800 bg-dr-card px-4 py-3">
             <p className="text-[11px] uppercase tracking-wider text-slate-500">{l}</p>
             <p className="text-2xl font-bold tabular-nums text-slate-100">{n}</p>
           </div>
@@ -1098,7 +965,7 @@ function PrinciplesLibraryTab() {
               <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">{sec}</p>
               <ol className="space-y-2">
                 {rows.filter(r => r.library === lib && (r.section || 'Other') === sec).map(p => (
-                  <li key={p.id} className="rounded-xl border border-slate-800 bg-[#0c1322] p-4">
+                  <li key={p.id} className="rounded-xl border border-slate-800 bg-dr-card p-4">
                     {editing === p.id ? (
                       <PrincipleForm initial={{ ...p, section: p.section ?? '' }} libraries={libraries} sections={sections} onCancel={() => setEditing(null)}
                         onSave={async v => { const err = await send(`/api/admin/principle-library/${p.id}`, 'PATCH', v); if (!err) setEditing(null); return err; }} />
@@ -1158,11 +1025,11 @@ function ModeratorRequestsTab() {
     <div className="space-y-6">
       <p className="text-sm text-slate-400">People asking to become Moderators. Approving gives them Moderator tools at once (billing isn&apos;t live yet).</p>
       {pending.length === 0 ? (
-        <p className="rounded-xl border border-slate-800 bg-[#0c1322] p-6 text-center text-sm text-slate-500">No pending requests.</p>
+        <p className="rounded-xl border border-slate-800 bg-dr-card p-6 text-center text-sm text-slate-500">No pending requests.</p>
       ) : (
         <ul className="space-y-3">
           {pending.map(r => (
-            <li key={r.id} className="rounded-xl border border-slate-800 bg-[#0c1322] p-4">
+            <li key={r.id} className="rounded-xl border border-slate-800 bg-dr-card p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-sm text-slate-200">{r.user_full_name || `@${r.user_handle}`} <span className="text-xs text-slate-500">· @{r.user_handle} · {r.user_tier} · asked {when(r.created_at)}</span></p>
@@ -1200,7 +1067,7 @@ export default function AdminPage() {
   // ?tab=customers (e.g. "Edit society" on a society dashboard) opens that tab.
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get('tab');
-    if (t === 'analytics' || t === 'blog' || t === 'customers' || t === 'keys' || t === 'moderators' || t === 'library' || t === 'scanning' || t === 'ai' || t === 'privacy') setTab(t);
+    if (t === 'analytics' || t === 'customers' || t === 'keys' || t === 'moderators' || t === 'library' || t === 'scanning' || t === 'ai' || t === 'privacy' || t === 'apiparties') setTab(t);
   }, []);
 
   useEffect(() => {
@@ -1221,10 +1088,9 @@ export default function AdminPage() {
         </div>
 
         {/* Tab bar */}
-        <div className="flex gap-1 mb-8 border-b border-slate-800">
+        <div className="flex gap-1 mb-8 border-b border-slate-800 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {([
             { id: 'analytics', label: 'Analytics' },
-            { id: 'blog',      label: 'Blog' },
             { id: 'customers', label: 'Societies' },
             { id: 'keys',      label: 'Access Keys' },
             { id: 'moderators', label: 'Moderators' },
@@ -1232,11 +1098,12 @@ export default function AdminPage() {
             { id: 'scanning',   label: 'Scanning' },
             { id: 'ai',         label: 'AI' },
             { id: 'privacy',    label: 'Privacy' },
+            { id: 'apiparties', label: 'API Parties' },
           ] as { id: AdminTab; label: string }[]).map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`px-5 py-3 text-sm font-semibold transition-colors border-b-2 -mb-px ${
+              className={`whitespace-nowrap px-5 py-3 text-sm font-semibold transition-colors border-b-2 -mb-px ${
                 tab === t.id
                   ? 'border-blue-500 text-blue-300'
                   : 'border-transparent text-slate-500 hover:text-slate-300'
@@ -1245,6 +1112,12 @@ export default function AdminPage() {
               {t.label}
             </button>
           ))}
+        </div>
+
+        {/* What this section is for, and how to use it */}
+        <div className="mb-6 rounded-xl border border-blue-500/20 bg-blue-500/5 px-4 py-3">
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-blue-300">Your role here</p>
+          <p className="text-sm leading-relaxed text-slate-300">{TAB_HELP[tab]}</p>
         </div>
 
         {/* Tab content */}
@@ -1260,7 +1133,6 @@ export default function AdminPage() {
           )
         )}
 
-        {tab === 'blog' && <BlogTab />}
 
         {tab === 'customers' && <CustomersTab />}
         {tab === 'keys'      && <AccessKeysTab />}
@@ -1269,6 +1141,7 @@ export default function AdminPage() {
         {tab === 'scanning'   && <ScanningTab />}
         {tab === 'ai'         && <AiTab />}
         {tab === 'privacy'    && <PrivacyTab />}
+        {tab === 'apiparties' && <ApiParties embedded />}
 
         <div className="text-center mt-10">
           <Link href="/" className="text-xs text-slate-600 hover:text-slate-400 transition-colors">

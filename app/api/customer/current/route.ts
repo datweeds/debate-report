@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 
   const { rows: currentRows } = await pool.query('SELECT id, name FROM customers WHERE id = $1', [currentId]);
   const { rows } = await pool.query(
-    `SELECT c.id, c.name, c.visibility,
+    `SELECT c.id, c.name, c.subdomain, c.visibility, c.disabled_sections,
             EXISTS (SELECT 1 FROM customer_members m WHERE m.customer_id = c.id AND m.user_id = $1)
             OR EXISTS (SELECT 1 FROM customer_roles r WHERE r.tenant_id = c.id AND r.user_id = $1 AND r.role = 'customer_admin') AS is_member
      FROM customers c
@@ -23,8 +23,8 @@ export async function GET(req: NextRequest) {
     [uid],
   );
 
-  const toOption = (r: { id: number; name: string; visibility: string; is_member: boolean }) =>
-    ({ id: r.id, name: r.name, visibility: r.visibility, isMember: r.is_member });
+  const toOption = (r: { id: number; name: string; subdomain: string | null; visibility: string; is_member: boolean; disabled_sections: string[] }) =>
+    ({ id: r.id, name: r.name, slug: r.subdomain, visibility: r.visibility, isMember: r.is_member, disabled: r.disabled_sections ?? [] });
   return NextResponse.json({
     current: currentRows[0] ?? null,
     public: rows.filter(r => r.visibility === 'public').map(toOption),

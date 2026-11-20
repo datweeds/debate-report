@@ -4,6 +4,7 @@ import { getSession } from '@/lib/auth';
 import { moderatedSocietyIds } from '@/lib/roles';
 import { copyDebate, moveDebate } from '@/lib/portability';
 import { lockSafe } from '@/lib/lockSafe';
+import { sealedSection } from '@/lib/sealed/server';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -30,6 +31,10 @@ async function handlePOST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'You must moderate both Societies' }, { status: 403 });
   }
   if (mode === 'move' && target === debate.customer_id) return NextResponse.json({ error: 'It is already in that Society' }, { status: 400 });
+  // Sealed debates can only be read in members' browsers, with that Society's keys
+  if (await sealedSection(debate.customer_id, 'debates') || await sealedSection(target, 'debates')) {
+    return NextResponse.json({ error: 'Debates can’t be moved or copied into or out of a Society whose debates are sealed' }, { status: 409 });
+  }
 
   const opts = { includeVotes: b.includeVotes !== false, includeChat: b.includeChat !== false };
   const client = await pool.connect();

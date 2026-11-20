@@ -5,39 +5,95 @@
 // That covers the resolution, every argument in it, chat on it, fallacy notes,
 // science analyses, AI sessions and quality reports. Votes stay as they are.
 // Reading needs no Society id: encrypted values carry it (see openDeep).
+//
+// A private Society can also seal all its debates (end-to-end): their text is
+// then encrypted in members' browsers, arrives here as "sn1:…", and is stored
+// as it is. AI features are off while sealed.
 
 import type { PoolClient } from 'pg';
 import pool from './db';
-import { isPrivateSociety, isSealed, LOCKED_TEXT, openDeep, openText, redactDeep, sealText, UNREADABLE } from './societyCrypto';
+import { hideEndToEnd, isPrivateSociety, isSealed, LOCKED_TEXT, openDeep, openText, redactDeep, sealText, UNREADABLE } from './societyCrypto';
 import { sysAdminMayAct } from './breakGlass';
 import type { SessionPayload } from './auth';
 import { requireKey } from './masterKey';
+import { sealedFor, sealedSection, SealedTextError, type SealedItem } from './sealed/server';
 
 type Q = Pick<PoolClient, 'query'>;
-type Sealing = { customerId: number | null; sealed: boolean };
+type Sealing = { customerId: number | null; sealed: boolean; e2e: SealedItem | null };
 
 const cache = new Map<string, { at: number; v: Sealing }>();
 const TTL = 60_000;
 
 /** The debate's Society, and whether its content is stored encrypted. */
 export async function debateSealing(resolutionId: string | null | undefined, q: Q = pool): Promise<Sealing> {
-  if (!resolutionId) return { customerId: null, sealed: false };
+  if (!resolutionId) return { customerId: null, sealed: false, e2e: null };
   const hit = cache.get(resolutionId);
   if (hit && Date.now() - hit.at < TTL) return hit.v;
   const { rows: [r] } = await q.query('SELECT customer_id, debate_visibility FROM statements WHERE id = $1', [resolutionId]);
   const customerId: number | null = r?.customer_id ?? null;
-  const v = { customerId, sealed: customerId != null && ((r.debate_visibility ?? 'public') !== 'public' || await isPrivateSociety(customerId)) };
+  const v = {
+    customerId,
+    sealed: customerId != null && ((r.debate_visibility ?? 'public') !== 'public' || await isPrivateSociety(customerId)),
+    e2e: customerId != null ? await sealedSection(customerId, 'debates') : null,
+  };
   cache.set(resolutionId, { at: Date.now(), v });
   return v;
 }
 
 export const forgetDebate = (resolutionId: string) => { cache.delete(resolutionId); };
+/** After a Society's debates are sealed or unsealed. */
+export const forgetAllDebates = () => { cache.clear(); };
 
-/** For storing text in a debate: encrypted if the debate is private. */
+/** The Society's sealed debates (end-to-end) this debate belongs to, or null. */
+export const debateE2E = async (resolutionId: string | null | undefined, q: Q = pool) => (await debateSealing(resolutionId, q)).e2e;
+
+// Why text for a sealed debate wasn't accepted
+const sealedProblem = (text: string) => text.startsWith('sn1:')
+  ? 'This Society’s debates have a new key: reload the page and try again'
+  : 'This Society’s debates are sealed, so text must be sealed in your browser: reload the page and try again';
+
+export const AI_OFF = 'AI features are off while this Society’s debates are sealed';
+
+/**
+ * For storing text in a debate: encrypted if the debate is private. In sealed
+ * debates the text must arrive sealed (for the current key); elsewhere it must
+ * not. Throws SealedTextError otherwise (lockSafe answers it with a 400).
+ */
 export async function sealDebate<T extends string | null | undefined>(resolutionId: string | null | undefined, text: T, q: Q = pool): Promise<T> {
   const s = await debateSealing(resolutionId, q);
+  if (s.e2e) {
+    if (text == null || text === '') return text;
+    if (!sealedFor(s.e2e, text, 60000)) throw new SealedTextError(sealedProblem(text));
+    return text;
+  }
+  if (typeof text === 'string' && text.startsWith('sn1:')) throw new SealedTextError('This debate isn’t sealed: reload the page and try again');
   if (s.customerId == null) return text;
   return sealText(s.customerId, text, s.sealed);
+}
+
+/** For a new debate's text, before it exists: as sealDebate, by its Society. */
+export async function sealNewDebate<T extends string | null | undefined>(customerId: number, text: T): Promise<T> {
+  const e2e = await sealedSection(customerId, 'debates');
+  if (e2e) {
+    if (text == null || text === '') return text;
+    if (!sealedFor(e2e, text, 60000)) throw new SealedTextError(sealedProblem(text));
+    return text;
+  }
+  if (typeof text === 'string' && text.startsWith('sn1:')) throw new SealedTextError('This Society’s debates aren’t sealed: reload the page and try again');
+  return sealText(customerId, text);
+}
+
+/** A JSON value for a jsonb column of a debate: an encrypted JSON string if the debate is private. Pass as $n::jsonb. */
+export async function sealDebateJson(resolutionId: string | null | undefined, value: unknown, q: Q = pool): Promise<string> {
+  if (await debateE2E(resolutionId, q)) throw new SealedTextError(AI_OFF);
+  const text = JSON.stringify(value);
+  const sealed = await sealDebate(resolutionId, text, q);
+  return isSealed(sealed) ? JSON.stringify(sealed) : text;
+}
+
+/** The value of a jsonb column written by sealDebateJson. */
+export async function openDebateJson<T>(stored: unknown): Promise<T> {
+  return (isSealed(stored) ? JSON.parse(await openText(null, stored)) : stored) as T;
 }
 
 /** Plain text of a stored value (for the scanner, AI review, comparisons). */
@@ -57,6 +113,7 @@ const TARGETS: Target[] = [
   { table: 'quality_reports', cols: ['ai_summary'], where: `t.resolution_id = $1` },
   { table: 'quality_dismissals', cols: ['note', 'observation'], where: `t.resolution_id = $1`, key: 'fingerprint' },
   { table: 'quality_findings', cols: ['observation', 'recommendation'], where: `t.report_id IN (SELECT id FROM quality_reports WHERE resolution_id = $1)` },
+  { table: 'stat_votes', cols: ['vote_rationale'], where: `t.statement_id IN ${IN_DEBATE}` },
 ];
 
 /**
@@ -118,5 +175,5 @@ export async function openForSysAdmin<R extends object>(session: SessionPayload 
     if (!may.has(cid)) may.set(cid, await sysAdminMayAct(session, cid));
     await (may.get(cid) ? openDeep(r) : redactDeep(r, '🔒 Private debate'));
   }
-  return rows;
+  return hideEndToEnd(rows, '🔐 Sealed debate');
 }

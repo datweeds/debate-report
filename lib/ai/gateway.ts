@@ -116,7 +116,7 @@ export async function resolveRoute(societyId: number | null, tier: Tier, estimat
   const p = PLATFORM[tier];
   const used = status.newsSpentTodayUsd + await platformSpentToday();
   if (used + cost(estimateTokens.in, estimateTokens.out, p.inPrice, p.outPrice) > status.dailyBudgetUsd) {
-    throw new AiUnavailable('The site’s daily AI budget has been reached; try again tomorrow.');
+    throw new AiUnavailable('new.vote’s shared daily AI budget, used by every Society on new.vote’s AI, has run out for today; it resets at midnight (UK time).');
   }
   if (!process.env.ANTHROPIC_API_KEY) throw new AiUnavailable('AI isn’t configured on this server.');
   return { scope: 'platform', provider: { adapter: 'anthropic', baseUrl: null, apiKey: process.env.ANTHROPIC_API_KEY }, providerName: 'platform', models: p.models, inPrice: p.inPrice, outPrice: p.outPrice };

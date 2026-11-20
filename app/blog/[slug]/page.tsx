@@ -79,8 +79,8 @@ export default async function BlogPostPage({ params }: Props) {
         )}
 
         {/* Content */}
-        <div
-          className="prose-dark"
+        <article
+          className="dr-panel prose-dark rounded-2xl px-6 py-7 sm:px-9 sm:py-9"
           dangerouslySetInnerHTML={{ __html: post.contentHtml }}
         />
 

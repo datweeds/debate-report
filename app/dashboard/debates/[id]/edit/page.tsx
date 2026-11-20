@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
+import { societyDebateSealer } from '@/components/chamber/sealedDebate';
 
 const SUBJECT_AREAS = [
   { value: 'culture',     label: 'Culture, Identity & Social Issues' },
@@ -49,6 +50,7 @@ export default function EditDebatePage() {
   const [saving,      setSaving]      = useState(false);
   const [error,       setError]       = useState('');
   const [saved,       setSaved]       = useState(false);
+  const sealer = useRef<(t: string) => string>(t => t);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -60,14 +62,21 @@ export default function EditDebatePage() {
     if (!id) return;
     fetch(`/api/debates/${id}`)
       .then(r => r.ok ? r.json() : Promise.reject())
-      .then((d: Debate) => {
+      .then(async (d: Debate & { customer_id?: number | null; sealed?: { id: string } | null }) => {
+        // Sealed debates: opened (and sealed again on save) with the Society's debate keys
+        if (d.sealed && d.customer_id != null) {
+          const s = await societyDebateSealer(d.customer_id).catch(() => null);
+          if (!s) throw new Error('sealed');
+          sealer.current = s.seal;
+          d = { ...d, stat_title: s.open(d.stat_title), stat_description: s.open(d.stat_description) };
+        }
         setDebate(d);
         setTitle(d.stat_title);
         setDescription(d.stat_description ?? '');
         setSubjectArea(d.subject_area);
         setImagePreview(d.image_path);
       })
-      .catch(() => setError('Could not load debate.'))
+      .catch(e => setError(e?.message === 'sealed' ? 'This Society’s debates are sealed: unlock secure access (from the Chamber or the Society’s Debate tab) to edit them here.' : 'Could not load debate.'))
       .finally(() => setFetching(false));
   }, [id]);
 
@@ -102,8 +111,8 @@ export default function EditDebatePage() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim() || '',
+          title: sealer.current(title.trim()),
+          description: description.trim() ? sealer.current(description.trim()) : '',
           subjectArea,
           removeImage,
         }),

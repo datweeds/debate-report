@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { societyContentAccess } from '@/lib/societies';
-import { ensureCurrentVersion } from '@/lib/principles';
+import { ensureCurrentVersion, principlesSealedCheck } from '@/lib/principles';
 import { sealText } from '@/lib/societyCrypto';
 import { lockSafe } from '@/lib/lockSafe';
 
@@ -13,6 +13,8 @@ async function handlePOST(req: NextRequest, { params }: Params) {
   const a = await societyContentAccess(req, (await params).id);
   if (!a) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (!a.canModerate) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  // Sealed principles: the browser seals the library text and adds each one itself
+  if (await principlesSealedCheck(a.societyId)) return NextResponse.json({ error: 'The principles are sealed', sealed: true }, { status: 409 });
   const { libraryIds } = await req.json().catch(() => ({}));
   if (!Array.isArray(libraryIds) || !libraryIds.length || !libraryIds.every(x => typeof x === 'string' && /^[0-9a-f-]{36}$/i.test(x))) {
     return NextResponse.json({ error: 'Choose at least one principle' }, { status: 400 });

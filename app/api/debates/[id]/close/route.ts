@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { sealDebate } from '@/lib/debateCrypto';
+import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ id: string }> };
 
-export async function POST(req: NextRequest, { params }: Params) {
+async function handlePOST(req: NextRequest, { params }: Params) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
 
@@ -54,3 +55,5 @@ export async function POST(req: NextRequest, { params }: Params) {
     voteAgainst: debate.vote_total_against,
   });
 }
+
+export const POST = lockSafe(handlePOST);

@@ -18,7 +18,7 @@ async function handleGET(req: NextRequest, { params }: Params) {
   const a = await societyContentAccess(req, id);
   if (!a || !/^[0-9a-f-]{36}$/i.test(docId)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const { rows: [d] } = await pool.query(
-    `SELECT stored_name, file_name, mime_type FROM documents
+    `SELECT stored_name, file_name, mime_type, protection FROM documents
      WHERE id = $1 AND customer_id = $2 AND kind = 'file' AND deleted_at IS NULL`,
     [docId, a.societyId],
   );
@@ -28,11 +28,16 @@ async function handleGET(req: NextRequest, { params }: Params) {
   const info = await stat(file).catch(() => null);
   if (!info) return NextResponse.json({ error: 'File missing' }, { status: 404 });
 
-  const inline = INLINE_TYPES.has(d.mime_type) && req.nextUrl.searchParams.get('download') !== '1';
-  await pool.query(
-    `UPDATE documents SET ${inline ? 'open_count = open_count + 1' : 'download_count = download_count + 1'} WHERE id = $1`,
-    [docId],
-  );
+  // A sealed document is still encrypted (in the member's browser): always sent as data, opened there
+  const browserSealed = d.protection === 'sealed';
+  const inline = !browserSealed && INLINE_TYPES.has(d.mime_type) && req.nextUrl.searchParams.get('download') !== '1';
+  // ?share=1: a moderator's browser making a private share link's copy, not an open or download
+  if (!(a.canModerate && req.nextUrl.searchParams.get('share') === '1')) {
+    await pool.query(
+      `UPDATE documents SET ${inline ? 'open_count = open_count + 1' : 'download_count = download_count + 1'} WHERE id = $1`,
+      [docId],
+    );
+  }
 
   // Encrypted files (private Societies) are decrypted in memory; others stream from disk
   const head = Buffer.alloc(8);
@@ -40,7 +45,7 @@ async function handleGET(req: NextRequest, { params }: Params) {
   await fd.read(head, 0, 8, 0).finally(() => fd.close());
   const sealed = fileIsSealed(head);
   const plain = sealed ? await openFile(a.societyId, await readFile(file)) : null;
-  const fileName = await openText(a.societyId, d.file_name as string);
+  const fileName = browserSealed ? 'sealed-document' : await openText(a.societyId, d.file_name as string);
 
   const ascii = fileName.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
   const body = plain ? new Uint8Array(plain) : (Readable.toWeb(createReadStream(file)) as ReadableStream);

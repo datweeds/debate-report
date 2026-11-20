@@ -82,7 +82,7 @@ export async function scanContent(
   resolutionId: string | null,
   authorId: string | null,
 ): Promise<void> {
-  if (!text.trim() || !SCANNER_URL) return;
+  if (!text.trim() || !SCANNER_URL || text.startsWith('sn1:')) return;   // sealed in members' browsers: unreadable here
   try {
     const { rows: [r] } = resolutionId
       ? await pool.query('SELECT customer_id FROM statements WHERE id = $1', [resolutionId])
@@ -132,6 +132,7 @@ export async function runSweep(kind: SweepKind, opts: { full?: boolean; startedB
          FROM ${t.from}
          LEFT JOIN scanned_content sc ON sc.content_type = $1 AND sc.content_key = t.${t.idColumn}::text
          WHERE ${text} IS NOT NULL AND btrim(${text}) <> '' AND ${text} NOT LIKE '*** content masked%'
+           AND ${text} NOT LIKE 'sn1:%'  -- sealed in members' browsers: nothing the scanner can read
            ${isUnlocked() ? '' : `AND ${text} NOT LIKE 'enc_:%'`}
            ${t.where ? `AND ${t.where}` : ''}
            ${opts.full ? '' : `AND sc.text_hash IS DISTINCT FROM md5(${text})`}

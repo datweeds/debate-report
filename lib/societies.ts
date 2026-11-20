@@ -5,6 +5,7 @@ import type { NextRequest } from 'next/server';
 import pool from './db';
 import { getSessionFromRequest, type SessionPayload } from './auth';
 import { isSocietyModerator } from './roles';
+import { featureOfApiPath } from './features';
 
 export type SocietyVisibility = 'public' | 'apply' | 'invite';
 
@@ -16,12 +17,14 @@ export type SocietyAccess = {
   canSeeTeaser: boolean; // may see its name, image and description (and ask to join, for 'apply')
   pendingRequest: boolean;
   breakGlass: string | null; // SysAdmin emergency access to a private Society: when it ends
+  disabled: string[];        // features the Society has switched off (lib/features.ts)
+  isDemo: boolean;           // the demo Society: everything readable, even without an account
 };
 
 export async function getSocietyAccess(session: SessionPayload | null, customerId: number): Promise<SocietyAccess | null> {
   const uid = session?.sub ?? null;
   const { rows: [row] } = await pool.query(
-    `SELECT c.visibility,
+    `SELECT c.visibility, c.disabled_sections, c.is_demo,
             EXISTS (SELECT 1 FROM customer_members m WHERE m.customer_id = c.id AND m.user_id = $2) AS is_member,
             EXISTS (SELECT 1 FROM customer_roles r WHERE r.tenant_id = c.id AND r.user_id = $2 AND r.role = 'customer_admin') AS is_moderator,
             EXISTS (SELECT 1 FROM society_join_requests j WHERE j.customer_id = c.id AND j.user_id = $2 AND j.status = 'pending') AS pending,
@@ -43,6 +46,8 @@ export async function getSocietyAccess(session: SessionPayload | null, customerI
     canSeeTeaser: row.visibility !== 'invite' || inside || !!breakGlass,
     pendingRequest: row.pending,
     breakGlass,
+    disabled: row.disabled_sections ?? [],
+    isDemo: !!row.is_demo,
   };
 }
 
@@ -112,6 +117,7 @@ export type SocietyContentAccess = {
   canModerate: boolean;  // the Society's moderators: pin, lock, delete any post
   canTakeDown: boolean;  // moderators, plus SysAdmin as the platform backstop (private Societies: only under break-glass)
   isMember: boolean;     // a member or moderator of this Society
+  isDemo: boolean;       // the demo Society: discussions readable by anyone
   breakGlass: boolean;   // the viewer is a SysAdmin under emergency access
 };
 
@@ -121,6 +127,9 @@ export async function societyContentAccess(req: NextRequest, rawId: string): Pro
   const session = await getSessionFromRequest(req);
   const access = await getSocietyAccess(session, societyId);
   if (!access || !access.canEnter) return null;
+  // A feature the Society has switched off doesn't exist for anyone
+  const feature = featureOfApiPath(req.nextUrl.pathname);
+  if (feature && access.disabled.includes(feature)) return null;
   const inside = access.isMember || access.isModerator;
   return {
     session, societyId,
@@ -130,5 +139,6 @@ export async function societyContentAccess(req: NextRequest, rawId: string): Pro
     canTakeDown: access.isModerator || (!!session?.isSysAdmin && (access.visibility === 'public' || !!access.breakGlass)),
     isMember: inside,
     breakGlass: !!access.breakGlass,
+    isDemo: access.isDemo,
   };
 }

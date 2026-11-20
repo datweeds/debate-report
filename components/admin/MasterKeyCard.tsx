@@ -44,7 +44,7 @@ export default function MasterKeyCard() {
   );
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-5">
+    <div className="rounded-2xl border border-slate-800 bg-dr-card p-5">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-slate-200">Master key</h2>
         <span className={`rounded-full px-2.5 py-0.5 text-xs ${!s.unlocked ? 'bg-rose-500/15 text-rose-300' : s.storedOnServer ? 'bg-amber-500/15 text-amber-300' : 'bg-emerald-500/15 text-emerald-300'}`}>

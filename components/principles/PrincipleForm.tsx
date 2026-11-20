@@ -33,7 +33,7 @@ export default function PrincipleForm({ initial, onSave, onCancel, saveLabel = '
     if (err) setError(err);
   }
   return (
-    <form onSubmit={submit} className="space-y-3 rounded-2xl border border-slate-700 bg-[#0c1322] p-4">
+    <form onSubmit={submit} className="space-y-3 rounded-2xl border border-slate-700 bg-dr-card p-4">
       <div className="flex flex-wrap gap-2">
         {(Object.keys(CATEGORY_META) as PrincipleFields['category'][]).map(c => (
           <button key={c} type="button" onClick={() => setF(v => ({ ...v, category: c }))}

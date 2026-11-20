@@ -5,6 +5,10 @@ import dynamic from 'next/dynamic';
 import { STAT_BADGE, STAT_LABEL } from './constants';
 import type { FullStatement, Resolution } from './types';
 import type { ChatGraphMessage } from './ChatGraph';
+import { openDebateText, sealDebateText } from './sealedDebate';
+
+// Messages in sealed debates arrive sealed: opened here
+const openMessages = <M extends { body: string }>(ms: M[] | undefined): M[] => (ms ?? []).map(m => ({ ...m, body: openDebateText(m.body) }));
 
 const ChatGraph = dynamic(() => import('./ChatGraph'), { ssr: false });
 
@@ -361,7 +365,7 @@ export default function DetailPanel({
     setChatLoading(true); setChatError('');
     fetch(`/api/statements/${statement.id}/chat`)
       .then(r => r.json())
-      .then(d => { setMessages(d.messages ?? []); setChatStatId(statement.id); setChatLoading(false); })
+      .then(d => { setMessages(openMessages(d.messages)); setChatStatId(statement.id); setChatLoading(false); })
       .catch(() => { setChatError('Could not load messages'); setChatLoading(false); });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatOpen, statement?.id]);
@@ -399,15 +403,15 @@ export default function DetailPanel({
     try {
       const res = await fetch(`/api/statements/${statement.id}/chat`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body: body.trim(), parentId: replyTo?.id ?? null }),
+        body: JSON.stringify({ body: sealDebateText(body.trim()), parentId: replyTo?.id ?? null }),
       });
       if (!res.ok) { const d = await res.json(); setChatError(d.error ?? 'Failed to send'); return; }
       const { message } = await res.json();
-      setMessages(prev => [...prev, message]);
+      setMessages(prev => [...prev, { ...message, body: body.trim() }]);
       setChatRecent(prev => (prev ?? 0) + 1);
       onMetricsRefresh?.();
       setBody(''); setReplyTo(null);
-    } catch { setChatError('Network error'); }
+    } catch (e) { setChatError(e instanceof Error && e.message.includes('sealed') ? e.message : 'Network error'); }
     finally { setSending(false); }
   }
 
@@ -463,7 +467,7 @@ export default function DetailPanel({
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col w-full h-full bg-[#0c1322]">
+    <div className="flex flex-col w-full h-full bg-dr-card">
 
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 flex-shrink-0">
@@ -783,7 +787,7 @@ export default function DetailPanel({
 
       {/* Compose — pinned bottom when chat open */}
       {chatOpen && (
-        <div className="flex-shrink-0 border-t border-slate-800 px-3 py-3 bg-[#0c1322]">
+        <div className="flex-shrink-0 border-t border-slate-800 px-3 py-3 bg-dr-card">
           {chatError && <p className="text-xs text-red-400 mb-2">{chatError}</p>}
           {replyTo && (
             <div className="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/50">

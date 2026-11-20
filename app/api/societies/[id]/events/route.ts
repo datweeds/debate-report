@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { notifyNew } from '@/lib/notify';
 import pool from '@/lib/db';
 import { societyContentAccess } from '@/lib/societies';
 import { parseTime, readEvent } from '@/lib/events';
-import { openRows, sealText } from '@/lib/societyCrypto';
+import { hideEndToEnd, openRows, sealText } from '@/lib/societyCrypto';
 import { lockSafe } from '@/lib/lockSafe';
+import { allowsSealed, sealedFor, sealedSection } from '@/lib/sealed/server';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -36,8 +38,14 @@ export async function GET(req: NextRequest, { params }: Params) {
   );
   await openRows(a.societyId, events, ['title', 'description', 'location']);
   await openRows(a.societyId, tasks, ['title', 'project']);
+  // Sealed projects' task names can't be read here: show them as sealed
+  await hideEndToEnd(tasks);
   const STATUS: Record<string, string> = { new: 'New', in_progress: 'In progress', complete: 'Complete' };
+  // A sealed calendar's text arrives encrypted; members' browsers open it
+  const sealed = await sealedSection(a.societyId, 'calendar');
   return NextResponse.json({
+    sealed: sealed ? { id: sealed.id, epoch: sealed.epoch } : null,
+    canSeal: a.canModerate && a.isMember && await allowsSealed(a.societyId),
     events,
     tasks: tasks.map(t => ({ ...t, status: STATUS[t.status] ?? t.status, href: `/society/${a.societyId}/projects/${t.project_id}` })),
     canModerate: a.canModerate,
@@ -49,13 +57,15 @@ async function handlePOST(req: NextRequest, { params }: Params) {
   const a = await societyContentAccess(req, (await params).id);
   if (!a) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (!a.canModerate) return NextResponse.json({ error: 'Only moderators can add events' }, { status: 403 });
-  const e = readEvent(await req.json().catch(() => ({})));
+  const sealed = await sealedSection(a.societyId, 'calendar');
+  const e = readEvent(await req.json().catch(() => ({})), sealed ? v => sealedFor(sealed, v, 30000) : undefined);
   if (!e.ok) return NextResponse.json({ error: e.error }, { status: 400 });
   const { rows: [row] } = await pool.query(
     `INSERT INTO society_events (customer_id, title, description, location, starts_at, ends_at, all_day, created_by)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
     [a.societyId, await sealText(a.societyId, e.title), await sealText(a.societyId, e.description), await sealText(a.societyId, e.location), e.startsAt, e.endsAt, e.allDay, a.session!.sub],
   );
+  notifyNew({ societyId: a.societyId, kind: 'events', authorId: a.session!.sub, title: e.title, url: `/society/${a.societyId}/events` });
   return NextResponse.json({ id: row.id }, { status: 201 });
 }
 

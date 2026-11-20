@@ -4,6 +4,7 @@ import { getSession } from '@/lib/auth';
 import { getDebateAccess } from '@/lib/debateAccess';
 import { canSetDebateVisibility } from '@/lib/roles';
 import { openDeep } from '@/lib/societyCrypto';
+import { debateE2E } from '@/lib/debateCrypto';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -16,7 +17,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
             s.stat_status, s.resolution_decision, s.closing_statement,
             s.vote_total_for, s.vote_total_against,
             u.user_handle AS creator_handle,
-            c.is_public AS society_is_public
+            c.is_public AS society_is_public, c.name AS society_name, c.subdomain AS society_slug
      FROM   statements s
      LEFT   JOIN users u ON u.id = s.created_by
      LEFT   JOIN customers c ON c.id = s.customer_id
@@ -69,5 +70,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   );
 
   await openDeep([resolution, statements]);
-  return NextResponse.json({ resolution, statements, relationships });
+  // Sealed debates: members' browsers open the text with the Society's debate keys
+  const e2e = await debateE2E(id);
+  return NextResponse.json({ resolution, statements, relationships, sealed: e2e ? { id: e2e.id, epoch: e2e.epoch } : null });
 }

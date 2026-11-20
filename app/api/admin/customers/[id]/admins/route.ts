@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSessionFromRequest } from '@/lib/auth';
+import { addMember } from '@/lib/societies';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -37,6 +38,8 @@ export async function POST(req: NextRequest, { params }: Params) {
      ON CONFLICT (user_id, tenant_id) DO UPDATE SET role = 'customer_admin'`,
     [user.id, id]
   );
+  // A Society's admin is always one of its members
+  await addMember(Number(id), user.id);
 
   return NextResponse.json({ ok: true });
 }

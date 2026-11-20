@@ -8,7 +8,7 @@ import JoinSocietyButton from '@/components/societies/JoinSocietyButton';
 export default function MembersOnly({ societyId, visibility, pending }: { societyId: number; visibility: string; pending: boolean }) {
   const { user } = useAuth();
   return (
-    <div className="mx-auto max-w-lg rounded-2xl border border-slate-800 bg-[#0c1322] p-6 text-center">
+    <div className="mx-auto max-w-lg rounded-2xl border border-slate-800 bg-dr-card p-6 text-center">
       <p className="text-lg font-semibold text-slate-100">Become a member to view discussions</p>
       <p className="mt-2 text-sm text-slate-400">Discussions are where this Society’s members talk among themselves.</p>
       <div className="mt-4 flex justify-center">

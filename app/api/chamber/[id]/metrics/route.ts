@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { getDebateAccess } from '@/lib/debateAccess';
-import { openDeep } from '@/lib/societyCrypto';
+import { hideEndToEnd, openDeep } from '@/lib/societyCrypto';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -74,7 +74,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
            AND c.comment_status = 'accepted'
            AND NOT c.is_deleted) AS chat_count,
         -- Flag count
-        (SELECT COUNT(*) FROM stat_flags sf WHERE sf.stat_id = s.id)::int AS flag_count
+        (SELECT COUNT(*) FROM stat_flags sf WHERE sf.stat_id = s.id AND sf.resolved_at IS NULL)::int AS flag_count
       FROM statements s
       LEFT JOIN weights w ON w.statement_id = s.id
       WHERE s.resolution_id = $1 OR s.id = $1
@@ -83,5 +83,6 @@ export async function GET(_req: NextRequest, { params }: Params) {
   );
 
   await openDeep(rows);
+  await hideEndToEnd(rows);  // sealed debates: only members' browsers can open them
   return NextResponse.json({ metrics: rows });
 }

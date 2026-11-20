@@ -5,6 +5,7 @@ import pool from './db';
 import { scanContent } from './scanner';
 import { openDebateText, sealDebate } from './debateCrypto';
 import { PF_ALLOWED_CHILDREN, isValidStatType } from './debateRules';
+import { SealedTextError } from './sealed/server';
 
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; status: number; error: string };
 
@@ -50,6 +51,16 @@ export async function createStatement(input: CreateStatementInput): Promise<ApiR
     return { ok: false, status: 422, error: `A ${statType} cannot be connected to a ${parent.stat_type} under debate rules` };
   }
 
+  // Stored as the debate requires (in sealed debates, it arrives sealed from the browser)
+  let title: string, description: string | null;
+  try {
+    title = await sealDebate(resolutionId, statTitle.trim());
+    description = await sealDebate(resolutionId, statDescription?.trim() || null);
+  } catch (e) {
+    if (e instanceof SealedTextError) return { ok: false, status: 400, error: e.message };
+    throw e;
+  }
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -60,8 +71,7 @@ export async function createStatement(input: CreateStatementInput): Promise<ApiR
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, stat_type, stat_title, stat_direction, stat_description,
                  resolution_id, created_by, retracted_at, created_at, stat_ref`,
-      [statType, await sealDebate(resolutionId, statTitle.trim(), client), statDirection ?? null,
-       await sealDebate(resolutionId, statDescription?.trim() ?? null, client), resolutionId, createdBy],
+      [statType, title, statDirection ?? null, description, resolutionId, createdBy],
     );
     statement.stat_title = statTitle.trim();
     statement.stat_description = statDescription?.trim() ?? null;
@@ -110,7 +120,9 @@ export async function updateStatementText(id: string, title: string, description
   const { rows: [stmt] } = await pool.query('SELECT stat_title FROM statements WHERE id = $1', [id]);
   if (!stmt) return { ok: false, status: 404, error: 'Not found' };
 
-  if (newTitle !== await openDebateText(stmt.stat_title)) {
+  // In sealed debates an unchanged title comes back exactly as stored
+  const sameTitle = newTitle === stmt.stat_title || newTitle === await openDebateText(stmt.stat_title);
+  if (!sameTitle) {
     const { rows: children } = await pool.query(
       'SELECT 1 FROM stat_relationships WHERE stat_id_supported = $1 LIMIT 1',
       [id],
@@ -120,10 +132,15 @@ export async function updateStatementText(id: string, title: string, description
     }
   }
 
-  await pool.query(
-    'UPDATE statements SET stat_title = $2, stat_description = $3 WHERE id = $1',
-    [id, await sealDebate(resolutionId, newTitle), await sealDebate(resolutionId, description?.trim() || null)],
-  );
+  let storedTitle: string, desc: string | null;
+  try {
+    storedTitle = newTitle === stmt.stat_title ? stmt.stat_title : await sealDebate(resolutionId, newTitle);
+    desc = await sealDebate(resolutionId, description?.trim() || null);
+  } catch (e) {
+    if (e instanceof SealedTextError) return { ok: false, status: 400, error: e.message };
+    throw e;
+  }
+  await pool.query('UPDATE statements SET stat_title = $2, stat_description = $3 WHERE id = $1', [id, storedTitle, desc]);
 
   void scanContent(newTitle, 'statement_title', id, resolutionId, editedBy);
   if (description?.trim()) void scanContent(description.trim(), 'statement_description', id, resolutionId, editedBy);

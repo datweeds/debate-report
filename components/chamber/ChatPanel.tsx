@@ -3,6 +3,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import type { ChatGraphMessage } from './ChatGraph';
+import { openDebateText, sealDebateText } from './sealedDebate';
+
+// Messages in sealed debates arrive sealed: opened here
+const openMessages = <M extends { body: string }>(ms: M[] | undefined): M[] => (ms ?? []).map(m => ({ ...m, body: openDebateText(m.body) }));
 
 const ChatGraph = dynamic(() => import('./ChatGraph'), { ssr: false });
 
@@ -216,7 +220,7 @@ export default function ChatPanel({
   const load = useCallback(() => {
     fetch(`/api/statements/${statementId}/chat`)
       .then(r => r.json())
-      .then(d => { setMessages(d.messages ?? []); setLoading(false); })
+      .then(d => { setMessages(openMessages(d.messages)); setLoading(false); })
       .catch(() => { setError('Could not load messages'); setLoading(false); });
   }, [statementId]);
 
@@ -236,7 +240,7 @@ export default function ChatPanel({
       const res = await fetch(`/api/statements/${statementId}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body: body.trim(), parentId: replyTo?.id ?? null }),
+        body: JSON.stringify({ body: sealDebateText(body.trim()), parentId: replyTo?.id ?? null }),
       });
       if (!res.ok) {
         const d = await res.json();
@@ -244,11 +248,11 @@ export default function ChatPanel({
         return;
       }
       const { message } = await res.json();
-      setMessages(prev => [...prev, message]);
+      setMessages(prev => [...prev, { ...message, body: body.trim() }]);
       setBody('');
       setReplyTo(null);
-    } catch {
-      setError('Network error');
+    } catch (e) {
+      setError(e instanceof Error && e.message.includes('sealed') ? e.message : 'Network error');
     } finally {
       setSending(false);
     }

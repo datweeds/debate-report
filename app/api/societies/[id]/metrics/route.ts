@@ -3,17 +3,19 @@ import pool from '@/lib/db';
 import { societyContentAccess } from '@/lib/societies';
 import { listableResolutionSql } from '@/lib/debateAccess';
 
-// GET ?days=N — activity in this Society: totals, and how many are new in
-// the last N days (default 7). Debates count only those the viewer may see.
+// GET ?days=N or ?since=YYYY-MM-DD — activity in this Society: totals, and how
+// many are new since then (default: the last 7 days). Debates count only those the viewer may see.
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const a = await societyContentAccess(req, (await params).id);
   if (!a) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const days = Math.max(1, Math.min(3650, Math.round(Number(req.nextUrl.searchParams.get('days')) || 7)));
   const uid = a.session?.sub ?? null;
+  const sinceParam = req.nextUrl.searchParams.get('since');
+  const since = sinceParam && /^\d{4}-\d{2}-\d{2}$/.test(sinceParam) && !isNaN(Date.parse(sinceParam)) ? sinceParam : null;
 
   // Each metric: total, and recent (created in the last $3 days). $1 = Society, $2 = viewer
   const { rows: [m] } = await pool.query(`
-    WITH since AS (SELECT now() - make_interval(days => $3::int) AS t)
+    WITH since AS (SELECT COALESCE($4::date::timestamptz, now() - make_interval(days => $3::int)) AS t)
     SELECT
       (SELECT count(*) FROM statements r WHERE r.stat_type = 'resolution' AND r.customer_id = $1 AND r.stat_status <> 'deleted'
          AND ${listableResolutionSql('r', '$2::text')})::int AS debates,
@@ -25,6 +27,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       (SELECT count(*) FROM statements s JOIN statements r ON r.id = s.resolution_id, since
         WHERE r.customer_id = $1 AND r.stat_status <> 'deleted' AND s.retracted_at IS NULL AND s.created_at > since.t
           AND ${listableResolutionSql('r', '$2::text')})::int AS arguments_recent,
+      (SELECT count(*) FROM stat_votes sv JOIN statements st ON st.id = sv.statement_id JOIN statements r ON r.id = COALESCE(st.resolution_id, st.id)
+        WHERE r.customer_id = $1 AND r.stat_status <> 'deleted' AND ${listableResolutionSql('r', '$2::text')})::int AS votes,
+      (SELECT count(*) FROM stat_votes sv JOIN statements st ON st.id = sv.statement_id JOIN statements r ON r.id = COALESCE(st.resolution_id, st.id), since
+        WHERE r.customer_id = $1 AND r.stat_status <> 'deleted' AND sv.created_at > since.t AND ${listableResolutionSql('r', '$2::text')})::int AS votes_recent,
       (SELECT count(*) FROM society_news_editions WHERE customer_id = $1)::int AS news,
       (SELECT count(*) FROM society_news_editions, since WHERE customer_id = $1 AND created_at > since.t)::int AS news_recent,
       (SELECT count(*) FROM discussion_threads WHERE customer_id = $1 AND deleted_at IS NULL)::int AS threads,
@@ -48,9 +54,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       (SELECT count(*) FROM society_principles sp JOIN society_principle_versions v ON v.id = sp.version_id
         WHERE v.customer_id = $1 AND v.is_current)::int AS principles,
       (SELECT count(*) FROM society_principle_versions, since WHERE customer_id = $1 AND created_at > since.t)::int AS principle_versions_recent,
+      (SELECT count(*) FROM society_polls WHERE customer_id = $1 AND deleted_at IS NULL AND status <> 'draft')::int AS polls,
+      (SELECT count(*) FROM society_polls, since WHERE customer_id = $1 AND deleted_at IS NULL AND status <> 'draft' AND opened_at > since.t)::int AS polls_recent,
+      (SELECT count(*) FROM society_polls WHERE customer_id = $1 AND deleted_at IS NULL AND status = 'open')::int AS polls_open,
+      (SELECT count(*) FROM poll_participants pp JOIN society_polls p ON p.id = pp.poll_id WHERE p.customer_id = $1 AND p.deleted_at IS NULL)::int AS poll_votes,
       (SELECT count(*) FROM customer_members WHERE customer_id = $1)::int AS members,
       (SELECT count(*) FROM customer_members, since WHERE customer_id = $1 AND joined_at > since.t)::int AS members_recent
-  `, [a.societyId, uid, days]);
+  `, [a.societyId, uid, days, since]);
 
   return NextResponse.json({ days, metrics: m });
 }

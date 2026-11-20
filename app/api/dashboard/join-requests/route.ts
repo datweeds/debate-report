@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
-import { openDeep } from '@/lib/societyCrypto';
+import { hideEndToEnd, openDeep } from '@/lib/societyCrypto';
 
 // Aggregate across every debate the viewer can administer (their own
 // Societies, or all of them if SysAdmin) — replaces the old "across every
@@ -27,5 +27,6 @@ export async function GET() {
     [session.sub]
   );
   await openDeep(rows);
+  await hideEndToEnd(rows);  // sealed debates: only members' browsers can open them
   return NextResponse.json(rows);
 }

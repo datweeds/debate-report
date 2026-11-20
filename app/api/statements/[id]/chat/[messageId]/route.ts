@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { statementAccess } from '@/lib/debateAccess';
 
 type Params = { params: Promise<{ id: string; messageId: string }> };
 
@@ -10,6 +11,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
 
   const { id, messageId } = await params;
+  if (!(await statementAccess(session, id))?.viewable) return NextResponse.json({ error: 'Message not found' }, { status: 404 });
 
   const { rows: [msg] } = await pool.query(
     'SELECT id, created_by, is_deleted FROM comments WHERE id = $1 AND statement_id = $2',

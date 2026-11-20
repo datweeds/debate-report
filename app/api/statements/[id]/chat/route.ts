@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { scanContent } from '@/lib/scanner';
+import { statementAccess } from '@/lib/debateAccess';
+import { sealDebate } from '@/lib/debateCrypto';
+import { openDeep } from '@/lib/societyCrypto';
+import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -9,8 +13,11 @@ const ALLOWED_TIERS = new Set(['voter', 'debater', 'moderator', 'sysadmin']);
 
 // GET — all chat messages for a statement, including reaction counts
 // ?summary=1 → returns only { count, recentCount } without full messages
-export async function GET(req: NextRequest, { params }: Params) {
+async function handleGET(req: NextRequest, { params }: Params) {
   const { id } = await params;
+  // Optional auth — needed for access, and to show whether current user has reacted
+  const session = await getSession().catch(() => null);
+  if (!(await statementAccess(session, id))?.viewable) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   if (new URL(req.url).searchParams.get('summary') === '1') {
     const { rows } = await pool.query(
@@ -27,8 +34,6 @@ export async function GET(req: NextRequest, { params }: Params) {
     });
   }
 
-  // Optional auth — needed to show whether current user has reacted
-  const session = await getSession().catch(() => null);
   const userId  = session?.sub ?? null;
 
   const { rows } = await pool.query(
@@ -75,11 +80,12 @@ export async function GET(req: NextRequest, { params }: Params) {
     reactions:     r.reactions ?? [],
   }));
 
-  return NextResponse.json({ messages });
+  // Encrypted on the server: opened here; sealed in members' browsers: left for them
+  return NextResponse.json({ messages: await openDeep(messages) });
 }
 
-// POST — create a new chat message
-export async function POST(req: NextRequest, { params }: Params) {
+// POST — create a new chat message (in sealed debates, sealed in the browser)
+async function handlePOST(req: NextRequest, { params }: Params) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
   if (!ALLOWED_TIERS.has(session.tier)) {
@@ -92,10 +98,11 @@ export async function POST(req: NextRequest, { params }: Params) {
   const parentId: string | null = body.parentId ?? null;
 
   if (!messageBody) return NextResponse.json({ error: 'Message cannot be empty' }, { status: 400 });
-  if (messageBody.length > 2000) return NextResponse.json({ error: 'Message too long (max 2000 chars)' }, { status: 400 });
+  if (messageBody.length > 2000 && !messageBody.startsWith('sn1:')) return NextResponse.json({ error: 'Message too long (max 2000 chars)' }, { status: 400 });
 
-  const { rows: [stmt] } = await pool.query('SELECT id, resolution_id FROM statements WHERE id = $1', [id]);
-  if (!stmt) return NextResponse.json({ error: 'Statement not found' }, { status: 404 });
+  const access = await statementAccess(session, id);
+  if (!access?.viewable) return NextResponse.json({ error: 'Statement not found' }, { status: 404 });
+  const resolutionId = access.resolutionId;
 
   if (parentId) {
     const { rows: [parent] } = await pool.query(
@@ -109,13 +116,15 @@ export async function POST(req: NextRequest, { params }: Params) {
     `INSERT INTO comments (statement_id, parent_id, comment_body, comment_status, created_by)
      VALUES ($1, $2, $3, 'accepted', $4)
      RETURNING id, parent_id, comment_body AS body, is_deleted, created_at, created_by`,
-    [id, parentId, messageBody, session.sub],
+    [id, parentId, await sealDebate(resolutionId, messageBody), session.sub],
   );
 
-  const resolutionId: string = stmt.resolution_id ?? id;
   void scanContent(messageBody, 'comment', msg.id, resolutionId, session.sub);
 
   return NextResponse.json({
-    message: { ...msg, author_handle: session.handle, reactions: [] },
+    message: { ...msg, body: messageBody, author_handle: session.handle, reactions: [] },
   }, { status: 201 });
 }
+
+export const GET = lockSafe(handleGET);
+export const POST = lockSafe(handlePOST);

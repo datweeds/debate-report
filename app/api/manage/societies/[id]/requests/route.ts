@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { addMember, moderatedSociety } from '@/lib/societies';
+import { notifyJoinDecision } from '@/lib/joinNotice';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -19,5 +20,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   );
   if (!jr) return NextResponse.json({ error: 'Request not found' }, { status: 404 });
   if (action === 'approve') await addMember(ctx.id, jr.user_id);
+  void notifyJoinDecision(jr.user_id, ctx.id, action === 'approve', 'society');
   return NextResponse.json({ ok: true });
 }

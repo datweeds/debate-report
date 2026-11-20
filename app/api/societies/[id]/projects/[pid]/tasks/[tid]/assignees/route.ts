@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { notifyNew } from '@/lib/notify';
 import pool from '@/lib/db';
 import { projectContext, UUID_RE } from '@/lib/projects';
 
@@ -26,6 +27,8 @@ export async function PUT(req: NextRequest, { params }: Params) {
   if (members.length !== new Set(userIds).size) {
     return NextResponse.json({ error: 'Only members of this Society can be allocated' }, { status: 400 });
   }
+  const { rows: before } = await pool.query('SELECT user_id::text AS id FROM project_task_assignees WHERE task_id = $1', [tid]);
+  const added = [...new Set(userIds as string[])].filter(id => !before.some(b => b.id === id));
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -40,5 +43,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
   } finally {
     client.release();
   }
+  if (added.length) notifyNew({
+    societyId: c.a.societyId, kind: 'projects', authorId: c.me, to: added, private: true,
+    heading: 'You’ve been given a task in {society}',
+    url: `/society/${c.a.societyId}/projects/${pid}`,
+  });
   return NextResponse.json({ ok: true });
 }

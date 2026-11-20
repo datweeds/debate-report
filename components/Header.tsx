@@ -1,12 +1,15 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import UserMenu from './UserMenu';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTheme } from './ThemeProvider';
 import { useAuth } from './AuthProvider';
 import { NvLogo } from './NvLogo';
-import { SOCIETY_SECTIONS, societySectionHref, isSectionActive } from './societies/SocietyTabs';
+import { sectionsFor, societySectionHref, isSectionActive, societyRef } from './societies/SocietyTabs';
+import { siteTitle } from '@/lib/sitePages';
+import { groupPaths } from './dashboard/GroupTabs';
 
 export const TOPICS = [
   { label: 'Culture, Identity & Social Issues', slug: 'culture' },
@@ -23,7 +26,7 @@ export const TOPICS = [
   { label: 'Science & Technology',              slug: 'science' },
 ];
 
-type SocietyOption = { id: number; name: string; visibility?: string; isMember?: boolean };
+type SocietyOption = { id: number; name: string; slug?: string | null; visibility?: string; isMember?: boolean; disabled?: string[] };
 type SocietyList = { current: SocietyOption | null; public: SocietyOption[]; private: SocietyOption[] };
 
 function NavLabel({ children }: { children: React.ReactNode }) {
@@ -86,6 +89,7 @@ function NavLink({
   icon,
   badge,
   badgeClassName,
+  also,
 }: {
   href: string;
   onClick: () => void;
@@ -96,8 +100,10 @@ function NavLink({
   icon: React.ReactNode;
   badge?: string;
   badgeClassName?: string;
+  also?: string[];   // other pages this item stands for (its tabs)
 }) {
-  const isActive = !external && (pathname === href || (!exact && href !== '/' && pathname.startsWith(href)));
+  const isActive = !external && (pathname === href || (!exact && href !== '/' && pathname.startsWith(href))
+    || !!also?.some(p => pathname.startsWith(p)));
   const cls = `flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors ${
     isActive ? 'bg-blue-500/15 text-blue-300 font-medium' : 'text-slate-300 hover:bg-blue-500/10 hover:text-blue-300'
   }`;
@@ -124,7 +130,7 @@ function NavLink({
 }
 
 // One Society in the menu. Its name opens the Society; the chevron shows its
-// sections (Debate & Vote, Discussions, Documents, …). Societies the visitor
+// sections (Debate, Discussions, Documents, …). Societies the visitor
 // can't enter yet (Apply, not a member) have no sections, just the teaser.
 function SocietyNavItem({ society, isCurrent, defaultOpen, switching, onEnter, onNavigate, pathname, icon, counts }: {
   society: SocietyOption; isCurrent: boolean; defaultOpen: boolean; switching: boolean;
@@ -171,9 +177,10 @@ function SocietyNavItem({ society, isCurrent, defaultOpen, switching, onEnter, o
       </div>
       {canEnter && open && (
         <div className="ml-5 mt-0.5 mb-1 space-y-0.5 border-l border-blue-900/20 pl-3">
-          {SOCIETY_SECTIONS.map(sec => {
-            const href = societySectionHref(society.id, sec.slug);
-            const active = isSectionActive(pathname, society.id, sec.slug);
+          {sectionsFor(society.disabled).map(sec => {
+            const ref = societyRef(society.id, society.slug);
+            const href = societySectionHref(ref, sec.slug);
+            const active = isSectionActive(pathname, ref, sec.slug);
             const n = counts?.[sec.slug || 'debates'] ?? 0;
             return (
               <Link key={sec.label} href={href} onClick={onNavigate}
@@ -224,9 +231,10 @@ export default function Header() {
   const { theme, toggle } = useTheme();
   const { user, logout } = useAuth();
   const pathname = usePathname();
+  const pageTitle = siteTitle(pathname);
   const [menuOpen,      setMenuOpen]      = useState(false);
   const [topicsOpen,    setTopicsOpen]    = useState(false);
-  const [modCounts,     setModCounts]     = useState({ myPending: 0, joinsPending: 0 });
+  const [modCounts,     setModCounts]     = useState({ myPending: 0, joinsPending: 0, ownPending: 0, invitesAnswered: 0, contentNews: 0 });
   const [moderates,     setModerates]     = useState(0);   // Societies this user moderates
   const [unread,        setUnread]        = useState<Record<string, Record<string, number>>>({});
   const [viewedSociety, setViewedSociety] = useState<number | null>(null);
@@ -245,7 +253,12 @@ export default function Header() {
   const isModerator = tier === 'moderator' || moderates > 0;
   const isDebater   = isModerator || tier === 'debater';
   const isVoter     = isDebater || tier === 'voter';
-  const modBadge    = modCounts.myPending + modCounts.joinsPending;
+  // Alerts & Flags: your own content awaiting review, plus (moderators) the review queue.
+  // Users: join requests to decide, and answers to your invitations not yet seen.
+  const alertBadge  = modCounts.ownPending + (isModerator ? modCounts.myPending : 0);
+  const userBadge   = isModerator ? modCounts.joinsPending + modCounts.invitesAnswered : 0;
+  const modBadge    = alertBadge + userBadge + modCounts.contentNews;
+  const warnBadge   = theme === 'dark' ? 'bg-amber-500/20 text-amber-300' : 'bg-red-500/15 text-red-600';
 
   // Scroll active nav item into view when drawer opens
   useEffect(() => {
@@ -287,10 +300,13 @@ export default function Header() {
 
   // The Society being viewed, so its name heads the page
   useEffect(() => {
-    const m = pathname.match(/^\/society\/(\d+)/);
+    const m = pathname.match(/^\/society\/([^/]+)/);
     const q = pathname === '/scotparl' ? new URLSearchParams(window.location.search).get('society') : null;
-    setViewedSociety(m ? Number(m[1]) : q ? Number(q) : null);
-  }, [pathname]);
+    if (m && !/^\d+$/.test(m[1])) {
+      const named = societies ? [...societies.public, ...societies.private].find(x => x.slug === decodeURIComponent(m[1])) : undefined;
+      setViewedSociety(named?.id ?? null);
+    } else setViewedSociety(m ? Number(m[1]) : q ? Number(q) : null);
+  }, [pathname, societies]);
 
   // Societies this user moderates (moderating one makes them a Moderator)
   useEffect(() => {
@@ -304,12 +320,23 @@ export default function Header() {
   // Alert / join-request counts for the Moderator section badges
   useEffect(() => {
     if (!user) return;
-    fetch('/api/alerts/counts')
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        if (d) setModCounts({ myPending: d.myPending ?? 0, joinsPending: d.joinsPending ?? 0 });
-      })
-      .catch(() => {});
+    const load = () => {
+      const q = new URLSearchParams();
+      try {
+        const inv = localStorage.getItem('dr_invites_seen'), con = localStorage.getItem('dr_content_seen');
+        if (inv) q.set('invitesSince', inv);
+        if (con) q.set('contentSince', con);
+      } catch {}
+      return fetch(`/api/alerts/counts?${q}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => {
+          if (d) setModCounts({ myPending: d.myPending ?? 0, joinsPending: d.joinsPending ?? 0, ownPending: d.ownPending ?? 0, invitesAnswered: d.invitesAnswered ?? 0, contentNews: d.contentNews ?? 0 });
+        })
+        .catch(() => {});
+    };
+    void load();
+    window.addEventListener('dr:alerts-changed', load);
+    return () => window.removeEventListener('dr:alerts-changed', load);
   }, [user]);
 
   // Fetch the current society + which public/private ones this visitor can
@@ -331,7 +358,9 @@ export default function Header() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customer_id: id }),
       });
-      if (r.ok) window.location.href = `/society/${id}`;
+      // A Society's name opens its About page; its sections are under the chevron
+      const named = societies ? [...societies.public, ...societies.private].find(x => x.id === id) : undefined;
+      if (r.ok) window.location.href = `/society/${societyRef(id, named?.slug)}/about`;
     } finally {
       setSwitching(null);
     }
@@ -408,7 +437,7 @@ export default function Header() {
             <Link href="/" className={`${isHomePage ? 'sm:hidden' : ''} flex items-center gap-2 select-none`}>
               <NvLogo className="w-7 h-7" />
               {/* On phones a Society's name takes the middle, so keep just the logo */}
-              <span className={`${viewedSociety ? 'hidden sm:inline' : ''} text-base font-bold tracking-tight text-slate-100`}>
+              <span className={`${viewedSociety || pageTitle ? 'hidden sm:inline' : ''} text-base font-bold tracking-tight text-slate-100`}>
                 new<span className="text-blue-400">.vote</span>
               </span>
             </Link>
@@ -422,21 +451,26 @@ export default function Header() {
                 new<span className="text-blue-400">.vote</span>
               </span>
             </Link>
+          ) : pageTitle ? (
+            <span className="absolute left-1/2 -translate-x-1/2 max-w-[46%] sm:max-w-[50%] truncate text-center text-base sm:text-2xl font-bold text-slate-100">
+              {pageTitle}
+            </span>
           ) : (() => {
             // On a Society's pages its name is the page title; elsewhere, the current Society
             const all = societies ? [...societies.public, ...societies.private] : [];
             const viewed = viewedSociety ? all.find(x => x.id === viewedSociety) : null;
             const title = viewed?.name ?? societies?.current?.name;
             const titleId = viewed?.id ?? societies?.current?.id;
+            const titleRef = societyRef(titleId ?? 0, (viewed ?? all.find(x => x.id === titleId))?.slug);
             if (!title || !titleId) return null;
             // The title links to the Society's About page
             return viewed ? (
-              <Link href={`/society/${titleId}/about`} title={`About ${title}`}
+              <Link href={`/society/${titleRef}/about`} title={`About ${title}`}
                 className="absolute left-1/2 -translate-x-1/2 max-w-[46%] sm:max-w-[50%] truncate text-center text-base sm:text-2xl font-bold text-slate-100 hover:text-white">
                 {title}
               </Link>
             ) : (
-              <Link href={`/society/${titleId}/about`} title={`About ${title}`}
+              <Link href={`/society/${titleRef}/about`} title={`About ${title}`}
                 className="hidden sm:block absolute left-1/2 -translate-x-1/2 text-base font-semibold text-slate-200 hover:text-white truncate max-w-[40%] text-center">
                 {title}
               </Link>
@@ -462,20 +496,7 @@ export default function Header() {
             </button>
 
             {user ? (
-              <div className="flex items-center gap-1">
-                <Link
-                  href="/profile"
-                  className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-blue-400 transition-colors hover:bg-blue-500/10"
-                >
-                  <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12Zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8Z" />
-                  </svg>
-                  <span className="hidden sm:inline">{user.handle}</span>
-                  {user.isSysAdmin && (
-                    <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-xs font-semibold text-amber-400 leading-none">sys</span>
-                  )}
-                </Link>
-              </div>
+              <UserMenu handle={user.handle} isSysAdmin={!!user.isSysAdmin} onLogout={logout} />
             ) : guestKey ? (
               <div className="flex items-center gap-2">
                 <span
@@ -493,8 +514,8 @@ export default function Header() {
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <Link href="/login" className="text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors px-2 py-1.5">Login</Link>
-                <Link href="/pricing" className="rounded-lg border border-blue-700/40 px-3 py-1.5 text-sm font-medium text-blue-400 transition-colors hover:border-blue-500/70 hover:bg-blue-500/10">Sign up</Link>
+                <Link href="/login" className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-300 ring-1 ring-transparent transition-all duration-200 hover:bg-blue-500/10 hover:text-blue-200 hover:ring-blue-500/30">Log in</Link>
+                <Link href="/register" className="hidden sm:inline-block rounded-lg border border-blue-700/40 px-3 py-1.5 text-sm font-medium text-blue-400 transition-colors hover:border-blue-500/70 hover:bg-blue-500/10">Sign up</Link>
               </div>
             )}
           </div>
@@ -510,7 +531,7 @@ export default function Header() {
       {/* ── Mobile bottom tab bar ────────────────────────────────────────────── */}
       <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 flex border-t border-blue-900/20 bg-[#080d1a]/95 backdrop-blur-md">
         {[
-          { href: '/scotparl/debates',   label: 'Debates',   icon: icons.debate },
+          { href: '/chamber',            label: 'Debates',   icon: icons.debate },
           ...(user?.isSysAdmin ? [
             { href: '/scotparl/proposals', label: 'Proposals', icon: icons.proposals },
             { href: '/scotparl/bills',     label: 'Laws',      icon: icons.laws },
@@ -568,18 +589,56 @@ export default function Header() {
           <NavLink href="/" onClick={close} pathname={pathname} icon={icons.home}>
             Home
           </NavLink>
-          <NavLink href="/scotparl" onClick={close} pathname={pathname} icon={icons.dashboard} exact>
-            Dashboard
-          </NavLink>
 
-          {/* ── TOPICS (collapsible) ── */}
+          <NavDivider />
+
+          {/* ── PUBLIC / PRIVATE SOCIETIES — public first. Sections open by
+               default when the visitor belongs to exactly one Society. ── */}
+          {societies && (() => {
+            const all = [...societies.public, ...societies.private];
+            const associated = all.filter(x => x.isMember).length;
+            const item = (x: SocietyOption, icon: React.ReactNode) => (
+              <SocietyNavItem
+                key={x.id}
+                society={x}
+                isCurrent={viewedSociety === x.id}
+                defaultOpen={associated === 1 && !!x.isMember}
+                switching={switching === x.id}
+                onEnter={id => { close(); switchSociety(id); }}
+                onNavigate={close}
+                pathname={pathname}
+                icon={icon}
+                counts={unread[String(x.id)]}
+              />
+            );
+            // Collapsed, a list's badge totals what's new across its Societies
+            const fresh = (list: SocietyOption[]) => list.reduce((n, x) =>
+              n + Object.values(unread[String(x.id)] ?? {}).reduce((a, b) => a + b, 0), 0);
+            return (
+              <>
+                {societies.public.length > 0 && (
+                  <NavSection id="public_societies" label={`Public Societies (${societies.public.length})`} defaultOpen badge={fresh(societies.public)}>
+                    {societies.public.map(x => item(x, icons.forums))}
+                  </NavSection>
+                )}
+                {societies.private.length > 0 && (
+                  <NavSection id="private_societies" label={`Private Societies (${societies.private.length})`} defaultOpen badge={fresh(societies.private)}>
+                    {societies.private.map(x => item(x, icons.settings))}
+                  </NavSection>
+                )}
+              </>
+            );
+          })()}
+
+          {/* ── DEBATE: browse debates by topic (collapsible) ── */}
+          <NavLabel>Debate</NavLabel>
           <button
             onClick={() => setTopicsOpen(o => !o)}
             className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium text-slate-400 transition-colors hover:bg-blue-500/10 hover:text-slate-300"
           >
             <span className="flex items-center gap-3">
               <span className="text-slate-600">{icons.topics}</span>
-              Topics
+              Debate Topics
             </span>
             <svg className={`h-4 w-4 text-slate-600 transition-transform ${topicsOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="m19 9-7 7-7-7" />
@@ -603,105 +662,43 @@ export default function Header() {
 
           <NavDivider />
 
-          {/* ── PUBLIC / PRIVATE SOCIETIES — public first. Sections open by
-               default when the visitor belongs to exactly one Society. ── */}
-          {societies && (() => {
-            const all = [...societies.public, ...societies.private];
-            const associated = all.filter(x => x.isMember).length;
-            const item = (x: SocietyOption, icon: React.ReactNode) => (
-              <SocietyNavItem
-                key={x.id}
-                society={x}
-                isCurrent={societies.current?.id === x.id}
-                defaultOpen={associated === 1 && !!x.isMember}
-                switching={switching === x.id}
-                onEnter={id => { close(); switchSociety(id); }}
-                onNavigate={close}
-                pathname={pathname}
-                icon={icon}
-                counts={unread[String(x.id)]}
-              />
-            );
-            return (
-              <>
-                {societies.public.length > 0 && (
-                  <>
-                    <NavLabel>Public Societies</NavLabel>
-                    {societies.public.map(x => item(x, icons.forums))}
-                  </>
-                )}
-                {societies.private.length > 0 && (
-                  <>
-                    <NavLabel>Private Societies</NavLabel>
-                    {societies.private.map(x => item(x, icons.settings))}
-                  </>
-                )}
-              </>
-            );
-          })()}
-
-          <NavDivider />
-
           {/* ── VOTER / DEBATER / MODERATOR (cumulative, by tier) ── */}
           {user && isVoter && (
             <>
               <NavSection
                 id="role"
                 label={isModerator ? 'Moderator' : isDebater ? 'Debater' : 'Voter'}
-                badge={isModerator ? modBadge : undefined}
+                badge={modBadge}
               >
-                <NavLink href="/dashboard/your-votes" onClick={close} pathname={pathname} icon={icons.elect}>
-                  Your Votes
+                <NavLink href="/my-content" onClick={close} pathname={pathname} icon={icons.statements}
+                  badge={modCounts.contentNews > 0 ? String(modCounts.contentNews) : undefined}>
+                  My Content
                 </NavLink>
-                <NavLink href="/dashboard/alerts" onClick={close} pathname={pathname} icon={icons.alerts}>
-                  My Alerts &amp; Flags
+                <NavLink
+                  href="/dashboard/alerts" also={groupPaths('Alerts & Flags')} onClick={close} pathname={pathname} icon={icons.alerts}
+                  badge={alertBadge > 0 ? String(alertBadge) : undefined} badgeClassName={warnBadge}
+                >
+                  Alerts &amp; Flags
                 </NavLink>
-                {isDebater && (
-                  <>
-                    <NavLink href="/dashboard/my-statements" onClick={close} pathname={pathname} icon={icons.statements}>
-                      My Statements
-                    </NavLink>
-                    <NavLink href="/dashboard/chat-comments" onClick={close} pathname={pathname} icon={icons.debate}>
-                      Chat Comments
-                    </NavLink>
-                  </>
-                )}
                 {isModerator && (
                   <>
+                    {/* Moderator accounts' Dashboard (Sys Admin finds it under Admin) */}
+                    {user?.tier === 'moderator' && !user.isSysAdmin && (
+                      <NavLink href="/scotparl" onClick={close} pathname={pathname} icon={icons.dashboard} exact>
+                        Dashboard
+                      </NavLink>
+                    )}
                     <NavLink href="/dashboard/societies" onClick={close} pathname={pathname} icon={icons.forums}>
-                      Manage Societies
+                      Societies
                     </NavLink>
-                    <NavLink href="/dashboard/new-debate" onClick={close} pathname={pathname} icon={icons.newdebate}>
-                      New Debate
-                    </NavLink>
-                    <NavLink href="/dashboard/debates" onClick={close} pathname={pathname} icon={icons.debates_manage}>
-                      Manage Debates
-                    </NavLink>
-                    <NavLink href="/dashboard/ai-generator" onClick={close} pathname={pathname} icon={icons.ai}>
-                      AI Arg Generator
+                    <NavLink href="/dashboard/debates" also={groupPaths('Debates')} onClick={close} pathname={pathname} icon={icons.debates_manage}>
+                      Debates
                     </NavLink>
                     <NavLink
-                      href="/dashboard/scanner" onClick={close} pathname={pathname} icon={icons.task}
-                      badge={modCounts.myPending > 0 ? String(modCounts.myPending) : undefined}
-                      badgeClassName={theme === 'dark' ? 'bg-amber-500/20 text-amber-300' : 'bg-red-500/15 text-red-600'}
+                      href="/dashboard/join-requests" also={groupPaths('Users')} onClick={close} pathname={pathname} icon={icons.signup}
+                      badge={userBadge > 0 ? String(userBadge) : undefined} badgeClassName={warnBadge}
                     >
-                      Alert Review
-                    </NavLink>
-                    <NavLink
-                      href="/dashboard/join-requests" onClick={close} pathname={pathname} icon={icons.signup}
-                      badge={modCounts.joinsPending > 0 ? String(modCounts.joinsPending) : undefined}
-                      badgeClassName={theme === 'dark' ? 'bg-amber-500/20 text-amber-300' : 'bg-red-500/15 text-red-600'}
-                    >
-                      Join Requests
-                    </NavLink>
-                    <NavLink href="/dashboard/invitations" onClick={close} pathname={pathname} icon={icons.contact}>
-                      Invitations
-                    </NavLink>
-                    <NavLink href="/dashboard/quality" onClick={close} pathname={pathname} icon={icons.quality}>
-                      Debate Quality
-                    </NavLink>
-                    <NavLink href="/admin/contact-platform" onClick={close} pathname={pathname} icon={icons.contact}>
-                      Contact Platform Admin
+                      Users
                     </NavLink>
                   </>
                 )}
@@ -713,37 +710,12 @@ export default function Header() {
           {/* ── SYSADMIN: system features only ── */}
           {user?.isSysAdmin && (
             <>
-              <NavSection id="parliament" label="Parliament">
-                <NavLink href="/scotparl/proposals" onClick={close} pathname={pathname} icon={icons.proposals}>
-                  Proposals
-                </NavLink>
-                <NavLink href="/scotparl/bills" onClick={close} pathname={pathname} icon={icons.laws}>
-                  Laws
-                </NavLink>
-                <NavLink href="/scotparl/principles" onClick={close} pathname={pathname} icon={icons.principles}>
-                  Principles
-                </NavLink>
-              </NavSection>
-              <NavSection id="utilities" label="Utilities">
-                <NavLink href="https://vote.new.vote/poll" onClick={close} pathname={pathname} icon={icons.poll} external>
-                  Poll
-                </NavLink>
-                <NavLink href="https://vote.new.vote/elect" onClick={close} pathname={pathname} icon={icons.elect} external>
-                  Elect
-                </NavLink>
-                <NavLink href="https://tasks.debate.report" onClick={close} pathname={pathname} icon={icons.task} external>
-                  Share Task
-                </NavLink>
-              </NavSection>
               <NavSection id="admin" label="Admin">
                 <NavLink href="/admin" onClick={close} pathname={pathname} icon={icons.settings} exact>
                   Settings (Site)
                 </NavLink>
-                <NavLink href="/admin?tab=keys" onClick={close} pathname={pathname} icon={icons.key}>
-                  Access Keys
-                </NavLink>
-                <NavLink href="/dashboard/api-parties" onClick={close} pathname={pathname} icon={icons.settings}>
-                  API Parties
+                <NavLink href="/admin/newsletter" onClick={close} pathname={pathname} icon={icons.news}>
+                  Newsletter (Admin)
                 </NavLink>
               </NavSection>
               <NavDivider />
@@ -784,7 +756,7 @@ export default function Header() {
             Debating Guide
           </NavLink>
           <NavLink href="/blog" onClick={close} pathname={pathname} icon={icons.news}>
-            News
+            Newsletter
           </NavLink>
           <NavLink href="/contact" onClick={close} pathname={pathname} icon={icons.contact}>
             Contact Us

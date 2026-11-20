@@ -22,7 +22,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   const { rows: [debate] } = await pool.query(
-    `SELECT s.customer_id, c.is_public AS society_is_public
+    `SELECT s.customer_id, c.is_public AS society_is_public, c.is_demo
      FROM statements s
      LEFT JOIN customers c ON c.id = s.customer_id
      WHERE s.id = $1 AND s.stat_type = 'resolution'`,
@@ -31,6 +31,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!debate) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (debate.customer_id == null || !(await canSetDebateVisibility(session, debate.customer_id))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  // The demo Society's debates are all public
+  if (debate.is_demo && visibility !== 'public') {
+    return NextResponse.json({ error: 'Debates in the demo Society are always public' }, { status: 400 });
   }
 
   // A debate in a private Society can never be made Public.

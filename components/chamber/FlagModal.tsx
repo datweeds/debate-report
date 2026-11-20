@@ -82,8 +82,8 @@ export default function FlagModal({ statementId, statementTitle, onClose, onFlag
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md rounded-2xl border border-slate-700 bg-[#0c1322] shadow-2xl overflow-hidden">
+      <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[2px]" />
+      <div className="relative z-10 w-full max-w-md rounded-2xl border border-slate-700 bg-dr-card shadow-2xl overflow-hidden">
 
         {/* Header */}
         <div className="flex items-start justify-between px-5 py-4 border-b border-slate-800">

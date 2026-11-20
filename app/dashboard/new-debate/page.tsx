@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
+import { societyDebateSealer } from '@/components/chamber/sealedDebate';
 
 const SUBJECT_AREAS = [
   { value: 'culture',     label: 'Culture, Identity & Social Issues' },
@@ -90,11 +91,12 @@ export default function NewDebatePage() {
 
     setSubmitting(true);
     try {
-      // Step 1 — create the debate record
+      // Step 1 — create the debate record (sealed here if the Society's debates are sealed)
+      const { seal } = societyId != null ? await societyDebateSealer(societyId) : { seal: (t: string) => t };
       const res = await fetch('/api/debates', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ title: title.trim(), description: description.trim() || undefined, subjectArea, societyId }),
+        body:    JSON.stringify({ title: seal(title.trim()), description: description.trim() ? seal(description.trim()) : undefined, subjectArea, societyId }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Failed to create debate'); return; }
@@ -115,8 +117,8 @@ export default function NewDebatePage() {
       }
 
       router.push(`/debates/${debateId}`);
-    } catch {
-      setError('Something went wrong. Please try again.');
+    } catch (e) {
+      setError(e instanceof Error && e.message.includes('sealed') ? e.message : 'Something went wrong. Please try again.');
     } finally {
       setSubmitting(false);
     }

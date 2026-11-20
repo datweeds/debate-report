@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { principlesSealedCheck } from '@/lib/principles';
+import { sealedThread } from '@/lib/sealed/server';
 import pool from '@/lib/db';
 import { sealText } from '@/lib/societyCrypto';
 import { societyContentAccess } from '@/lib/societies';
@@ -21,16 +23,28 @@ async function handlePOST(req: NextRequest, { params }: Params) {
   if (link?.thread_id) return NextResponse.json({ threadId: link.thread_id });
   if (!a.canPost) return NextResponse.json({ error: 'Join this Society to start the discussion' }, { status: 403 });
 
+  // Sealed principles: the browser starts a sealed discussion with the principle's
+  // text and asks for it to be linked here ({ threadId })
+  if (await principlesSealedCheck(a.societyId)) {
+    const { threadId } = await req.json().catch(() => ({}));
+    const t = typeof threadId === 'string' ? await sealedThread(a.societyId, threadId) : null;
+    if (!t) return NextResponse.json({ error: 'Start a sealed discussion for it', sealed: true }, { status: 409 });
+    await pool.query(
+      `INSERT INTO society_principle_links (lineage_id, customer_id, thread_id) VALUES ($1, $2, $3)
+       ON CONFLICT (lineage_id) DO UPDATE SET thread_id = EXCLUDED.thread_id`, [p.lineage_id, a.societyId, t.id]);
+    return NextResponse.json({ threadId: t.id }, { status: 201 });
+  }
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     const { rows: [t] } = await client.query(
       `INSERT INTO discussion_threads (customer_id, title, created_by) VALUES ($1, $2, $3) RETURNING id`,
-      [a.societyId, await sealText(a.societyId, `Principle: ${p.title}`.slice(0, 200)), a.session!.sub],
+      [a.societyId, await sealText(a.societyId, `Principle: ${p.title}`.slice(0, 200), true), a.session!.sub],
     );
     await client.query(
       `INSERT INTO discussion_posts (thread_id, body, created_by) VALUES ($1, $2, $3)`,
-      [t.id, await sealText(a.societyId, `${p.body}${p.grounding ? `\n\nWhy: ${p.grounding}` : ''}\n\nDiscuss this principle here.`), a.session!.sub],
+      [t.id, await sealText(a.societyId, `${p.body}${p.grounding ? `\n\nWhy: ${p.grounding}` : ''}\n\nDiscuss this principle here.`, true), a.session!.sub],
     );
     await client.query(
       `INSERT INTO society_principle_links (lineage_id, customer_id, thread_id) VALUES ($1, $2, $3)

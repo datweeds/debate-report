@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import RichText from '@/components/discussions/RichText';
 import { buildTree, flatten, isOverdue, type Report as TaskReport, type Task } from './TaskTree';
-import { Badge, fmtDate, inputCls, ProgressBar, send, TASK_STATUS } from './shared';
+import { Badge, fmtDate, inputCls, ProgressBar, send, TASK_STATUS, openFor } from './shared';
 
 export type Raid = {
   id: string; kind: 'risk' | 'issue' | 'dependency' | 'assumption'; name: string; description: string | null;
@@ -35,7 +35,7 @@ export function StatusReport({ base, tasks, onOpen }: { base: string; tasks: Tas
     setHistory(h => ({ ...h, [taskId]: 'loading' }));
     const r = await fetch(`${base}/tasks/${taskId}/reports`);
     const d = r.ok ? await r.json() : { reports: [] };
-    setHistory(h => ({ ...h, [taskId]: d.reports }));
+    setHistory(h => ({ ...h, [taskId]: d.reports.map((x: { body: string }) => ({ ...x, body: openFor(base, x.body) ?? 'Sealed report' })) }));
   }
 
   return (
@@ -48,7 +48,7 @@ export function StatusReport({ base, tasks, onOpen }: { base: string; tasks: Tas
           ['Not started', count('new'), 'text-slate-300'],
           ['Overdue', overdue, overdue ? 'text-rose-400' : 'text-slate-300'],
         ].map(([label, n, cls]) => (
-          <div key={label as string} className="rounded-xl border border-slate-800 bg-[#0c1322] px-3 py-2">
+          <div key={label as string} className="rounded-xl border border-slate-800 bg-dr-card px-3 py-2">
             <p className="text-[11px] uppercase tracking-wider text-slate-500">{label}</p>
             <p className={`text-2xl font-bold tabular-nums ${cls}`}>{n}</p>
           </div>
@@ -59,7 +59,7 @@ export function StatusReport({ base, tasks, onOpen }: { base: string; tasks: Tas
       {rows.length === 0 ? (
         <p className="text-sm text-slate-500">No tasks yet.</p>
       ) : (
-        <ul className="divide-y divide-slate-800/60 overflow-hidden rounded-2xl border border-slate-800 bg-[#0c1322]">
+        <ul className="divide-y divide-slate-800/60 overflow-hidden rounded-2xl border border-slate-800 bg-dr-card">
           {rows.map(t => {
             const h = history[t.id];
             return (
@@ -139,7 +139,7 @@ export function RaidList({ base, raid, me, canManage, canContribute, onChanged }
       {error && <p className="text-xs text-rose-400">{error}</p>}
 
       {form && (
-        <form onSubmit={save} className="space-y-3 rounded-2xl border border-slate-700 bg-[#0c1322] p-4">
+        <form onSubmit={save} className="space-y-3 rounded-2xl border border-slate-700 bg-dr-card p-4">
           <div className="flex flex-wrap gap-2">
             {(Object.keys(KIND) as Raid['kind'][]).map(k => (
               <button key={k} type="button" onClick={() => setForm(f => ({ ...f, kind: k }))}
@@ -170,9 +170,9 @@ export function RaidList({ base, raid, me, canManage, canContribute, onChanged }
       )}
 
       {shown.length === 0 ? (
-        <p className="rounded-2xl border border-slate-800 bg-[#0c1322] p-6 text-center text-sm text-slate-500">Nothing logged{filter !== 'all' ? ` as ${KIND[filter].plural.toLowerCase()}` : ''} yet.</p>
+        <p className="rounded-2xl border border-slate-800 bg-dr-card p-6 text-center text-sm text-slate-500">Nothing logged{filter !== 'all' ? ` as ${KIND[filter].plural.toLowerCase()}` : ''} yet.</p>
       ) : (
-        <ul className="divide-y divide-slate-800/60 overflow-hidden rounded-2xl border border-slate-800 bg-[#0c1322]">
+        <ul className="divide-y divide-slate-800/60 overflow-hidden rounded-2xl border border-slate-800 bg-dr-card">
           {shown.map(r => (
             <li key={r.id} className={`px-4 py-3 ${r.status === 'closed' ? 'opacity-60' : ''}`}>
               <div className="flex flex-wrap items-center gap-2">

@@ -79,7 +79,7 @@ export default function YourVotesPage() {
           <p className="text-sm text-red-400">{error}</p>
         </div>
       ) : votes.length === 0 ? (
-        <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-10 text-center">
+        <div className="rounded-2xl border border-slate-800 bg-dr-card p-10 text-center">
           <svg className="h-10 w-10 mx-auto text-slate-700 mb-3" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6.633 10.25c.806 0 1.533-.446 2.031-1.08a9.041 9.041 0 0 1 2.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 0 0 .322-1.672V2.75a.75.75 0 0 1 .75-.75 2.25 2.25 0 0 1 2.25 2.25c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282m0 0h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 0 1-2.649 7.521c-.388.482-.987.729-1.605.729H13.48c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 0 0-1.423-.23H5.253m0 0a2.25 2.25 0 0 1-2.25-2.25v-4a2.25 2.25 0 0 1 2.25-2.25h.254" />
           </svg>
@@ -105,7 +105,7 @@ export default function YourVotesPage() {
             </thead>
             <tbody className="divide-y divide-slate-800/60">
               {votes.map(v => (
-                <tr key={v.id} className="bg-[#0c1322] hover:bg-slate-800/30 transition-colors">
+                <tr key={v.id} className="bg-dr-card hover:bg-slate-800/30 transition-colors">
                   <td className="px-3 py-3 text-slate-400 text-xs max-w-[120px] truncate" title={v.society_name ?? ''}>
                     {v.society_name ?? <span className="text-slate-600">—</span>}
                   </td>

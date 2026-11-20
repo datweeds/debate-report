@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { verifyPassword, verifyAccessCode, createToken, sessionCookie } from '@/lib/auth';
+import { clientAddress, loginBlocked, loginFailed, loginSucceeded } from '@/lib/loginThrottle';
 
 export async function POST(req: NextRequest) {
   const { identifier, password, accessCode } = await req.json();
@@ -10,6 +11,12 @@ export async function POST(req: NextRequest) {
   }
   if (!password && !accessCode) {
     return NextResponse.json({ error: 'Password or access code required' }, { status: 400 });
+  }
+  // Too many wrong guesses for this account (or from this address): wait
+  const address = clientAddress(req.headers);
+  const wait = loginBlocked(identifier.trim(), address);
+  if (wait) {
+    return NextResponse.json({ error: `Too many sign-in attempts. Please try again in ${wait} minute${wait === 1 ? '' : 's'}.` }, { status: 429 });
   }
 
   const result = await pool.query(
@@ -22,7 +29,7 @@ export async function POST(req: NextRequest) {
   const user = result.rows[0];
   const GENERIC_ERR = { error: 'Invalid credentials' };
 
-  if (!user) return NextResponse.json(GENERIC_ERR, { status: 401 });
+  if (!user) { loginFailed(identifier.trim(), address); return NextResponse.json(GENERIC_ERR, { status: 401 }); }
   if (user.user_status !== 'active') {
     return NextResponse.json({ error: 'Account suspended' }, { status: 403 });
   }
@@ -34,7 +41,8 @@ export async function POST(req: NextRequest) {
     ok = await verifyPassword(password, user.password_hash);
   }
 
-  if (!ok) return NextResponse.json(GENERIC_ERR, { status: 401 });
+  if (!ok) { loginFailed(identifier.trim(), address); return NextResponse.json(GENERIC_ERR, { status: 401 }); }
+  loginSucceeded(identifier.trim());
 
   const [{ rows: roleRows }, { rows: toRows }] = await Promise.all([
     pool.query(`SELECT DISTINCT tenant_id FROM customer_roles WHERE user_id = $1 AND role = 'customer_admin'`, [user.id]),

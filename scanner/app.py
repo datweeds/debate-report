@@ -22,23 +22,23 @@ API_KEY = os.environ.get('SCANNER_API_KEY', '')
 # ── Optional ML libraries — degrade gracefully ────────────────────────────────
 
 profanity_checker = None
-nlp = None
 toxicity_model = None
 
 try:
     from better_profanity import profanity as _prof
     _prof.load_censor_words()
+    # Extend with terms the default list misses (British English, mild profanity, slurs)
+    _prof.add_censor_words([
+        'bloody', 'bollocks', 'bugger', 'sod off', 'sodding', 'git', 'pillock',
+        'wanker', 'tosser', 'twat', 'prat', 'muppet', 'numpty',
+        'bastard', 'crap', 'damn', 'dammit', 'freaking', 'frigging',
+        'screw you', 'shut up', 'piss off', 'pissed',
+        'arse', 'arsehole', 'bloke',
+    ])
     profanity_checker = _prof
-    logger.info('better_profanity loaded')
+    logger.info('better_profanity loaded with extended word list')
 except Exception as e:
     logger.warning(f'better_profanity unavailable: {e}')
-
-try:
-    import spacy
-    nlp = spacy.load('en_core_web_sm')
-    logger.info('spaCy loaded')
-except Exception as e:
-    logger.warning(f'spaCy unavailable: {e}')
 
 try:
     from detoxify import Detoxify
@@ -47,36 +47,80 @@ try:
 except Exception as e:
     logger.warning(f'Detoxify unavailable: {e}')
 
-# ── PII regex patterns ────────────────────────────────────────────────────────
+# ── Personal data ─────────────────────────────────────────────────────────────
+# Only concrete, structured personal data: contact details and ID / financial
+# numbers. Names are not flagged: naming people (MPs, authors, other members)
+# is normal in debate, and name-spotting models mistake Capitalised Phrases
+# ("Extreme Weather and Climate") for people.
 
-PII_PATTERNS = {
-    'email':       re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b'),
-    'phone':       re.compile(r'\b(?:\+?1[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})\b'),
-    'ssn':         re.compile(r'\b\d{3}-\d{2}-\d{4}\b'),
-    'credit_card': re.compile(r'\b(?:\d{4}[-\s]?){3}\d{4}\b'),
-}
+def _digits(s: str) -> str:
+    return re.sub(r'\D', '', s)
+
+def _luhn(num: str) -> bool:
+    total, alt = 0, False
+    for d in reversed(num):
+        n = int(d)
+        if alt:
+            n *= 2
+            if n > 9:
+                n -= 9
+        total += n
+        alt = not alt
+    return total % 10 == 0
+
+EMAIL = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b')
+# Phone numbers: international (+44 …), UK (07…, 01…, 02…, 03…), or North American (555) 123-4567
+PHONE = re.compile(
+    r'(?<![\w+])(?:'
+    r'\+\d{1,3}[\s.-]?\(?\d{1,4}\)?(?:[\s.-]?\d{2,4}){2,4}'          # +44 7700 900123, +1 415 555 0100
+    r'|\(?0\d{2,4}\)?[\s.-]?\d{3,4}[\s.-]?\d{3,4}'                    # 07700 900123, (0131) 496 0000, 020 7946 0000
+    r'|\(\d{3}\)\s?\d{3}[\s.-]\d{4}'                                  # (415) 555-0100
+    r')(?![\w])')
+CARD = re.compile(r'(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)')
+NI_NUMBER = re.compile(r'\b(?!BG|GB|NK|KN|TN|NT|ZZ)[A-CEGHJ-PR-TW-Z][A-CEGHJ-NPR-TW-Z]\s?\d{2}\s?\d{2}\s?\d{2}\s?[A-D]\b', re.I)
+US_SSN = re.compile(r'\b(?!000|666|9\d\d)\d{3}-(?!00)\d{2}-(?!0000)\d{4}\b')
+IBAN = re.compile(r'\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]{4}){3,7}(?:\s?[A-Z0-9]{1,3})?\b')
+SORT_CODE_ACCOUNT = re.compile(r'\b\d{2}-\d{2}-\d{2}\b.{0,20}?\b\d{8}\b', re.S)
+
+def pii_kinds(text: str) -> list[str]:
+    """Which kinds of personal data the text appears to contain."""
+    kinds = []
+    if EMAIL.search(text):
+        kinds.append('email')
+    for m in PHONE.finditer(text):
+        n = len(_digits(m.group()))
+        if 10 <= n <= 15:
+            kinds.append('phone')
+            break
+    for m in CARD.finditer(text):
+        d = _digits(m.group())
+        if 13 <= len(d) <= 19 and _luhn(d):
+            kinds.append('card')
+            break
+    if NI_NUMBER.search(text):
+        kinds.append('ni_number')
+    if US_SSN.search(text):
+        kinds.append('ssn')
+    if IBAN.search(text) or SORT_CODE_ACCOUNT.search(text):
+        kinds.append('bank_account')
+    return kinds
 
 def detect_pii(text: str) -> bool:
-    # Regex-first: catches concrete structured PII reliably
-    for pattern in PII_PATTERNS.values():
-        if pattern.search(text):
-            return True
-    # NER: flag named persons only (orgs/locations are too noisy for debate content)
-    if nlp:
-        try:
-            doc = nlp(text)
-            if any(ent.label_ == 'PERSON' for ent in doc.ents):
-                return True
-        except Exception as e:
-            logger.warning(f'NER error: {e}')
-    return False
+    return bool(pii_kinds(text))
 
 def detect_hate_speech(text: str) -> bool:
     if not toxicity_model:
         return False
     try:
         results = toxicity_model.predict(text)
-        return results['identity_attack'] > 0.5 or results['threat'] > 0.5
+        # Check toxicity broadly: general toxicity, identity attacks, threats, insults
+        return (
+            results.get('toxicity', 0) > 0.7 or
+            results.get('severe_toxicity', 0) > 0.4 or
+            results.get('identity_attack', 0) > 0.4 or
+            results.get('threat', 0) > 0.4 or
+            results.get('insult', 0) > 0.7
+        )
     except Exception as e:
         logger.warning(f'Detoxify error: {e}')
         return False
@@ -121,7 +165,6 @@ def health():
     return jsonify({
         'status': 'ok',
         'profanity': profanity_checker is not None,
-        'spacy':     nlp is not None,
         'detoxify':  toxicity_model is not None,
         'timestamp': datetime.utcnow().isoformat(),
     })

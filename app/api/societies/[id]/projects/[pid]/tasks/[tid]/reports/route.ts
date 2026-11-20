@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { openRows, sealText } from '@/lib/societyCrypto';
-import { projectContext, text, TASK_STATUSES, UUID_RE } from '@/lib/projects';
+import { projectContext, text, TASK_STATUSES, UUID_RE, ptext } from '@/lib/projects';
 import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ id: string; pid: string; tid: string }> };
@@ -35,7 +35,7 @@ async function handlePOST(req: NextRequest, { params }: Params) {
   const { rows } = c.me ? await pool.query('SELECT 1 FROM project_task_assignees WHERE task_id = $1 AND user_id = $2', [tid, c.me]) : { rows: [] };
   if (!rows.length && !c.canManage) return NextResponse.json({ error: 'Only people allocated to this task can report on it' }, { status: 403 });
   const b = await req.json().catch(() => ({}));
-  const body = text(b.body, 5000);
+  const body = ptext(c, b.body, 5000);
   if (!body) return NextResponse.json({ error: 'Write the status update' }, { status: 400 });
   const status = (TASK_STATUSES as readonly string[]).includes(b.status) ? b.status : task.status;
   await pool.query('INSERT INTO project_status_reports (task_id, user_id, status, body) VALUES ($1, $2, $3, $4)', [tid, c.me, status, await sealText(c.a.societyId, body)]);

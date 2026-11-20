@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
-import { openDeep } from '@/lib/societyCrypto';
+import { hideEndToEnd, openDeep } from '@/lib/societyCrypto';
 
 // GET — chat messages this user has posted, across all debates.
 export async function GET() {
@@ -22,5 +22,6 @@ export async function GET() {
     [session.sub],
   );
   await openDeep(rows);
+  await hideEndToEnd(rows);  // sealed debates: only members' browsers can open them
   return NextResponse.json({ comments: rows });
 }

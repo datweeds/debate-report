@@ -3,7 +3,7 @@ import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { checkDraft } from '@/lib/quality/rules';
 import { getDebate, loadDebate } from '@/lib/quality/report';
-import { openDeep } from '@/lib/societyCrypto';
+import { hideEndToEnd, openDeep } from '@/lib/societyCrypto';
 
 // GET — the statements this user has written, newest first, each with the
 // same quality warnings shown while writing, so they can go back and fix them.
@@ -27,9 +27,10 @@ export async function GET() {
   // Load each debate once and run the statement checks against it
   const warnings = new Map<string, { severity: string; observation: string; recommendation: string }[]>();
   await openDeep(rows);
+  await hideEndToEnd(rows);  // sealed debates: only members' browsers can open them
   for (const resId of new Set(rows.filter(r => !r.retracted_at).map(r => r.resolution_id as string))) {
     const res = await getDebate(resId);
-    if (!res) continue;
+    if (!res || res.stat_title?.startsWith('sn1:')) continue;   // sealed debates: the checks can't read them here
     const debate = await loadDebate(res);
     for (const s of debate.statements) {
       if (!rows.some(r => r.id === s.id) || s.retracted_at) continue;

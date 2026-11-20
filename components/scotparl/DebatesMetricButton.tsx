@@ -21,7 +21,7 @@ export default function DebatesMetricButton({
     <>
       <button
         onClick={() => setOpen(true)}
-        className="rounded-xl border px-3 py-3 text-center border-blue-800/30 bg-blue-500/5 hover:bg-blue-500/10 transition-colors w-full"
+        className="rounded-xl border px-3 py-2 text-center border-blue-800/30 bg-blue-500/5 hover:bg-blue-500/10 transition-colors w-full"
       >
         <p className="font-bold text-xl text-blue-400">{value}</p>
         <p className="text-xs text-slate-500 mt-0.5">Debates</p>

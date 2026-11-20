@@ -4,19 +4,20 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Magazine, type Story } from './Tiles';
 import StoryModal from './StoryModal';
+import Research, { type Paper } from './Research';
 
 type Place = { name: string; kind: 'country' | 'admin1' | 'place'; geonames_id: number | null; country: string; admin1: string | null; lat: number | null; lon: number | null; population?: number | null };
 type Section = { id?: string; heading: string; phrases: string; must_include: string | null; must_exclude: string | null };
 type Settings = {
   enabled: boolean; title: string | null; cadence: 'daily' | 'weekly'; publish_time: string; publish_weekday: number;
-  locations: Place[]; min_score: number; max_items: number; sections: Section[];
+  locations: Place[]; min_score: number; max_items: number; sections: Section[]; include_papers?: boolean;
 };
 type PhraseFeedback = { section_key: string; phrase: string; words: number; warnings: string[]; matching_stories: number; example: string | null; closest_topics: { label: string; similarity: number }[] };
 type Preview = {
   window_hours: number; min_score: number; headline: Story | null;
   sections: { key: string; heading: string; items: Story[] }[];
   near_misses: { cluster_id: string; title: string; section_heading: string; relevance: number; score: number; reason: string }[];
-  phrases: PhraseFeedback[]; note: string;
+  phrases: PhraseFeedback[]; note: string; papers?: Paper[];
 };
 
 const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -217,6 +218,15 @@ export default function NewsSettings({ societyId }: { societyId: number }) {
               <label className={label}>Search phrases — one per line</label>
               <textarea value={sec.phrases} onChange={e => setSection(n, { phrases: e.target.value })} rows={4}
                 placeholder={'heat pump grants for households\noffshore wind farm approvals\nenergy bills and price cap changes'} className={`${input} font-mono`} />
+              {sec.phrases.split('\n').some(l => l.includes(',')) && (
+                <p className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-amber-300">
+                  Each line is one phrase, so a comma-separated list is read as a single long phrase and matches poorly.
+                  <button type="button" className="rounded border border-amber-500/40 px-2 py-0.5 hover:bg-amber-500/10"
+                    onClick={() => setSection(n, { phrases: sec.phrases.split(/[,\n]/).map(x => x.trim().replace(/\.$/, '')).filter(Boolean).join('\n') })}>
+                    Split into lines
+                  </button>
+                </p>
+              )}
             </div>
             <details>
               <summary className="cursor-pointer text-xs text-slate-500 hover:text-slate-300">Word filters (optional)</summary>
@@ -251,6 +261,19 @@ export default function NewsSettings({ societyId }: { societyId: number }) {
           <label className={label}>Stories per edition</label>
           <input type="number" min={1} max={30} value={s.max_items} onChange={e => update({ max_items: Number(e.target.value) })} className={input} />
           <p className="mt-1 text-xs text-slate-500">At most four per section; the most relevant story becomes the headline.</p>
+        </div>
+        <div className="sm:col-span-2 border-t border-slate-800 pt-4">
+          <label className="flex items-start gap-2 text-sm text-slate-200">
+            <input type="checkbox" checked={!!s.include_papers} onChange={e => update({ include_papers: e.target.checked })} className="mt-0.5 h-4 w-4 accent-blue-500" />
+            <span>
+              Include scientific papers
+              <span className="mt-0.5 block text-xs text-slate-500">
+                Each edition adds a “New research” part: up to five papers and preprints published in the last 90 days that match your
+                sections’ phrases, each shown once, with a one-line plain-English summary when AI is on. Preprints are marked as not yet
+                peer reviewed. Papers for new phrases are searched within the hour after you save.
+              </span>
+            </span>
+          </label>
         </div>
       </section>
 
@@ -295,6 +318,10 @@ export default function NewsSettings({ societyId }: { societyId: number }) {
           {previewItems.length
             ? <Magazine items={previewItems.map(i => ({ ...i, section_heading: headingFor(i.section_key) || i.section_heading }))} onOpen={setOpen} explain />
             : <p className="rounded-xl border border-dashed border-slate-800 p-6 text-center text-sm text-slate-400">No stories would be printed right now. Try broader phrases, fewer word filters, or a lower minimum relevance.</p>}
+
+          {s.include_papers && (preview.data.papers?.length
+            ? <Research papers={preview.data.papers.map(p => ({ ...p, section_heading: headingFor(p.section_key) || p.section_heading }))} societyId={societyId} canPost={false} canModerate={false} />
+            : <p className="rounded-xl border border-dashed border-slate-800 p-4 text-center text-sm text-slate-400">No matching research found yet. Papers for new phrases are searched within the hour after you save.</p>)}
 
           {preview.data.near_misses.length > 0 && (
             <div>

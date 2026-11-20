@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { principlesSealedCheck } from '@/lib/principles';
 import pool from '@/lib/db';
 import { societyContentAccess } from '@/lib/societies';
 import { currentPrinciple } from '@/lib/principles';
@@ -16,9 +17,13 @@ async function handlePOST(req: NextRequest, { params }: Params) {
   if (!a.canPost) return NextResponse.json({ error: 'Join this Society to request a review' }, { status: 403 });
   const { text } = await req.json().catch(() => ({}));
   if (typeof text !== 'string' || !text.trim()) return NextResponse.json({ error: 'Say what should be reviewed and why' }, { status: 400 });
+  const sealedCheck = await principlesSealedCheck(a.societyId);
+  if (sealedCheck ? !sealedCheck(text) : text.startsWith('sn1:')) {
+    return NextResponse.json({ error: sealedCheck ? 'The sealed principles’ keys have changed: reload the page and try again' : 'The principles aren’t sealed' }, { status: 400 });
+  }
   await pool.query(
     `INSERT INTO society_principle_reviews (customer_id, lineage_id, user_id, request_text) VALUES ($1, $2, $3, $4)`,
-    [a.societyId, p.lineage_id, a.session!.sub, await sealText(a.societyId, text.trim().slice(0, 2000))],
+    [a.societyId, p.lineage_id, a.session!.sub, sealedCheck ? text : await sealText(a.societyId, text.trim().slice(0, 2000))],
   );
   return NextResponse.json({ ok: true }, { status: 201 });
 }

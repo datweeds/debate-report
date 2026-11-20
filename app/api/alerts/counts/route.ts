@@ -1,9 +1,9 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { moderatedSocietyIds } from '@/lib/roles';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
 
@@ -11,10 +11,17 @@ export async function GET() {
   const moderated = await moderatedSocietyIds(session.sub);
   const canReviewAlerts  = session.isSysAdmin || moderated.length > 0;
   const alertSocietyFilter = session.isSysAdmin ? '' : 'AND COALESCE(ca.customer_id, r.customer_id) = ANY($1::int[])';
-  const flagSocietyFilter = session.isSysAdmin ? '' : 'AND r.customer_id = ANY($1::int[])';
+  const flagSocietyFilter = session.isSysAdmin ? '' : 'AND COALESCE(r.customer_id, s.customer_id) = ANY($1::int[])';
   const alertParams = session.isSysAdmin ? [] : [moderated];
 
-  const [scanRow, flagRow, joinRow, inviteRow, userRow] = await Promise.all([
+  // Invitation answers the sender hasn't looked at yet (the menu sends when they last opened Invitations)
+  const sinceParam = Number(req.nextUrl.searchParams.get('invitesSince'));
+  const invitesSince = new Date(Number.isFinite(sinceParam) && sinceParam > 0 ? sinceParam : Date.now() - 7 * 864e5);
+
+  const contentParam = Number(req.nextUrl.searchParams.get('contentSince'));
+  const contentSince = new Date(Number.isFinite(contentParam) && contentParam > 0 ? contentParam : Date.now() - 7 * 864e5);
+
+  const [scanRow, flagRow, joinRow, inviteRow, userRow, ownRow, answeredRow, newsRow] = await Promise.all([
     // Pending auto-detected content alerts — only meaningful for an admin
     canReviewAlerts
       ? pool.query(
@@ -24,14 +31,13 @@ export async function GET() {
           alertParams,
         )
       : Promise.resolve({ rows: [{ n: 0 }] }),
-    // User-reported flags (stat_flags has no status column — every row is
-    // an open report, same as the Alert Review page treats them)
+    // User-reported flags still open (not yet cleared by a moderator)
     canReviewAlerts
       ? pool.query(
           `SELECT COUNT(*)::int AS n FROM stat_flags sf
            LEFT JOIN statements s   ON s.id = sf.stat_id
            LEFT JOIN statements r   ON r.id = s.resolution_id
-           WHERE 1=1 ${flagSocietyFilter}`,
+           WHERE sf.resolved_at IS NULL ${flagSocietyFilter}`,
           alertParams,
         )
       : Promise.resolve({ rows: [{ n: 0 }] }),
@@ -60,12 +66,31 @@ export async function GET() {
       `SELECT last_statement_id FROM users WHERE id = $1`,
       [session.sub]
     ),
+    // The viewer's own content awaiting a moderator's decision
+    pool.query(`SELECT COUNT(*)::int AS n FROM content_alerts WHERE author_id = $1 AND status = 'pending'`, [session.sub]),
+    pool.query(
+      `SELECT COUNT(id)::int AS n FROM debate_invitations
+       WHERE created_by = $1::uuid AND status <> 'pending' AND updated_at > $2`,
+      [session.sub, invitesSince]
+    ),
+    // For My Content: decisions on your join requests, invitations to you, tasks given to you
+    pool.query(
+      `SELECT (SELECT count(*) FROM society_join_requests WHERE user_id = $1::text AND status <> 'pending' AND decided_at > $2)
+            + (SELECT count(*) FROM debate_join_requests WHERE user_id = $1::text AND status <> 'pending' AND updated_at > $2)
+            + (SELECT count(*) FROM debate_invitations WHERE created_at > $2 AND (invitee_user_id = $1::text
+                 OR lower(invitee_email) = (SELECT lower(email) FROM users WHERE id = $1::uuid)))
+            + (SELECT count(*) FROM project_task_assignees WHERE user_id = $1::uuid AND assigned_at > $2) AS n`,
+      [session.sub, contentSince]
+    ).catch(err => { console.error('[counts: content news]', err); return { rows: [{ n: 0 }] }; }),
   ]);
 
   const scannerPending = scanRow.rows[0].n;
   const myPending      = scannerPending + flagRow.rows[0].n;
   const joinsPending   = joinRow.rows[0].n;
   const invitesPending = inviteRow.rows[0].n;
+  const ownPending     = ownRow.rows[0].n;
+  const invitesAnswered = answeredRow.rows[0].n;
+  const contentNews    = Number(newsRow.rows[0].n);
 
   // lastResolutionId: use last_statement_id (resolution-type statement the user was last in)
   const lastStatementId = userRow.rows[0]?.last_statement_id ?? null;
@@ -78,5 +103,5 @@ export async function GET() {
     lastResolutionId = stmt?.id ?? null;
   }
 
-  return NextResponse.json({ myPending, scannerPending, joinsPending, invitesPending, lastResolutionId });
+  return NextResponse.json({ myPending, scannerPending, joinsPending, invitesPending, ownPending, invitesAnswered, contentNews, lastResolutionId });
 }

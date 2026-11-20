@@ -3,6 +3,7 @@ import pool from '@/lib/db';
 import { societyContentAccess } from '@/lib/societies';
 import { toIcs } from '@/lib/events';
 import { openRows } from '@/lib/societyCrypto';
+import { sealedSection } from '@/lib/sealed/server';
 
 type Params = { params: Promise<{ id: string; eventId: string }> };
 
@@ -18,6 +19,8 @@ export async function GET(req: NextRequest, { params }: Params) {
     [eventId, a.societyId],
   );
   if (!e) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  // A sealed calendar's events are made into calendar files in members' browsers
+  if (await sealedSection(a.societyId, 'calendar')) return NextResponse.json({ error: 'This calendar is sealed', sealed: true }, { status: 409 });
   await openRows(a.societyId, [e], ['title', 'description', 'location']);
   const base = process.env.NEXT_PUBLIC_BASE_URL ?? 'https://new.vote';
   const body = toIcs(e, e.society, `${base}/society/${a.societyId}/events`);

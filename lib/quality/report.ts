@@ -8,11 +8,14 @@ import { aiReview } from './ai';
 import { AiUnavailable } from '@/lib/ai/gateway';
 import { openDeep } from '../societyCrypto';
 import { sealDebate } from '../debateCrypto';
+import { sealedSection } from '../sealed/server';
 
 export type DebateRow = { id: string; stat_title: string; stat_description: string | null; customer_id: number | null };
 
-// Only the debate's Society moderators review its quality.
+// Only the debate's Society moderators review its quality, and not while its
+// debates are sealed (the reports read the text, and use AI).
 export async function canReviewQuality(session: SessionPayload | null, debate: Pick<DebateRow, 'customer_id'>): Promise<boolean> {
+  if (debate.customer_id != null && await sealedSection(debate.customer_id, 'debates')) return false;
   return isSocietyModerator(session, debate.customer_id);
 }
 

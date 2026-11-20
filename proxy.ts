@@ -68,6 +68,8 @@ export async function proxy(req: NextRequest) {
       !pathname.startsWith('/sso') &&
       !pathname.startsWith('/key') &&
       !pathname.startsWith('/join') &&
+      !pathname.startsWith('/poll/') &&
+      !pathname.startsWith('/s/') &&
       !pathname.startsWith('/society/')
     ) {
       const url = req.nextUrl.clone();

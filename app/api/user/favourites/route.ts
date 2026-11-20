@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { hideEndToEnd, openDeep } from '@/lib/societyCrypto';
 
 export async function GET() {
   const session = await getSession().catch(() => null);
@@ -21,5 +22,8 @@ export async function GET() {
     [session.sub],
   );
 
+  // Private debates are stored encrypted; sealed ones only members' browsers can open
+  await openDeep(rows);
+  await hideEndToEnd(rows);
   return NextResponse.json(rows);
 }

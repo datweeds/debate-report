@@ -77,6 +77,19 @@ export async function getDebateAccess(
   return { listable: active, viewable: active };
 }
 
+/**
+ * For routes about one argument (chat, votes, flags…): its debate, and whether
+ * this person may see it. null if there's no such statement.
+ */
+export async function statementAccess(session: SessionPayload | null, statementId: string) {
+  if (!/^[0-9a-f-]{36}$/i.test(statementId)) return null;
+  const { rows: [r] } = await pool.query(
+    `SELECT r.id, r.customer_id, r.created_by, r.debate_visibility
+     FROM statements s JOIN statements r ON r.id = COALESCE(s.resolution_id, s.id) WHERE s.id = $1`, [statementId]);
+  if (!r) return null;
+  return { resolutionId: r.id as string, customerId: r.customer_id as number | null, viewable: (await getDebateAccess(session, r)).viewable };
+}
+
 // ── SQL twins of getDebateAccess, for list/feed queries ─────────────────────
 // `res` is the SQL alias of the resolution row; `uid` is a placeholder holding
 // the viewer's user id as text, e.g. '$2::text' (NULL when logged out, which

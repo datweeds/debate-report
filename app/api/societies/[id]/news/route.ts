@@ -22,7 +22,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const wanted = req.nextUrl.searchParams.get('edition');
   const pick = editions.find(e => e.id === wanted) ?? editions[0];
   const edition = pick
-    ? (await pool.query('SELECT id, edition_date::text AS edition_date, cadence, overview, items, created_at FROM society_news_editions WHERE id = $1', [pick.id])).rows[0]
+    ? (await pool.query('SELECT id, edition_date::text AS edition_date, cadence, overview, items, papers, created_at FROM society_news_editions WHERE id = $1', [pick.id])).rows[0]
     : null;
 
   const s = settings ?? { ...DEFAULT_SETTINGS, sections: [], subscription_id: null };

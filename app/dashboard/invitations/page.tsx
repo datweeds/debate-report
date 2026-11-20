@@ -48,6 +48,13 @@ export default function InvitationsPage() {
     if (!loading && !user) router.push('/login?next=/dashboard/invitations');
   }, [loading, user, router]);
 
+  // Answers to your invitations are now seen, so the menu badge clears
+  useEffect(() => {
+    if (!user) return;
+    try { localStorage.setItem('dr_invites_seen', String(Date.now())); } catch {}
+    window.dispatchEvent(new Event('dr:alerts-changed'));
+  }, [user]);
+
   const load = useCallback(async () => {
     setFetching(true);
     try {
@@ -122,7 +129,7 @@ export default function InvitationsPage() {
             ) : (
               <div className="space-y-3">
                 {[...pendingReceived, ...resolvedReceived].map(inv => (
-                  <div key={inv.id} className="rounded-2xl border border-slate-800 bg-[#0c1322] p-4">
+                  <div key={inv.id} className="rounded-2xl border border-slate-800 bg-dr-card p-4">
                     <div className="flex items-start justify-between gap-3 mb-2">
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-slate-200 truncate">{inv.debate_title}</p>
@@ -162,7 +169,7 @@ export default function InvitationsPage() {
               <h2 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Sent (your Societies)</h2>
               <div className="space-y-3">
                 {sent.map(inv => (
-                  <div key={inv.id} className="rounded-2xl border border-slate-800 bg-[#0c1322] p-4">
+                  <div key={inv.id} className="rounded-2xl border border-slate-800 bg-dr-card p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-slate-200 truncate">
@@ -198,7 +205,7 @@ function SocietyInviteLinks() {
       <h2 className="text-sm font-semibold text-slate-300 mb-3">Society invite links you&apos;ve sent</h2>
       <ul className="space-y-2">
         {rows.map(i => (
-          <li key={i.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-slate-800 bg-[#0c1322] px-4 py-3 text-xs">
+          <li key={i.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-slate-800 bg-dr-card px-4 py-3 text-xs">
             <Link href={`/dashboard/societies?society=${i.customer_id}`} className="text-sm text-slate-200 hover:text-blue-300">{i.society_name}</Link>
             <span className="text-slate-400">{i.label || 'Invite link'}</span>
             <span className="text-slate-500">used {i.use_count}× · {i.expires_at ? `expires ${fmt(i.expires_at)}` : 'no expiry'}</span>

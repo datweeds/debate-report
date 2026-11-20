@@ -57,11 +57,10 @@ function PinPanel({ item, claimNumber, rebuttals, onClose }: {
   return (
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-[#0c1322] border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto shadow-2xl flex flex-col">
+      <div className="bg-dr-card border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto shadow-2xl flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700/60 sticky top-0 bg-[#0c1322] z-10">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700/60 sticky top-0 bg-dr-card z-10">
           <div className="flex items-center gap-2">
             {claimNumber !== undefined
               ? <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Claim #{claimNumber}</span>
@@ -210,7 +209,7 @@ function ArgCard({
   }
 
   return (
-    <div className={`rounded-xl border bg-[#0c1322] flex flex-col transition-colors ${borderColour}`}>
+    <div className={`rounded-xl border bg-dr-card flex flex-col transition-colors ${borderColour}`}>
       {/* Card header: number + strength */}
       <div className={`px-3 pt-3 pb-2 flex items-center justify-between border-b border-slate-800/60`}>
         <div className="flex items-center gap-2 min-w-0">

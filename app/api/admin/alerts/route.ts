@@ -83,6 +83,7 @@ export async function GET(req: NextRequest) {
         LEFT JOIN users stmt_author   ON stmt_author.id = s.created_by
         LEFT JOIN users flagger       ON flagger.id = sf.flagged_by
         LEFT JOIN users owner         ON owner.id = r.created_by
+        WHERE sf.resolved_at IS NULL
         ORDER BY sf.created_at DESC
         LIMIT 200
       `);

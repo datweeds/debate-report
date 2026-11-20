@@ -29,7 +29,13 @@ export const verifyPassword = (pw: string, h: string) => bcrypt.compare(pw, h);
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 export function generateAccessCode(): string {
-  const rand = () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
+  // Cryptographically random, without bias (rejection sampling); Web Crypto works in every runtime
+  const rand = () => {
+    const limit = Math.floor(0x100000000 / CODE_CHARS.length) * CODE_CHARS.length;
+    const b = new Uint32Array(1);
+    do crypto.getRandomValues(b); while (b[0] >= limit);
+    return CODE_CHARS[b[0] % CODE_CHARS.length];
+  };
   return `${rand()}${rand()}${rand()}${rand()}-${rand()}${rand()}${rand()}${rand()}-${rand()}${rand()}${rand()}${rand()}-${rand()}${rand()}${rand()}${rand()}`;
 }
 
@@ -106,7 +112,7 @@ export interface ChallengePayload {
   displayName?: string;
   bio?: string;
   inviteToken?: string;
-  purpose?: 'add';  // set when a logged-in user adds a passkey to their account
+  purpose?: 'add' | 'recovery';  // add: logged-in user adds a passkey; recovery: confirming before a new recovery code
 }
 
 export async function signChallengeToken(payload: ChallengePayload): Promise<string> {

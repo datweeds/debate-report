@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { QDebate } from '@/lib/quality/rules';
 import DraftWarnings from './DraftWarnings';
+import { rememberStoredTitle, sealDebateTextOrNull, titleToSend } from './sealedDebate';
 
 type Props = {
   statementId: string;
@@ -30,12 +31,14 @@ export default function UpdateModal({
     setError('');
     setSaving(true);
     try {
+      // Sealed debates: sealed here (an unchanged title goes back exactly as stored)
+      const sentTitle = titleToSend(statementId, trimTitle, initialTitle);
       const res = await fetch(`/api/statements/${statementId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: trimTitle,
-          description: description.trim() || null,
+          title: sentTitle,
+          description: sealDebateTextOrNull(description.trim() || null),
         }),
       });
       if (!res.ok) {
@@ -43,10 +46,11 @@ export default function UpdateModal({
         setError(d.error ?? 'Save failed');
         return;
       }
+      rememberStoredTitle(statementId, sentTitle);
       onSave(statementId, trimTitle, description.trim() || null);
       onClose();
-    } catch {
-      setError('Could not save. Please try again.');
+    } catch (e) {
+      setError(e instanceof Error && e.message.includes('sealed') ? e.message : 'Could not save. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -54,8 +58,8 @@ export default function UpdateModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-2xl rounded-2xl border border-slate-700 bg-[#0c1322] shadow-2xl">
+      <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[2px]" />
+      <div className="relative z-10 w-full max-w-2xl rounded-2xl border border-slate-700 bg-dr-card shadow-2xl">
         <form onSubmit={handleSubmit}>
 
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">

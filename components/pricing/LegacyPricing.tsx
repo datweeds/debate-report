@@ -115,7 +115,7 @@ export default function LegacyPricing() {
 
         {/* Billing toggle */}
         <div className="flex justify-center mb-10">
-          <div className="inline-flex items-center gap-1 rounded-xl border border-slate-700 bg-[#0c1322] p-1">
+          <div className="inline-flex items-center gap-1 rounded-xl border border-slate-700 bg-dr-card p-1">
             <button
               onClick={() => setAnnual(false)}
               className={`rounded-lg px-5 py-2 text-sm font-semibold transition-colors ${
@@ -144,7 +144,7 @@ export default function LegacyPricing() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-12">
 
           {/* Free card */}
-          <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-7 flex flex-col">
+          <div className="rounded-2xl border border-slate-800 bg-dr-card p-7 flex flex-col">
             <div className="mb-5">
               <span className="text-xs font-bold uppercase tracking-widest text-slate-500">Free</span>
               <div className="mt-2 flex items-end gap-1">
@@ -193,7 +193,7 @@ export default function LegacyPricing() {
           </div>
 
           {/* Paid card */}
-          <div className="rounded-2xl border border-blue-500/40 bg-[#0c1322] p-7 flex flex-col relative shadow-xl shadow-blue-500/5">
+          <div className="rounded-2xl border border-blue-500/40 bg-dr-card p-7 flex flex-col relative shadow-xl shadow-blue-500/5">
             <div className="absolute -top-3 left-1/2 -translate-x-1/2">
               <span className="rounded-full bg-blue-600 px-3 py-1 text-[11px] font-bold text-white tracking-wide">
                 Paid

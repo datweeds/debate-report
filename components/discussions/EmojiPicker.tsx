@@ -23,7 +23,7 @@ export default function EmojiPicker({ onPick, emojis = PICKER_EMOJI, label = 'Ad
         {small ? '☺︎+' : '😊'}
       </button>
       {open && (
-        <div className="absolute bottom-full left-0 mb-1 z-30 grid grid-cols-5 gap-1 rounded-xl border border-slate-700 bg-[#0c1322] p-2 shadow-2xl">
+        <div className="absolute bottom-full left-0 mb-1 z-30 grid grid-cols-5 gap-1 rounded-xl border border-slate-700 bg-dr-card p-2 shadow-2xl">
           {emojis.map(e => (
             <button key={e} type="button" onClick={() => { onPick(e); setOpen(false); }}
               className="rounded-lg px-1.5 py-1 text-lg hover:bg-slate-700/60">{e}</button>

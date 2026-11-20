@@ -42,6 +42,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   // The older boolean is still accepted: false means invite-only.
   const vis = ['public', 'apply', 'invite'].includes(visibility) ? visibility
     : typeof is_public === 'boolean' ? (is_public ? 'public' : 'invite') : null;
+  if (vis === 'public') {
+    const { sealedSection } = await import('@/lib/sealed/server');
+    const { rows: [cur] } = await pool.query('SELECT visibility FROM customers WHERE id = $1', [Number(id)]);
+    if (cur?.visibility !== 'public' && await sealedSection(Number(id), 'debates')) {
+      return NextResponse.json({ error: 'This Society’s debates are sealed: its moderators must unseal them before it can be made public' }, { status: 409 });
+    }
+  }
   if (vis) {
     values.push(vis);
     fields.push(`visibility = $${values.length}`);

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { societyContentAccess } from '@/lib/societies';
-import { currentPrinciple, readPrinciple } from '@/lib/principles';
+import { currentPrinciple, principlesSealedCheck, readPrinciple } from '@/lib/principles';
 import { sealText } from '@/lib/societyCrypto';
 import { lockSafe } from '@/lib/lockSafe';
 
@@ -31,7 +31,7 @@ async function handlePATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ ok: true });
   }
 
-  const v = readPrinciple(body);
+  const v = readPrinciple(body, await principlesSealedCheck(a.societyId));
   if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 });
   await pool.query(
     `UPDATE society_principles SET category = $1, title = $2, body = $3, grounding = $4, section = $6, updated_at = now() WHERE id = $5`,

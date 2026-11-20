@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { statementAccess } from '@/lib/debateAccess';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -11,13 +12,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const session = await getSession();
   const userId  = session?.sub ?? null;
 
-  const { rows: [stmt] } = await pool.query(
-    `SELECT id FROM statements WHERE id = $1`, [id],
-  );
-  if (!stmt) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!(await statementAccess(session, id))?.viewable) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const { rows } = await pool.query(
-    `SELECT reason, flagged_by FROM stat_flags WHERE stat_id = $1`, [id],
+    `SELECT reason, flagged_by FROM stat_flags WHERE stat_id = $1 AND resolved_at IS NULL`, [id],
   );
 
   const flagCount   = rows.length;
@@ -39,10 +37,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Invalid reason' }, { status: 400 });
   }
 
-  const { rows: [stmt] } = await pool.query(
-    `SELECT id FROM statements WHERE id = $1`, [id],
-  );
-  if (!stmt) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!(await statementAccess(session, id))?.viewable) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   // Prevent logged-in users from flagging the same statement twice
   if (userId) {
@@ -60,7 +55,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   );
 
   const { rows: [{ count }] } = await pool.query(
-    `SELECT COUNT(*)::int AS count FROM stat_flags WHERE stat_id = $1`, [id],
+    `SELECT COUNT(*)::int AS count FROM stat_flags WHERE stat_id = $1 AND resolved_at IS NULL`, [id],
   );
 
   return NextResponse.json({ success: true, flagCount: count });
@@ -81,7 +76,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   );
 
   const { rows: [{ count }] } = await pool.query(
-    `SELECT COUNT(*)::int AS count FROM stat_flags WHERE stat_id = $1`, [id],
+    `SELECT COUNT(*)::int AS count FROM stat_flags WHERE stat_id = $1 AND resolved_at IS NULL`, [id],
   );
 
   return NextResponse.json({ success: true, flagCount: count });

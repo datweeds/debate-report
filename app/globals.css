@@ -3,8 +3,8 @@
 /* ── Custom theme tokens (Tailwind v4) ────────────────────── */
 @theme {
   --color-dr-base:    #080d1a;
-  --color-dr-card:    #111827;
-  --color-dr-surface: #0c1322;
+  --color-dr-card:    #162035;   /* cards and tiles: clearly lighter than the page */
+  --color-dr-surface: #0e1729;   /* alternate section bands */
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
@@ -86,6 +86,9 @@
 [data-theme="light"] h4             { color: #0f172a; }
 [data-theme="light"] header          { background-color: rgba(255,255,255,0.92); border-color: rgba(59,130,246,0.12); }
 [data-theme="light"] .card-dr        { background-color: #ffffff; border-color: rgba(59,130,246,0.2); }
+/* A raised panel beside a list (e.g. a Society's Debate page): lighter slate in dark mode */
+.dr-panel { background-color: #1a2540; border: 1px solid #2c3a5c; }
+[data-theme="light"] .dr-panel { background-color: #ffffff; border-color: rgba(59,130,246,0.2); }
 [data-theme="light"] .card-dr:hover  { border-color: rgba(59,130,246,0.4); }
 [data-theme="light"] .bg-dr-base     { background-color: #f0f4ff; }
 [data-theme="light"] .bg-dr-card     { background-color: #ffffff; }
@@ -249,7 +252,7 @@
 @layer utilities {
   /* Cards */
   .card-dr {
-    background-color: #111827;
+    background-color: #162035;
     border: 1px solid rgba(59,130,246,0.12);
     border-radius: 12px;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
@@ -335,3 +338,27 @@
   header, footer, .nav-drawer, nav.sm\:hidden { display: none !important; }
   .dr-pin-main { margin-left: 0 !important; padding-top: 0 !important; }
 }
+
+/* Home hero headline: deeper blues on the light background */
+[data-theme="light"] .dr-hero-title span:nth-of-type(1) { color: #1d4ed8 !important; }
+[data-theme="light"] .dr-hero-title span:nth-of-type(2) { color: #2563eb !important; }
+[data-theme="light"] .dr-hero-title span:nth-of-type(3) { color: #0e7490 !important; }
+
+/* Newsletter articles (rendered Markdown) */
+.prose-dark { color: #cbd5e1; font-size: 1.0625rem; line-height: 1.75; }
+.prose-dark > :first-child { margin-top: 0; }
+.prose-dark h2 { margin: 2.25rem 0 0.75rem; font-size: 1.375rem; color: #f1f5f9; }
+.prose-dark h3 { margin: 1.75rem 0 0.5rem; font-size: 1.125rem; color: #f1f5f9; }
+.prose-dark p { margin: 0 0 1.1rem; }
+.prose-dark ul, .prose-dark ol { margin: 0 0 1.1rem; padding-left: 1.4rem; }
+.prose-dark ul { list-style: disc; }
+.prose-dark ol { list-style: decimal; }
+.prose-dark li { margin: 0.35rem 0; }
+.prose-dark li::marker { color: #60a5fa; }
+.prose-dark strong { color: #f1f5f9; font-weight: 600; }
+.prose-dark a { color: #60a5fa; text-decoration: underline; text-underline-offset: 3px; }
+.prose-dark a:hover { color: #93c5fd; }
+.prose-dark blockquote { margin: 0 0 1.1rem; padding-left: 1rem; border-left: 3px solid #3b82f6; color: #94a3b8; }
+[data-theme="light"] .prose-dark { color: #334155; }
+[data-theme="light"] .prose-dark :is(h2, h3, strong) { color: #0f172a; }
+[data-theme="light"] .prose-dark a { color: #2563eb; }

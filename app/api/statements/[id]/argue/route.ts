@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Anthropic from '@anthropic-ai/sdk';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
+import { aiComplete, AiUnavailable } from '@/lib/ai/gateway';
+import { getDebateAccess, statementAccess } from '@/lib/debateAccess';
+import { openDeep } from '@/lib/societyCrypto';
+import { AI_OFF, debateE2E, openDebateJson, sealDebateJson } from '@/lib/debateCrypto';
 
 export const maxDuration = 60;
 
@@ -15,6 +18,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const { id } = await params;
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+  const access = await statementAccess(session, id);
+  if (!access?.viewable) return NextResponse.json({ error: 'Statement not found' }, { status: 404 });
+  if (await debateE2E(access.resolutionId)) return NextResponse.json({ error: AI_OFF }, { status: 409 });
 
   const { rows: [row] } = await pool.query(
     `SELECT id, results, created_at
@@ -30,6 +36,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
      WHERE user_id = $1 AND created_at >= date_trunc('month', NOW())`,
     [session.sub],
   );
+
+  if (row) row.results = await openDebateJson(row.results);
 
   const tier   = session.tier as string;
   const quota  = QUOTA[tier] ?? 0;
@@ -72,13 +80,24 @@ export async function POST(req: NextRequest, { params }: Params) {
   const { rows: [stmt] } = await pool.query(
     `SELECT s.id, s.stat_type, s.stat_title, s.stat_description, s.stat_direction,
             s.resolution_id,
-            r.stat_title AS res_title, r.stat_description AS res_desc
+            r.stat_title AS res_title, r.stat_description AS res_desc,
+            d.id AS debate_id, d.customer_id, d.created_by, d.debate_visibility
      FROM statements s
      LEFT JOIN statements r ON r.id = s.resolution_id
+     JOIN statements d ON d.id = COALESCE(s.resolution_id, s.id)
      WHERE s.id = $1`,
     [id],
   );
   if (!stmt) return NextResponse.json({ error: 'Statement not found' }, { status: 404 });
+
+  // Only for people who can open the debate; private text is decrypted here and
+  // goes only to the AI the debate's Society has chosen (or none)
+  const access = await getDebateAccess(session, {
+    id: stmt.debate_id, customer_id: stmt.customer_id, created_by: stmt.created_by, debate_visibility: stmt.debate_visibility,
+  });
+  if (!access.viewable) return NextResponse.json({ error: 'Statement not found' }, { status: 404 });
+  if (await debateE2E(stmt.debate_id)) return NextResponse.json({ error: AI_OFF }, { status: 409 });
+  await openDeep(stmt);
 
   const isResolution = !stmt.resolution_id;
   const resTitle     = isResolution ? stmt.stat_title : (stmt.res_title ?? '');
@@ -139,25 +158,24 @@ Rules:
 - Rank arguments from strongest to weakest within each group
 - Return ONLY valid JSON`;
 
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
   let results: object;
   try {
-    const message = await client.messages.create({
-      model:      'claude-sonnet-5',
-      max_tokens: 8000,
-      messages:   [{ role: 'user', content: prompt }],
+    // The Society's chosen AI (new.vote's, its own, or none)
+    const { text } = await aiComplete({
+      task: 'debate.argue', tier: 'standard', societyId: stmt.customer_id ?? null,
+      system: 'You are an expert debate analyst. Reply with JSON only.', user: prompt, maxTokens: 8000,
     });
-    const textBlock = message.content.find(b => b.type === 'text');
-    const text = textBlock?.type === 'text' ? textBlock.text : '';
     // Extract JSON object — strip any markdown fences and leading/trailing text
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.error('Argue: no JSON in response, text was:', text.substring(0, 500));
+      console.error('Argue: no JSON in response', { length: text.length });
       throw new Error('No JSON object in response');
     }
     results = JSON.parse(jsonMatch[0]);
   } catch (err) {
+    if (err instanceof AiUnavailable) {
+      return NextResponse.json({ error: `AI isn’t available for this Society: ${err.message}` }, { status: 503 });
+    }
     console.error('AI argue error:', err);
     return NextResponse.json({ error: 'AI generation failed' }, { status: 500 });
   }
@@ -169,10 +187,11 @@ Rules:
     await client2.query('BEGIN');
     const { rows: [sess] } = await client2.query(
       `INSERT INTO ai_arg_sessions (user_id, statement_id, resolution_id, results)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, results`,
-      [session.sub, id, resolutionId, JSON.stringify(results)],
+       VALUES ($1, $2, $3, $4::jsonb)
+       RETURNING id`,
+      [session.sub, id, resolutionId, await sealDebateJson(resolutionId, results)],
     );
+    sess.results = results;
     await client2.query(
       'INSERT INTO ai_arg_usage (user_id, statement_id) VALUES ($1, $2)',
       [session.sub, id],

@@ -37,13 +37,13 @@ export default function ChatCommentsPage() {
       {items === null ? (
         <div className="space-y-2">{[0, 1, 2].map(i => <div key={i} className="h-16 rounded-xl bg-slate-800/40 animate-pulse" />)}</div>
       ) : items.length === 0 ? (
-        <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-10 text-center text-sm text-slate-500">
+        <div className="rounded-2xl border border-slate-800 bg-dr-card p-10 text-center text-sm text-slate-500">
           You haven&apos;t posted any chat messages yet.
         </div>
       ) : (
         <ul className="space-y-3">
           {items.map(c => (
-            <li key={c.id} className="rounded-xl border border-slate-800 bg-[#0c1322] p-4">
+            <li key={c.id} className="rounded-xl border border-slate-800 bg-dr-card p-4">
               <div className="flex items-center gap-2 text-xs text-slate-500">
                 <Link href={`/chamber?resolution=${c.resolution_id}&statement=${c.statement_id}`} className="truncate hover:text-blue-300">
                   {c.stat_ref && <span className="font-mono font-bold text-slate-300 mr-1">{c.stat_ref}</span>}{c.stat_title}

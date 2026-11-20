@@ -1,13 +1,12 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { NvLogo } from './NvLogo';
 import { useAuth } from './AuthProvider';
-import FooterModals, { type FooterModal } from './FooterModals';
+import { COMPANY } from '@/lib/company';
 
 function FooterLink({ href, external, children }: { href: string; external?: boolean; children: React.ReactNode }) {
-  const cls = 'text-sm text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1';
+  const cls = 'text-sm text-slate-400 underline-offset-4 decoration-blue-400/50 transition-colors duration-200 hover:text-blue-300 hover:underline flex items-center gap-1';
   if (external) {
     return (
       <a href={href} target="_blank" rel="noopener noreferrer" className={cls}>
@@ -21,48 +20,83 @@ function FooterLink({ href, external, children }: { href: string; external?: boo
   return <Link href={href} className={cls}>{children}</Link>;
 }
 
+function FooterColumn({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <nav aria-label={title}>
+      <p className="mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-slate-300">{title}</p>
+      <ul className="space-y-2">{children}</ul>
+    </nav>
+  );
+}
+
 export default function Footer() {
   const { user } = useAuth();
-  const [modal, setModal] = useState<FooterModal>(null);
 
   return (
     <>
       <footer className="dr-pin-main border-t border-blue-900/15 bg-[#04060b] text-slate-400">
         <div className="mx-auto max-w-7xl px-4 sm:px-8 py-12">
 
-          {/* Brand + Company/Legal */}
-          <div className="grid grid-cols-1 gap-8 sm:grid-cols-[1fr_auto]">
+          <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:grid-cols-[1.4fr_1fr_1fr_1fr_1fr]">
 
             {/* Brand */}
-            <div className="max-w-xs">
+            <div className="col-span-2 sm:col-span-3 lg:col-span-1 max-w-xs">
               <Link href="/" className="flex items-center gap-2 mb-4">
                 <NvLogo className="w-8 h-8" />
                 <span className="font-bold text-slate-100 text-base">
                   new<span className="text-blue-400">.vote</span>
                 </span>
               </Link>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                Structured debate and democratic tools for society. Evidence-based. Open to all.
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Structured debate and democratic tools for society. Evidence-led. Open to all.
               </p>
+              <Link href="/blog" className="mt-4 inline-block text-sm font-medium text-blue-400 underline-offset-4 decoration-blue-400/50 transition-colors hover:text-blue-300 hover:underline">Subscribe to the newsletter →</Link>
             </div>
 
-            {/* Company / Legal — one horizontal row */}
-            <ul className="flex flex-wrap items-center gap-x-6 gap-y-2 sm:justify-end sm:self-center">
-              <li><button onClick={() => setModal('about')}   className="text-sm text-slate-500 hover:text-slate-300 transition-colors">About</button></li>
-              <li><button onClick={() => setModal('contact')} className="text-sm text-slate-500 hover:text-slate-300 transition-colors">Contact</button></li>
-              <li><FooterLink href="https://debate.support" external>Help</FooterLink></li>
-              <li><Link href="/blog" className="text-sm text-slate-500 hover:text-slate-300 transition-colors">Newsletter</Link></li>
-              <li><Link href="/support" className="text-sm text-slate-500 hover:text-slate-300 transition-colors">Support &amp; Investors</Link></li>
-              <li><button onClick={() => setModal('terms')}   className="text-sm text-slate-500 hover:text-slate-300 transition-colors">Terms &amp; Conditions</button></li>
-              <li><button onClick={() => setModal('privacy')} className="text-sm text-slate-500 hover:text-slate-300 transition-colors">Privacy Policy</button></li>
-            </ul>
+            <FooterColumn title="Explore">
+              <li><FooterLink href="/features">Features</FooterLink></li>
+              <li><FooterLink href="/#societies">Find a Society</FooterLink></li>
+              <li><FooterLink href="/chamber">Debates</FooterLink></li>
+              <li><FooterLink href="/blog">Newsletter</FooterLink></li>
+            </FooterColumn>
 
+            <FooterColumn title="Start a Society">
+              <li><FooterLink href={user ? '/profile' : '/register'}>{user ? 'Become a moderator' : 'Sign up'}</FooterLink></li>
+              <li><FooterLink href="/pricing">Pricing</FooterLink></li>
+              {user && <li><FooterLink href="/dashboard/societies">Manage your Societies</FooterLink></li>}
+              <li><FooterLink href="/support">Support &amp; Investors</FooterLink></li>
+            </FooterColumn>
+
+            <FooterColumn title="Help">
+              <li><FooterLink href="/guides">Guides</FooterLink></li>
+              <li><FooterLink href="https://debate.support" external>Help centre</FooterLink></li>
+              <li><FooterLink href="/contact">Contact</FooterLink></li>
+              <li><Link href="/about" className="text-sm text-slate-400 underline-offset-4 decoration-blue-400/50 transition-colors duration-200 hover:text-blue-300 hover:underline">About</Link></li>
+            </FooterColumn>
+
+            <FooterColumn title="Trust">
+              <li><FooterLink href="/privacy">Privacy policy</FooterLink></li>
+              <li><FooterLink href="/terms">Terms &amp; conditions</FooterLink></li>
+              <li><FooterLink href="/features#privacy">How we protect your data</FooterLink></li>
+            </FooterColumn>
           </div>
 
+          {/* What we stand for */}
+          <p className="mt-10 flex flex-wrap justify-center gap-x-5 gap-y-1 border-t border-blue-900/10 pt-6 text-sm text-slate-500">
+            {['Evidence-led', 'Encrypted private Societies', 'Secret ballots', 'No ads or tracking', 'Your choice of AI'].map((t, i) => (
+              <span key={t} className="flex items-center gap-5">{i > 0 && <span aria-hidden="true" className="text-slate-700">·</span>}{t}</span>
+            ))}
+          </p>
+
           {/* Bottom bar */}
-          <div className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-blue-900/10 pt-6">
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-blue-900/10 pt-6">
             <p className="text-xs text-slate-700">
-              © {new Date().getFullYear()} Debate Report Limited. All rights reserved.
+              © {new Date().getFullYear()} {COMPANY.name}. All rights reserved.
+              {/* Company details every UK company website must show */}
+              <span className="block mt-1">
+                Registered in {COMPANY.registeredIn}, company number {COMPANY.number}
+                {COMPANY.registeredOffice ? <>. Registered office: {COMPANY.registeredOffice}</> : null}.
+              </span>
             </p>
             <div className="flex items-center gap-4">
               {user?.isSysAdmin && (
@@ -87,7 +121,6 @@ export default function Footer() {
         </div>
       </footer>
 
-      <FooterModals modal={modal} onClose={() => setModal(null)} />
     </>
   );
 }

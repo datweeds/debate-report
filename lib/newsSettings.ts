@@ -50,6 +50,6 @@ export function checkSettings(raw: unknown): { ok: true; value: Omit<NewsSetting
   }
   return {
     ok: true,
-    value: { enabled: b.enabled !== false, title, cadence, publish_time, publish_weekday, locations, min_score, max_items, use_llm: b.use_llm !== false, sections },
+    value: { enabled: b.enabled !== false, title, cadence, publish_time, publish_weekday, locations, min_score, max_items, use_llm: b.use_llm !== false, include_papers: b.include_papers === true, sections },
   };
 }

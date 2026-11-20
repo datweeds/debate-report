@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
+import { openDebateTitles, societyDebateSealer } from '@/components/chamber/sealedDebate';
 
 const SUBJECT_LABELS: Record<string, string> = {
   culture: 'Culture', economics: 'Economics', education: 'Education',
@@ -45,6 +46,7 @@ type Debate = {
   society_name: string | null;
   society_is_public: boolean | null;
   can_set_visibility: boolean;
+  sealed_id?: string | null;
 };
 
 type SocietyOption = { id: number; name: string };
@@ -99,7 +101,7 @@ export default function ListDebatesPage() {
     try {
       const res = await fetch('/api/debates');
       if (!res.ok) throw new Error('Failed to load debates');
-      setDebates(await res.json());
+      setDebates(await openDebateTitles(await res.json()));   // sealed Societies' titles open here
     } catch {
       setError('Could not load debates. Please refresh.');
     } finally {
@@ -152,12 +154,14 @@ export default function ListDebatesPage() {
     if (!closeForm.rationale.trim()) { setCloseError('Rationale is required'); return; }
     setCloseSubmitting(true); setCloseError('');
     try {
+      // Sealed debates: the closing statement is sealed here
+      const { seal } = debate.sealed_id && debate.customer_id != null ? await societyDebateSealer(debate.customer_id) : { seal: (t: string) => t };
       const res = await fetch(`/api/debates/${debate.id}/close`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           decision:  closeForm.decision,
-          rationale: closeForm.rationale,
+          rationale: seal(closeForm.rationale.trim()),
           hidden:    closeForm.hidden,
         }),
       });
@@ -170,8 +174,8 @@ export default function ListDebatesPage() {
           : d
       ));
       setClosingId(null);
-    } catch {
-      setCloseError('Network error');
+    } catch (e) {
+      setCloseError(e instanceof Error && e.message.includes('sealed') ? e.message : 'Network error');
     } finally {
       setCloseSubmitting(false);
     }

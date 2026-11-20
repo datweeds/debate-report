@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
@@ -71,6 +71,8 @@ export default async function DebatePage({
 
   // Same gate as the Chamber — Apply/Invite debates 404 for anyone who can't open them.
   if (!debate || !(await getDebateAccess(await getSession(), debate)).viewable) notFound();
+  // Sealed debates can only be read in members' browsers: straight to the Chamber, which opens them
+  if (debate.stat_title.startsWith('sn1:')) redirect(`/chamber?resolution=${debate.id}`);
   await openDeep(debate);
 
   const subjectLabel  = SUBJECT_LABELS[debate.subject_area]  ?? debate.subject_area;

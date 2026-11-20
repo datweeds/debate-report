@@ -1,16 +1,16 @@
 ---
-title: "Welcome to debate.report"
+title: "Welcome to new.vote"
 date: "2026-08-04"
 excerpt: "Structured, evidence-led debate for everyone. Here's what we're building, why it matters, and what comes next."
 tags: ["product", "launch"]
-author: "debate.report Team"
+author: "new.vote Team"
 ---
 
 ## Why structured debate matters
 
-The public square is noisier than ever, but signal is scarce. Social media rewards provocation over precision. Comment threads collapse into assertion wars. We built debate.report because we believe better arguments, properly structured, change minds — and that the infrastructure to support them barely exists.
+The public square is noisier than ever, but signal is scarce. Social media rewards provocation over precision. Comment threads collapse into assertion wars. We built new.vote because we believe better arguments, properly structured, change minds — and that the infrastructure to support them barely exists.
 
-## What makes debate.report different
+## What makes new.vote different
 
 Every claim in a debate on our platform sits inside a tree:
 

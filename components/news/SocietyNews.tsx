@@ -4,8 +4,9 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Magazine, type Story } from './Tiles';
 import StoryModal from './StoryModal';
+import Research, { type Paper } from './Research';
 
-type Edition = { id: string; edition_date: string; cadence: string; overview: string | null; items: Story[]; created_at: string };
+type Edition = { id: string; edition_date: string; cadence: string; overview: string | null; items: Story[]; papers?: Paper[]; created_at: string };
 type Data = {
   society: { id: number; name: string };
   title: string; cadence: string; publishTime: string; publishWeekday: number;
@@ -110,10 +111,13 @@ export default function SocietyNews({ societyId }: { societyId: number }) {
           <Empty>
             {data.enabled ? `The first edition will be published ${schedule}.` : 'News is paused for this Society.'}
           </Empty>
-        ) : edition.items.length === 0 ? (
+        ) : edition.items.length === 0 && !edition.papers?.length ? (
           <Empty>Nothing significant in this edition.</Empty>
         ) : (
-          <Magazine items={edition.items} onOpen={setOpen} />
+          <>
+            {edition.items.length > 0 && <Magazine items={edition.items} onOpen={setOpen} />}
+            <Research papers={edition.papers ?? []} societyId={societyId} canPost={data.canPost} canModerate={data.canModerate} />
+          </>
         )}
       </div>
 

@@ -12,10 +12,12 @@ import UpdateModal          from '@/components/chamber/UpdateModal';
 import CreateStatementModal from '@/components/chamber/CreateStatementModal';
 import AnalysisModal        from '@/components/chamber/AnalysisModal';
 import FlagModal            from '@/components/chamber/FlagModal';
-import FooterModals, { type FooterModal } from '@/components/FooterModals';
 import ArgueModal    from '@/components/chamber/ArgueModal';
 import ScienceModal  from '@/components/chamber/ScienceModal';
 import type { ChamberData, FullStatement, Resolution } from '@/components/chamber/types';
+import { fetchChamber, openDebateText, rememberStoredTitle } from '@/components/chamber/sealedDebate';
+import SecureAccessDialog from '@/components/sealed/SecureAccessDialog';
+import { useSecureAccess } from '@/components/sealed/useSecureAccess';
 import type { ChamberStatement, ChamberRelationship, ChamberGraphHandle } from '@/components/chamber/ChamberGraph';
 
 
@@ -190,7 +192,7 @@ function MobileDetailSheet({ statement, user, rightPanel, flagRefreshSignal, sci
       className="sm:hidden fixed inset-x-0 bottom-7 z-50 flex flex-col"
       style={{ height: '72vh', transform: `translateY(${translateY})`, transition }}
     >
-      <div className="bg-[#0c1322] border-t border-slate-700 rounded-t-2xl flex flex-col h-full shadow-2xl">
+      <div className="bg-dr-card border-t border-slate-700 rounded-t-2xl flex flex-col h-full shadow-2xl">
         {/* Drag handle row */}
         <div
           className="relative flex items-center justify-center px-4 py-3 border-b border-slate-800 flex-shrink-0"
@@ -274,11 +276,14 @@ function ChamberInner() {
   const [createTarget,        setCreateTarget]        = useState<string | null>(null);
   const [createTargetType,    setCreateTargetType]    = useState<string | null>(null);
   const [createTargetDirection, setCreateTargetDirection] = useState<'for' | 'against' | null | undefined>(undefined);
-  const [footerModal,         setFooterModal]         = useState<FooterModal>(null);
   const [argueTargetId,       setArgueTargetId]       = useState<string | null>(null);
   const [analyseTargetId,     setAnalyseTargetId]     = useState<string | null>(null);
   const [listSheetOpen,       setListSheetOpen]       = useState(false);
   const [listSheetMetrics,    setListSheetMetrics]    = useState(false);
+  // Sealed debates: secure access to open them, set up or unlocked here
+  const access = useSecureAccess();
+  const [accessDialog, setAccessDialog] = useState<'setup' | 'unlock' | null>(null);
+  const [reloadV, setReloadV] = useState(0);
 
   // ── Load debate
   useEffect(() => {
@@ -291,19 +296,24 @@ function ChamberInner() {
     setLoading(true); setError(''); setAccess403(null);
     setSelectedId(null); setRightPanel(null); setDetailOpen(false);
     setMetrics(null); setIsFavourite(false);
-    fetch(`/api/chamber/${resolutionParam}`)
-      .then(async r => {
-        const d = await r.json();
-        if (r.status === 403 && d.debateVisibility) {
-          setAccess403({ debateVisibility: d.debateVisibility });
+    fetchChamber(resolutionParam)
+      .then(({ status, data: d, body }) => {
+        if (status === 403 && body.debateVisibility) {
+          setAccess403({ debateVisibility: body.debateVisibility as string });
           return;
         }
-        if (!r.ok) throw new Error(d.error ?? 'Not found');
+        if (!d) throw new Error((body.error as string) ?? 'Not found');
         setData(d);
       })
       .catch(e => setError(typeof e === 'string' ? e : e?.message ?? 'Could not load debate'))
       .finally(() => setLoading(false));
-  }, [resolutionParam]);
+  }, [resolutionParam, reloadV]);
+
+  // A sealed debate opened before secure access was unlocked here: open it again once it is
+  useEffect(() => {
+    if (data?.sealed && !data.canWriteSealed && access.status === 'ready') setReloadV(v => v + 1);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [access.status]);
 
   // ── Always load metrics when debate is loaded
   useEffect(() => {
@@ -469,16 +479,18 @@ function ChamberInner() {
     statement: any,
     relationship: ChamberRelationship,
   ) => {
+    // Sealed debates: the server echoes what was sent (sealed), so open it here
+    rememberStoredTitle(statement.id, statement.stat_title ?? '');
     setData(prev => {
       if (!prev) return prev;
       const newFull: FullStatement = {
         id:               statement.id,
         stat_type:        statement.stat_type,
-        stat_title:       statement.stat_title,
+        stat_title:       openDebateText(statement.stat_title),
         stat_direction:   statement.stat_direction ?? null,
         retracted_at:     statement.retracted_at ?? null,
         created_by:       statement.created_by ?? null,
-        stat_description: statement.stat_description ?? null,
+        stat_description: openDebateText(statement.stat_description ?? null),
         created_at:       statement.created_at ?? new Date().toISOString(),
         creator_handle:   user?.handle ?? null,
         agree_count:      0,
@@ -518,9 +530,10 @@ function ChamberInner() {
     });
   }, []);
 
-  const canArgue   = user?.tier === 'debater' || user?.tier === 'moderator';
+  // AI features are off in sealed debates (the server can't read them)
+  const canArgue   = !data?.sealed && (user?.tier === 'debater' || user?.tier === 'moderator');
   // Formerly paid-plan only; Voters and above get it now that those tiers are free
-  const canAnalyse = ['voter', 'debater', 'moderator'].includes(user?.tier ?? '');
+  const canAnalyse = !data?.sealed && ['voter', 'debater', 'moderator'].includes(user?.tier ?? '');
   // can_set_visibility = the viewer moderates this debate's Society
   const canPurgeRetracted = !!data?.resolution.can_set_visibility;
 
@@ -531,7 +544,7 @@ function ChamberInner() {
     fetch(`/api/debates/${resolutionParam}/purge-retracted`, { method: 'POST' })
       .then(async r => {
         if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error ?? 'Failed'); }
-        return fetch(`/api/chamber/${resolutionParam}`).then(r2 => r2.json());
+        return fetchChamber(resolutionParam).then(x => x.data);
       })
       .then((d: ChamberData | null) => { if (d) setData(d); setShowRetracted(false); })
       .catch(e => alert(e?.message ?? 'Could not delete retracted statements'));
@@ -546,7 +559,7 @@ function ChamberInner() {
     })
       .then(async r => {
         if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error ?? 'Failed'); }
-        return fetch(`/api/chamber/${resolutionParam}`).then(r2 => r2.json());
+        return fetchChamber(resolutionParam).then(x => x.data);
       })
       .then((d: ChamberData | null) => { if (d) setData(d); })
       .catch(e => alert(e?.message ?? 'Could not update visibility'));
@@ -642,6 +655,18 @@ function ChamberInner() {
           onOpenMetricsSheet={() => { setListSheetMetrics(true); setListSheetOpen(true); }}
           canAnalyse={canAnalyse}
         />
+
+        {accessDialog && <SecureAccessDialog mode={accessDialog} onDone={() => { setAccessDialog(null); setReloadV(v => v + 1); }} onClose={() => setAccessDialog(null)} />}
+        {data?.sealed && (
+          <div className="flex-shrink-0 border-b border-emerald-500/20 bg-emerald-500/5 px-4 py-1.5 text-xs text-slate-300">
+            <span className="font-semibold text-emerald-300">🔐 Sealed debate:</span>{' '}arguments, chat and reasons for votes are end-to-end encrypted, so only
+            the Society&apos;s members can read them, not new.vote. Who voted which way is still visible to the server, but not what on. AI features are off.
+            {access.status === 'signed-out' && <> Log in to read it.</>}
+            {access.status === 'none' && <> <button onClick={() => setAccessDialog('setup')} className="font-semibold text-blue-300 hover:underline">Set up secure access</button> to read it.</>}
+            {access.status === 'locked' && <> <button onClick={() => setAccessDialog('unlock')} className="font-semibold text-blue-300 hover:underline">Unlock secure access</button> on this device to read it.</>}
+            {access.status === 'ready' && !data.canWriteSealed && <span className="text-amber-200"> Waiting for access: another member&apos;s browser shares the key next time they open a debate here.</span>}
+          </div>
+        )}
 
         <div className="flex-1 flex overflow-hidden min-h-0">
 
@@ -887,15 +912,12 @@ function ChamberInner() {
       <div className="dr-pin-shift fixed bottom-0 left-0 right-0 z-40 h-7 border-t border-slate-800/60 bg-[#04060b] flex items-center justify-between px-4 text-xs text-slate-600">
         <span>© new.vote {new Date().getFullYear()}</span>
         <nav className="flex items-center gap-4">
-          {(['about', 'contact', 'terms', 'privacy'] as FooterModal[]).map(k => (
-            <button key={k!} onClick={() => setFooterModal(k)} className="hover:text-slate-400 transition-colors capitalize">
-              {k === 'terms' ? 'Terms' : k === 'privacy' ? 'Privacy' : k === 'contact' ? 'Contact' : 'About'}
-            </button>
+          {([['/about', 'About'], ['/contact', 'Contact'], ['/terms', 'Terms'], ['/privacy', 'Privacy']] as const).map(([href, label]) => (
+            <a key={href} href={href} target="_blank" rel="noopener" className="hover:text-slate-400 transition-colors">{label}</a>
           ))}
         </nav>
       </div>
 
-      <FooterModals modal={footerModal} onClose={() => setFooterModal(null)} />
 
       {showSwitchboard && (
         <Switchboard
@@ -930,7 +952,7 @@ function ChamberInner() {
       {descPopupId && descPopupStatement && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-[2px]" onClick={() => setDescPopupId(null)} />
-          <div className="relative z-10 w-full max-w-xl rounded-2xl border border-slate-700 bg-[#0c1322] shadow-2xl flex flex-col overflow-hidden max-h-[80vh]">
+          <div className="relative z-10 w-full max-w-xl rounded-2xl border border-slate-700 bg-dr-card shadow-2xl flex flex-col overflow-hidden max-h-[80vh]">
             <div className="flex items-start justify-between px-5 py-4 border-b border-slate-800 flex-shrink-0">
               <div className="min-w-0 pr-4">
                 <p className="text-xs font-bold uppercase tracking-widest text-amber-400 mb-1">Description</p>
@@ -967,9 +989,8 @@ function ChamberInner() {
             onStatementsCreated={() => {
               refreshMetrics();
               if (resolutionParam) {
-                fetch(`/api/chamber/${resolutionParam}`)
-                  .then(r => r.ok ? r.json() : null)
-                  .then((d: ChamberData | null) => { if (d) setData(d); })
+                fetchChamber(resolutionParam)
+                  .then(({ data: d }) => { if (d) setData(d); })
                   .catch(() => {});
               }
             }}

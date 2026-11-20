@@ -7,6 +7,7 @@ import pool from '@/lib/db';
 import DateFilter from '@/components/scotparl/DateFilter';
 import ActivityList from '@/components/scotparl/ActivityList';
 import { getSession } from '@/lib/auth';
+import { isModeratorAccount, ownedSocietyIds } from '@/lib/roles';
 import { viewableResolutionSql } from '@/lib/debateAccess';
 import { openDeep } from '@/lib/societyCrypto';
 import { sysAdminSocietySql } from '@/lib/breakGlass';
@@ -21,12 +22,12 @@ export const dynamic = 'force-dynamic';
 // Open-debate statement-type lozenges — one count per Public Forum argument
 // type, across every resolution that isn't closed.
 type Society = {
-  id: number; name: string; is_public: boolean; visibility: 'public' | 'apply' | 'invite'; is_default: boolean;
+  id: number; name: string; subdomain: string | null; is_public: boolean; visibility: 'public' | 'apply' | 'invite'; is_default: boolean;
   hero_text: string | null; hero_image: string | null; description: string | null;
 };
 
 async function getSocieties(): Promise<Society[]> {
-  const { rows } = await pool.query('SELECT id, name, is_public, visibility, is_default, hero_text, hero_image, description FROM customers ORDER BY is_default DESC, name');
+  const { rows } = await pool.query('SELECT id, name, subdomain, is_public, visibility, is_default, hero_text, hero_image, description FROM customers ORDER BY is_default DESC, name');
   return rows;
 }
 
@@ -173,8 +174,6 @@ export default async function ScotparlPage({
     ? new Date(since).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
     : null;
 
-  const publicSocieties = societies.filter(s => s.is_public);
-  const privateSocieties = societies.filter(s => !s.is_public);
 
   // Clicking a society in the nav lands here — a dashboard scoped to just
   // that one, with its own debates to pick from, instead of the all-societies
@@ -200,9 +199,9 @@ export default async function ScotparlPage({
             <p className="text-slate-500 mt-2 text-xs uppercase tracking-wider font-semibold">{visibilityLabel}</p>
           </div>
           <div className={hasAside ? 'grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] items-start' : ''}>
-            <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-6 space-y-4">
+            <div className="rounded-2xl border border-slate-800 bg-dr-card p-6 space-y-4">
               <p className="text-sm text-slate-300">
-                This Society&apos;s debates are open to its members. Ask to join and a moderator will review your request.
+                This Society&apos;s discussions, events, projects, documents and debates are open to its members. Ask to join and a moderator will review your request.
               </p>
               <JoinSocietyButton societyId={activeSociety.id} loggedIn={!!session} pending={access.pendingRequest} />
             </div>
@@ -213,7 +212,7 @@ export default async function ScotparlPage({
                   <img src={hero_image} alt={activeSociety.name} className="w-full max-h-[28rem] rounded-2xl border border-slate-800 object-cover" />
                 )}
                 {description && (
-                  <div className="rounded-2xl border border-slate-800 bg-[#0c1322] p-5">
+                  <div className="rounded-2xl border border-slate-800 bg-dr-card p-5">
                     <p className="text-sm leading-relaxed text-slate-300 whitespace-pre-line">{description}</p>
                   </div>
                 )}
@@ -228,11 +227,19 @@ export default async function ScotparlPage({
     redirect(`/society/${activeSociety.id}`);
   }
 
+  // The overview is for Moderator accounts (about the Societies they own) and Sys Admin (every Society)
+  if (!isSysAdmin && !(session && await isModeratorAccount(session.sub))) redirect('/');
+  const owned = isSysAdmin ? null : new Set(await ownedSocietyIds(session!.sub));
+  const mine = societies.filter(s => !owned || owned.has(s.id));
+  const minePublic = mine.filter(s => s.is_public);
+  const minePrivate = mine.filter(s => !s.is_public);
+
   const renderGroup = (metricsMap: Map<number, Metrics> | null, label: string) => (
     <div className="space-y-3">
       <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">{label}</p>
+      {mine.length === 0 && <p className="text-sm text-slate-500">You don’t own a Society yet. Create one in Manage Societies.</p>}
       <div className="grid gap-3 sm:grid-cols-2">
-        {publicSocieties.map(s => (
+        {mine.map(s => (
           <SocietySection
             key={s.id}
             title={s.name}
@@ -240,21 +247,22 @@ export default async function ScotparlPage({
             lozenges={lozengesBySociety.get(s.id) ?? emptyLozenges()}
             isSysAdmin={isSysAdmin}
             societyId={s.id}
+            slug={s.subdomain}
           />
         ))}
       </div>
-      <SocietySection
-        title="All Public Societies"
-        metrics={publicSocieties.reduce((acc, s) => addMetrics(acc, metricsMap?.get(s.id) ?? emptyMetrics()), emptyMetrics())}
+      {minePublic.length > 0 && <SocietySection
+        title={owned ? 'All your public Societies' : 'All public Societies'}
+        metrics={minePublic.reduce((acc, s) => addMetrics(acc, metricsMap?.get(s.id) ?? emptyMetrics()), emptyMetrics())}
         lozenges={null}
         isSysAdmin={isSysAdmin}
         highlight
         societyId="all"
-      />
-      {isSysAdmin && privateSocieties.length > 0 && (
+      />}
+      {minePrivate.length > 0 && (
         <SocietySection
-          title="All Private Societies"
-          metrics={privateSocieties.reduce((acc, s) => addMetrics(acc, metricsMap?.get(s.id) ?? emptyMetrics()), emptyMetrics())}
+          title={owned ? 'All your private Societies' : 'All private Societies'}
+          metrics={minePrivate.reduce((acc, s) => addMetrics(acc, metricsMap?.get(s.id) ?? emptyMetrics()), emptyMetrics())}
           lozenges={null}
           isSysAdmin={isSysAdmin}
           societyId="all"
@@ -271,7 +279,7 @@ export default async function ScotparlPage({
         <div>
           <h1 className="text-2xl font-bold text-slate-100">Overview</h1>
           <p className="text-slate-400 mt-1 text-sm">
-            Activity across debates and votes, by society.
+            {owned ? 'The Societies you own' : 'Every Society'}: debates, votes, polls, discussions, documents, events, projects and principles.
           </p>
         </div>
         <DateFilter since={since ?? undefined} pathname="/scotparl" isLoggedIn={isLoggedIn} />
