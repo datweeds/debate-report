@@ -30,6 +30,7 @@ export async function GET() {
      WHERE  s.stat_type = 'resolution'
        AND  s.stat_status IN ('active', 'closed')
        AND  s.stat_hidden IS NOT TRUE
+       AND  c.status IS DISTINCT FROM 'closed'   -- closed Societies are on no list
        AND  (($2::boolean IS TRUE AND ${sysAdminSocietySql('s.customer_id', '$1::text')}) OR ${listableResolutionSql('s', '$1::text')})
      GROUP  BY s.id, s.vote_for, s.vote_against, c.name, ss.item_id
      ORDER  BY s.created_at DESC`,

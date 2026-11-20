@@ -38,11 +38,11 @@ export async function recryptRow(q: Q, table: string, id: string, cols: string[]
 
 /** After a document row and its file moved or were copied from Society `from` to `to`. */
 export async function recryptDocument(q: Q, docId: string, from: number, to: number) {
-  const { rows: [d] } = await q.query('SELECT title, description, url, file_name, stored_name FROM documents WHERE id = $1', [docId]);
+  const { rows: [d] } = await q.query('SELECT title, description, url, file_name, body, stored_name FROM documents WHERE id = $1', [docId]);
   if (!d) return;
-  await q.query('UPDATE documents SET title = $2, description = $3, url = $4, file_name = $5 WHERE id = $1', [
+  await q.query('UPDATE documents SET title = $2, description = $3, url = $4, file_name = $5, body = $6 WHERE id = $1', [
     docId, await recrypt(from, to, d.title), await recrypt(from, to, d.description),
-    await recrypt(from, to, d.url), await recrypt(from, to, d.file_name),
+    await recrypt(from, to, d.url), await recrypt(from, to, d.file_name), await recrypt(from, to, d.body),
   ]);
   if (d.stored_name) await recryptFile(from, to, d.stored_name);
 }
@@ -56,7 +56,7 @@ const TARGETS: { table: string; cols: string[]; society: string; join?: string; 
   { table: 'poll_ballots', cols: ['response'], society: 'sp.customer_id', join: 'JOIN society_polls sp ON sp.id = t.poll_id', always: true },
   { table: 'poll_codes', cols: ['label'], society: 'sp.customer_id', join: 'JOIN society_polls sp ON sp.id = t.poll_id', always: true },
   { table: 'discussion_posts', cols: ['body'], society: 'th.customer_id', join: 'JOIN discussion_threads th ON th.id = t.thread_id', always: true },
-  { table: 'documents', cols: ['title', 'description', 'url', 'file_name'], society: 't.customer_id' },
+  { table: 'documents', cols: ['title', 'description', 'url', 'file_name', 'body'], society: 't.customer_id' },
   { table: 'document_folders', cols: ['name'], society: 't.customer_id' },
   { table: 'society_events', cols: ['title', 'description', 'location'], society: 't.customer_id' },
   { table: 'society_principles', cols: ['title', 'body', 'grounding', 'section'], society: 'v.customer_id',
@@ -64,6 +64,9 @@ const TARGETS: { table: string; cols: string[]; society: string; join?: string; 
   { table: 'society_principle_versions', cols: ['change_note'], society: 't.customer_id' },
   { table: 'society_principle_reviews', cols: ['request_text'], society: 't.customer_id' },
   { table: 'projects', cols: ['name', 'description'], society: 't.customer_id' },
+  { table: 'society_tasks', cols: ['name', 'description', 'notes'], society: 't.customer_id', always: true },
+  { table: 'task_categories', cols: ['name'], society: 't.customer_id', always: true },
+  { table: 'task_priorities', cols: ['name'], society: 't.customer_id' },
   { table: 'project_tasks', cols: ['name', 'description', 'comments'], society: 'p.customer_id', join: 'JOIN projects p ON p.id = t.project_id' },
   { table: 'project_status_reports', cols: ['body'], society: 'p.customer_id',
     join: 'JOIN project_tasks k ON k.id = t.task_id JOIN projects p ON p.id = k.project_id' },

@@ -12,6 +12,8 @@ type ScanResult = { flagged: boolean; flags: string[] };
 
 async function callScanner(text: string): Promise<ScanResult | null> {
   if (!SCANNER_URL) return null;
+  // Rich text (notes) is checked as plain words, without its HTML tags
+  if (/^\s*</.test(text)) text = text.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim();
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (SCANNER_KEY) headers['X-Api-Key'] = SCANNER_KEY;

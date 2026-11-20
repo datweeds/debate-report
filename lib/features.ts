@@ -9,6 +9,7 @@ export const FEATURES = [
   { key: 'meet',        slug: 'meet',        label: 'Meet',        blurb: 'Audio and video rooms, optionally end-to-end encrypted.' },
   { key: 'documents',   slug: 'documents',   label: 'Documents',   blurb: 'Shared files and links, in folders.' },
   { key: 'events',      slug: 'events',      label: 'Events',      blurb: 'A calendar of the Society’s events.' },
+  { key: 'tasks',       slug: 'tasks',       label: 'Tasks',       blurb: 'Each member’s own quick task list, with Project Tasks alongside.' },
   { key: 'projects',    slug: 'projects',    label: 'Projects',    blurb: 'Projects with tasks, status reports and risk logs.' },
   { key: 'principles',  slug: 'principles',  label: 'Principles',  blurb: 'The rules and aspirations the Society runs by, in versions.' },
 ] as const;
@@ -21,7 +22,7 @@ export const featureBySlug = (slug: string) => FEATURES.find(f => f.slug === slu
 const API_SEGMENTS: Record<string, FeatureKey> = {
   threads: 'discussions', posts: 'discussions',
   documents: 'documents', folders: 'documents',
-  events: 'events', projects: 'projects', principles: 'principles',
+  events: 'events', tasks: 'tasks', projects: 'projects', principles: 'principles',
   polls: 'polls', rtc: 'meet', news: 'news',
 };
 export function featureOfApiPath(pathname: string): FeatureKey | null {

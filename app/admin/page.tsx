@@ -7,201 +7,9 @@ import { useEffect, useState, useCallback } from 'react';
 import SocietyImageField from '@/components/societies/SocietyImageField';
 import PrincipleForm, { CATEGORY_META, type PrincipleFields } from '@/components/principles/PrincipleForm';
 import Link from 'next/link';
+import AnalyticsView, { type Stats } from '@/components/analytics/AnalyticsView';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-type Series = { label: string; color: string; data: { month: string; count: number }[] };
-type Metric = { key: string; label: string; total: number; parts: { label: string; color: string; value: number }[]; series: Series[]; error?: boolean };
-interface Stats {
-  metrics: Metric[];
-  popularDebates: { id: string; stat_title: string; child_count: number; votes: number }[];
-  staleDebates: { id: string; stat_title: string; idle_days: number }[];
-  server: { uptimeSeconds: number; memoryMB: number };
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function fmtUptime(s: number) {
-  const d = Math.floor(s / 86400);
-  const h = Math.floor((s % 86400) / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m`;
-}
-
-// ── Chart: one line per part, last 12 months ─────────────────────────────────
-
-function MetricChart({ series }: { series: Series[] }) {
-  const months = series[0]?.data.map(d => d.month) ?? [];
-  if (!months.length) return <p className="py-6 text-center text-xs text-slate-600">No data yet</p>;
-  const max = Math.max(1, ...series.flatMap(s => s.data.map(d => d.count)));
-  const W = 640, H = 180, L = 32, R = 12, T = 12, B = 22;
-  const x = (i: number) => L + (i / Math.max(months.length - 1, 1)) * (W - L - R);
-  const y = (n: number) => H - B - (n / max) * (H - T - B);
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-48 w-full" role="img" aria-label="Last 12 months">
-      {[0, 0.5, 1].map(f => (
-        <g key={f}>
-          <line x1={L} x2={W - R} y1={y(max * f)} y2={y(max * f)} stroke="#334155" strokeOpacity="0.5" strokeDasharray={f ? '3 4' : undefined} />
-          <text x={L - 6} y={y(max * f) + 3} fontSize="9" fill="#64748b" textAnchor="end">{Math.round(max * f)}</text>
-        </g>
-      ))}
-      {months.map((m, i) => (
-        <text key={m} x={x(i)} y={H - 6} fontSize="9" fill="#64748b" textAnchor="middle">{m}</text>
-      ))}
-      {series.map(s => {
-        const path = s.data.map((d, i) => `${i ? 'L' : 'M'} ${x(i)} ${y(d.count)}`).join(' ');
-        return (
-          <g key={s.label}>
-            <path d={path} fill="none" stroke={s.color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-            {s.data.map((d, i) => <circle key={i} cx={x(i)} cy={y(d.count)} r="2.5" fill={s.color}><title>{`${s.label}, ${d.month}: ${d.count}`}</title></circle>)}
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
-
-// ── Analytics tab ─────────────────────────────────────────────────────────────
-
-function AnalyticsTab({ stats, staleDays, setStaleDays }: {
-  stats: Stats;
-  staleDays: number;
-  setStaleDays: (n: number) => void;
-}) {
-  const filteredStale = stats.staleDebates.filter(d => d.idle_days >= staleDays);
-  const [open, setOpen] = useState<string | null>(null);   // the metric whose chart is shown
-  const shown = stats.metrics.find(m => m.key === open);
-
-  return (
-    <div className="space-y-6">
-      {/* Metric tiles: click one for its chart */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        {stats.metrics.map(m => {
-          const active = open === m.key;
-          return (
-            <button key={m.key} onClick={() => setOpen(active ? null : m.key)} aria-expanded={active}
-              title={active ? 'Hide chart' : 'Show chart'}
-              className={`card-dr p-4 text-left transition-colors ${active ? 'ring-1 ring-blue-500/60 bg-blue-500/5' : 'hover:bg-blue-500/5'}`}>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{m.label}</p>
-              <p className="mt-1 text-2xl font-extrabold tabular-nums text-slate-100">{m.error ? '–' : m.total.toLocaleString()}</p>
-              {m.parts.length > 1 && (
-                <p className="mt-1 space-x-2 text-[11px] text-slate-400">
-                  {m.parts.map(p => (
-                    <span key={p.label} className="whitespace-nowrap">
-                      <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle" style={{ background: p.color }} />
-                      {p.label} {p.value.toLocaleString()}
-                    </span>
-                  ))}
-                </p>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {shown && (
-        <div className="card-dr p-5">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-slate-200">{shown.label}: new each month, last 12 months</h2>
-            <div className="flex flex-wrap gap-3 text-xs text-slate-400">
-              {shown.series.map(s => (
-                <span key={s.label} className="flex items-center gap-1.5">
-                  <span className="inline-block h-2 w-3 rounded-sm" style={{ background: s.color }} />{s.label}
-                </span>
-              ))}
-              <button onClick={() => setOpen(null)} className="text-slate-500 hover:text-slate-300">Close</button>
-            </div>
-          </div>
-          <MetricChart series={shown.series} />
-        </div>
-      )}
-
-      {/* Popular debates */}
-      <div className="card-dr p-6">
-        <h2 className="text-sm font-semibold text-slate-200 mb-4">Most active debates</h2>
-        {stats.popularDebates.length === 0 ? (
-          <p className="text-xs text-slate-600">No debates yet</p>
-        ) : (
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-slate-500 border-b border-slate-800">
-                <th className="text-left pb-2 font-medium">Debate</th>
-                <th className="text-right pb-2 font-medium">Statements</th>
-                <th className="text-right pb-2 font-medium">Votes</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800">
-              {stats.popularDebates.map(d => (
-                <tr key={d.id} className="hover:bg-white/2">
-                  <td className="py-2 text-slate-300 pr-4">{d.stat_title}</td>
-                  <td className="py-2 text-right text-slate-400">{d.child_count}</td>
-                  <td className="py-2 text-right text-slate-400">{d.votes}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* Stale debates */}
-      <div className="card-dr p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-slate-200">Stale debates</h2>
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-slate-500">No activity for</label>
-            <input
-              type="number"
-              value={staleDays}
-              onChange={e => setStaleDays(Number(e.target.value))}
-              min={1} max={365}
-              className="w-16 rounded border border-slate-700 bg-dr-surface px-2 py-1 text-xs text-slate-300 text-right"
-            />
-            <span className="text-xs text-slate-500">days</span>
-          </div>
-        </div>
-        {filteredStale.length === 0 ? (
-          <p className="text-xs text-slate-600">No stale debates</p>
-        ) : (
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-slate-500 border-b border-slate-800">
-                <th className="text-left pb-2 font-medium">Debate</th>
-                <th className="text-right pb-2 font-medium">Idle (days)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800">
-              {filteredStale.map(d => (
-                <tr key={d.id}>
-                  <td className="py-2 text-slate-300">{d.stat_title}</td>
-                  <td className="py-2 text-right text-amber-400">{d.idle_days}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* System health */}
-      <div className="card-dr p-6">
-        <h2 className="text-sm font-semibold text-slate-200 mb-4">System health</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
-          <div>
-            <p className="text-slate-500">Database</p>
-            <p className="text-emerald-400 font-medium mt-0.5">● Connected</p>
-          </div>
-          <div>
-            <p className="text-slate-500">Server uptime</p>
-            <p className="text-slate-300 font-medium mt-0.5">{fmtUptime(stats.server.uptimeSeconds)}</p>
-          </div>
-          <div>
-            <p className="text-slate-500">Memory (RSS)</p>
-            <p className="text-slate-300 font-medium mt-0.5">{stats.server.memoryMB} MB</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+// Analytics: components/analytics/AnalyticsView.tsx (shared with Society Admin)
 
 // ── Customers tab ─────────────────────────────────────────────────────────────
 
@@ -1062,7 +870,6 @@ export default function AdminPage() {
   const [tab,      setTab]      = useState<AdminTab>('analytics');
   const [stats,    setStats]    = useState<Stats | null>(null);
   const [statsErr, setStatsErr] = useState('');
-  const [staleDays, setStaleDays] = useState(60);
 
   // ?tab=customers (e.g. "Edit society" on a society dashboard) opens that tab.
   useEffect(() => {
@@ -1129,7 +936,7 @@ export default function AdminPage() {
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
             </div>
           ) : (
-            <AnalyticsTab stats={stats} staleDays={staleDays} setStaleDays={setStaleDays} />
+            <AnalyticsView stats={stats} />
           )
         )}
 

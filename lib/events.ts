@@ -1,5 +1,21 @@
 // Society calendar events: input validation and calendar (.ics) export.
 
+// Who sees members' responses ("Planning to attend" / "Not coming"); see migration 078.
+export const RESPONSE_VISIBILITIES = ['all', 'counts', 'author', 'off'] as const;
+export type ResponseVisibility = typeof RESPONSE_VISIBILITIES[number];
+export type Responses = {
+  visibility: ResponseVisibility; mine: 'going' | 'not_going' | null;
+  going: number | null; notGoing: number | null;            // null: hidden from this viewer
+  names: { going: string[]; notGoing: string[] } | null;    // handles, for those allowed to see them
+  canRespond: boolean; over: boolean; isAuthor: boolean;
+};
+
+// An event has finished once its end (or start, if it has none) has passed; all-day events last the whole day.
+export function eventOver(e: { starts_at: Date | string; ends_at: Date | string | null; all_day: boolean }): boolean {
+  const end = new Date(e.ends_at ?? e.starts_at).getTime() + (e.all_day ? 86400000 : 0);
+  return end < Date.now();
+}
+
 export function parseTime(v: unknown): Date | null {
   if (typeof v !== 'string') return null;
   const d = new Date(v);
@@ -10,7 +26,7 @@ export function parseTime(v: unknown): Date | null {
 // `sealed`: the calendar is sealed, so title, description and location arrive
 // already encrypted in the browser and must pass this check (they're never cut).
 export function readEvent(body: Record<string, unknown>, sealed?: (v: unknown) => boolean):
-  { ok: true; title: string; description: string | null; location: string | null; startsAt: Date; endsAt: Date | null; allDay: boolean }
+  { ok: true; title: string; description: string | null; location: string | null; startsAt: Date; endsAt: Date | null; allDay: boolean; responseVisibility: ResponseVisibility }
   | { ok: false; error: string } {
   if (sealed) {
     const opt = (v: unknown) => v == null || v === '' || sealed(v);
@@ -34,6 +50,7 @@ export function readEvent(body: Record<string, unknown>, sealed?: (v: unknown) =
     description: text(body.description, 5000),
     location: text(body.location, 500),
     startsAt, endsAt, allDay: body.allDay === true,
+    responseVisibility: (RESPONSE_VISIBILITIES as readonly unknown[]).includes(body.responseVisibility) ? body.responseVisibility as ResponseVisibility : 'counts',
   };
 }
 

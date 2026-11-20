@@ -58,3 +58,7 @@ export function formatBytes(n: number) {
   if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
   return `${(n / 1024 / 1024).toFixed(1).replace(/\.0$/, '')} MB`;
 }
+
+// Notes: their text is HTML written on the site. Sealed notes arrive encrypted (larger).
+export const NOTE_MAX_CHARS = 100_000;
+export const NOTE_SEALED_MAX = 140_000;

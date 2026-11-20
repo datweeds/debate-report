@@ -107,7 +107,7 @@ export async function sendMemberNotice({ to, subject, text }: { to: string; subj
       headers: { 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-Postmark-Server-Token': TOKEN },
       body: JSON.stringify({
         From: `${PRODUCT_NAME} <${FROM}>`, To: to, Subject: subject.slice(0, 250),
-        TextBody: `${text}\n\n— ${PRODUCT_NAME}\n${BASE_URL}/my-content`, MessageStream: 'outbound',
+        TextBody: `${text}\n\n— ${PRODUCT_NAME}\n${BASE_URL}/my-stuff`, MessageStream: 'outbound',
       }),
     });
     if (!res.ok) console.error('[member notice]', res.status, await res.text());

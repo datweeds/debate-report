@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import RichText from './RichText';
 import EmojiPicker from './EmojiPicker';
+import RefButton, { insertAtCursor } from '@/components/refs/RefButton';
 import { SEALED_LIMITS, timeAgo } from './ThreadList';
 import SecureAccessDialog from '@/components/sealed/SecureAccessDialog';
 import { useSecureAccess } from '@/components/sealed/useSecureAccess';
@@ -442,6 +443,7 @@ export default function ThreadView({ societyId, threadId }: { societyId: number;
             )}
             <div className="flex items-end gap-1.5">
               <EmojiPicker onPick={insertEmoji} />
+              <RefButton society={societyId} onPick={p => insertAtCursor(inputRef.current, body, setBody, p.url)} />
               <textarea ref={inputRef} value={body} onChange={e => setBody(e.target.value)} rows={1} maxLength={5000}
                 onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) send(); }}
                 placeholder="Write a message…"

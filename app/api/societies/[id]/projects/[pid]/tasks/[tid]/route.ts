@@ -40,7 +40,7 @@ async function handlePATCH(req: NextRequest, { params }: Params) {
   const seal = (v: string | null) => sealText(c.a.societyId, v);
   if ('comments' in b) set('comments', await seal(ptext(c, b.comments, 5000)));
   if (c.canManage) {
-    if ('name' in b) { const n = ptext(c, b.name, 200); if (!n) return NextResponse.json({ error: 'A task name is required' }, { status: 400 }); set('name', await seal(n)); }
+    if ('name' in b) { const n = ptext(c, b.name, 200); if (!n) return NextResponse.json({ error: 'A project task name is required' }, { status: 400 }); set('name', await seal(n)); }
     if ('description' in b) set('description', await seal(ptext(c, b.description, 5000)));
     const start = readDate(b.startDate), end = readDate(b.endDate), due = readDate(b.dueDate);
     const doc = await readDocumentId(c.a.societyId, b.documentId);
@@ -50,7 +50,7 @@ async function handlePATCH(req: NextRequest, { params }: Params) {
     if (end !== undefined) set('end_date', end);
     if (due !== undefined) set('due_date', due);
     const s = start !== undefined ? start : task.start_date, e = end !== undefined ? end : task.end_date;
-    if (s && e && e < s) return NextResponse.json({ error: 'The task must end after it starts' }, { status: 400 });
+    if (s && e && e < s) return NextResponse.json({ error: 'The project task must end after it starts' }, { status: 400 });
     // Its dependencies, new or existing, must agree with its (new) dates
     const deps = readDeps(b.dependencies);
     if (deps === false) return NextResponse.json({ error: 'Those dependencies weren’t understood' }, { status: 400 });

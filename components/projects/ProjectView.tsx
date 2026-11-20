@@ -22,8 +22,8 @@ type Data = {
   canManage: boolean; canModerate: boolean; canContribute: boolean; isManager: boolean; canSeal: boolean;
   reports: { id: string; body: string }[] | null;
 };
-const SEALED_PROJECT = 'Sealed project: its name, tasks, comments, status reports, RAID log and group names are end-to-end encrypted, so only members can read them, not new.vote. Dates, statuses, allocations and dependencies stay visible, so the Gantt chart and date checks work. No AI, abuse scanning or Sys Admin emergency access.';
-const TABS = [{ id: 'tasks', label: 'Tasks' }, { id: 'gantt', label: 'Gantt' }, { id: 'report', label: 'Status report & RAID' }] as const;
+const SEALED_PROJECT = 'Sealed project: its name, project tasks, comments, status reports, RAID log and group names are end-to-end encrypted, so only members can read them, not new.vote. Dates, statuses, allocations and dependencies stay visible, so the Gantt chart and date checks work. No AI, abuse scanning or Sys Admin emergency access.';
+const TABS = [{ id: 'tasks', label: 'Project tasks' }, { id: 'gantt', label: 'Gantt' }, { id: 'report', label: 'Status report & RAID' }] as const;
 
 export default function ProjectView({ societyId, projectId }: { societyId: number; projectId: string }) {
   const router = useRouter();
@@ -34,6 +34,8 @@ export default function ProjectView({ societyId, projectId }: { societyId: numbe
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState('');
   const [openTask, setOpenTask] = useState<string | null>(null);
+  const taskParam = params.get('task');
+  useEffect(() => { if (taskParam) setOpenTask(taskParam); }, [taskParam]);
   const [settings, setSettings] = useState(false);
   // A sealed project: opened here with this person's keys, and sealed on the way out (see send())
   const societyBase = `/api/societies/${societyId}`;
@@ -248,7 +250,7 @@ function ProjectSettings({ societyId, base, project, canModerate, sealing, unsea
           <button type="button" onClick={onClose} className="px-2 text-sm text-slate-500 hover:text-slate-300">Cancel</button>
           <span className="flex-1" />
           {canModerate && (
-            <button type="button" onClick={async () => { if (confirm(`Delete the project “${project.name}”, with all its tasks, reports and RAID items?`)) { const err = await send(base, 'DELETE'); if (err) setError(err); else onDeleted(); } }}
+            <button type="button" onClick={async () => { if (confirm(`Delete the project “${project.name}”, with all its project tasks, reports and RAID items?`)) { const err = await send(base, 'DELETE'); if (err) setError(err); else onDeleted(); } }}
               className="text-sm text-rose-400 hover:text-rose-300">Delete project</button>
           )}
         </div>

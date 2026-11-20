@@ -5,6 +5,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import DocViewer from './DocViewer';
 import ShareDialog from './ShareDialog';
+import NoteEditor from './NoteEditor';
+import NoteViewer from './NoteViewer';
+import RefPopup from '@/components/refs/RefPopup';
 import SecureAccessDialog from '@/components/sealed/SecureAccessDialog';
 import { useSecureAccess } from '@/components/sealed/useSecureAccess';
 import { keysFor, listKeys, newItemKeys, openItemText, sealItemText, sealItemTextOrNull, societyMembers, type ItemKeys } from '@/components/sealed/items';
@@ -12,7 +15,7 @@ import { itemAad, openBytes, sealBytes } from '@/lib/sealed/core';
 
 type Folder = { id: string; name: string; item_count: number; seal_root: string | null };
 type Item = {
-  id: string; kind: 'file' | 'link'; title: string; description: string | null; url: string | null;
+  id: string; kind: 'file' | 'link' | 'note'; title: string; description: string | null; url: string | null;
   file_name: string | null; mime_type: string | null; size_bytes: number | null; created_at: string;
   open_count: number; download_count: number; uploaded_by: string | null; uploader: string | null;
   protection: 'server' | 'sealed'; seal_root: string | null;
@@ -37,9 +40,10 @@ function bytes(n: number | null) {
 const day = (d: string) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
 function TypeIcon({ item }: { item: Item }) {
-  const label = item.kind === 'link' ? 'LINK'
+  const label = item.kind === 'link' ? 'LINK' : item.kind === 'note' ? 'NOTE'
     : (item.file_name?.split('.').pop() ?? 'FILE').toUpperCase().slice(0, 4);
   const colour = item.kind === 'link' ? 'bg-sky-500/15 text-sky-300'
+    : item.kind === 'note' ? 'bg-teal-500/15 text-teal-300'
     : item.mime_type === 'application/pdf' ? 'bg-rose-500/15 text-rose-300'
     : item.mime_type?.startsWith('image/') ? 'bg-violet-500/15 text-violet-300'
     : 'bg-emerald-500/15 text-emerald-300';
@@ -80,6 +84,11 @@ export default function DocumentsBrowser({ societyId }: { societyId: number }) {
   const [converting, setConverting] = useState<string | null>(null);
   const [viewUrl, setViewUrl] = useState<string | null>(null);
   const [sharing, setSharing] = useState<Item | null>(null);
+  // Notes: one being read, and one being written or edited
+  type NoteOpen = { id: string; title: string; body: string; byline: string; sealed: boolean; canEdit: boolean };
+  const [noteView, setNoteView] = useState<NoteOpen | null>(null);
+  const [noteEdit, setNoteEdit] = useState<{ id: string | null; title: string; body: string; folderId: string; sealRoot: string | null } | null>(null);
+  const openedNote = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     const r = await fetch(`${base}/documents${folder ? `?folder=${folder}` : ''}`);
@@ -167,6 +176,12 @@ export default function DocumentsBrowser({ societyId }: { societyId: number }) {
     for (const [n, d] of todo.entries()) {
       setConverting(`Sealing documents: ${n + 1} of ${todo.length}`);
       const meta = { title: sealItemText(k, d.title), description: sealItemTextOrNull(k, d.description) ?? '' };
+      if (d.kind === 'note') {
+        const r = await fetch(`${base}/documents/${d.id}/seal`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'seal', title: meta.title, body: d.body ? sealItemText(k, d.body) : '' }) });
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? 'A note couldn’t be sealed');
+        continue;
+      }
       if (d.kind === 'link') {
         const r = await fetch(`${base}/documents/${d.id}/seal`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'seal', ...meta, url: sealItemText(k, d.url) }) });
@@ -196,6 +211,14 @@ export default function DocumentsBrowser({ societyId }: { societyId: number }) {
       const o = (v: string | null) => openItemText(hereKeys, v);
       for (const [n, d] of todo.entries()) {
         setConverting(`Unsealing documents: ${n + 1} of ${todo.length}`);
+        if (d.kind === 'note') {
+          const [t, b] = [o(d.title), d.body ? o(d.body) : ''];
+          if (t == null || b == null) throw new Error('A note can’t be opened with your keys, so the folder can’t be unsealed from here');
+          const r = await fetch(`${base}/documents/${d.id}/seal`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'unseal', title: t, body: b }) });
+          if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error ?? 'A note couldn’t be unsealed');
+          continue;
+        }
         if (d.kind === 'link') {
           const r = await fetch(`${base}/documents/${d.id}/seal`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'unseal', title: o(d.title), description: o(d.description) ?? '', url: o(d.url) }) });
@@ -359,6 +382,62 @@ export default function DocumentsBrowser({ societyId }: { societyId: number }) {
     setEditing(null); load();
   }
 
+  // A note's text: fetched when it's opened (sealed notes are opened with this person's keys)
+  async function fetchNote(id: string, edit = false) {
+    const r = await fetch(`${base}/documents/${id}${edit ? '?edit=1' : ''}`);
+    if (!r.ok) throw new Error('This note couldn’t be opened');
+    const { note } = await r.json();
+    if (note.protection !== 'sealed') return { ...note, body: note.body ?? '' };
+    const k = note.seal_root ? rootKeys.get(note.seal_root) : undefined;
+    const title = openItemText(k, note.title), body = note.body ? openItemText(k, note.body) : '';
+    if (title == null || body == null) throw new Error('This note is sealed and can’t be opened with your keys yet');
+    return { ...note, title, body };
+  }
+  async function openNote(id: string) {
+    setError('');
+    try {
+      const n = await fetchNote(id);
+      const who = data?.items.find(i => i.id === id)?.uploader;
+      setNoteView({
+        id, title: n.title, body: n.body, sealed: n.protection === 'sealed',
+        byline: [who ? `@${who}` : '', day(n.updated_at ?? n.created_at) + (n.updated_at ? ' (edited)' : '')].filter(Boolean).join(' · '),
+        canEdit: !!data && (n.uploaded_by === data.me || data.canModerate) && (n.protection !== 'sealed' || !!rootKeys.get(n.seal_root)?.keys.size),
+      });
+    } catch (e) { setError((e as Error).message); }
+  }
+  async function editNote(id: string) {
+    setError('');
+    try {
+      const n = await fetchNote(id, true);
+      setNoteEdit({ id, title: n.title, body: n.body, folderId: n.folder_id ?? 'root', sealRoot: n.protection === 'sealed' ? n.seal_root : null });
+      if (n.protection !== 'sealed' && !allFolders.length) {
+        const r = await fetch(`${base}/folders`);
+        if (r.ok) setAllFolders((await r.json()).folders);
+      }
+    } catch (e) { setError((e as Error).message); }
+  }
+  async function saveNote(v: { title: string; body: string; folderId: string }): Promise<string | null> {
+    if (!noteEdit) return null;
+    // Sealed: a new note in a sealed folder, or an existing sealed note
+    const k = noteEdit.id ? (noteEdit.sealRoot ? rootKeys.get(noteEdit.sealRoot) : undefined) : hereKeys;
+    if ((noteEdit.sealRoot || (!noteEdit.id && hereRoot)) && !k?.keys.has(k.epoch)) return 'You don’t have this sealed folder’s current key yet';
+    const seal = (s: string) => (k ? sealItemText(k, s) : s);
+    const payload = { title: seal(v.title), body: v.body ? seal(v.body) : '' };
+    const r = noteEdit.id
+      ? await fetch(`${base}/documents/${noteEdit.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(k || v.folderId === noteEdit.folderId ? payload : { ...payload, folderId: v.folderId }) })
+      : await fetch(`${base}/documents`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ kind: 'note', ...payload, folderId: data?.folderId }) });
+    if (!r.ok) return (await r.json().catch(() => ({}))).error ?? 'Could not save the note';
+    if (noteEdit.id && noteView?.id === noteEdit.id) setNoteView({ ...noteView, title: v.title, body: v.body });
+    setNoteEdit(null); load();
+    return null;
+  }
+  function closeNote() {
+    setNoteView(null);
+    if (params.get('note')) router.replace(`/society/${societyId}/documents${folder ? `?folder=${folder}` : ''}`);
+  }
+
   async function remove(item: Item) {
     if (!confirm(`Delete "${item.title}"?`)) return;
     await fetch(`${base}/documents/${item.id}`, { method: 'DELETE' });
@@ -366,18 +445,44 @@ export default function DocumentsBrowser({ societyId }: { societyId: number }) {
   }
 
   const keysPending = (!!hereRoot || listedRoots.length > 0) && !keysReady && !keyError && (access.status === 'loading' || access.status === 'ready');
+  const noteParam = params.get('note');
+  // A reference to a file or link: its preview
+  const docParam = (() => { const d = params.get('doc'); return d && /^[0-9a-f-]{36}$/i.test(d) ? d : null; })();
+  useEffect(() => {
+    if (!noteParam || !data || keysPending || openedNote.current === noteParam) return;
+    openedNote.current = noteParam;
+    void openNote(noteParam);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [noteParam, data, keysPending]);
   if (!data || keysPending) return error ? <p className="text-sm text-rose-400">{error}</p> : <div className="h-40 rounded-2xl bg-slate-800/40 animate-pulse" />;
 
-  const openHref = (i: Item) => i.kind === 'link' ? `${base}/documents/${i.id}/open` : `${base}/documents/${i.id}/file`;
+  const openHref = (i: Item) => i.kind === 'link' ? `${base}/documents/${i.id}/open` : i.kind === 'note' ? `/society/${societyId}/documents?note=${i.id}` : `${base}/documents/${i.id}/file`;
   const canEdit = (i: Item) => i.uploaded_by === data.me || data.canModerate;
   const canDelete = (i: Item) => i.uploaded_by === data.me || data.canTakeDown;
+  // Links for people outside the Society: moderators, files only (sealed ones need this browser to hold the key)
+  const shareOutside = (i: Item) => data.canModerate && i.kind === 'file' && (i.protection !== 'sealed' || !!(i.seal_root && rootKeys.get(i.seal_root)?.keys.size));
 
   return (
     <div className="space-y-4">
+      <p className="text-sm text-slate-400">Upload from your device or create links or notes online for sharing in the society.</p>
       {viewing && (
         <DocViewer title={viewing.title} fileName={viewing.file_name} mime={viewing.mime_type}
           src={viewing.protection === 'sealed' && viewUrl ? viewUrl : `${base}/documents/${viewing.id}/file`} localFile={viewing.protection === 'sealed'}
           onClose={() => { setViewing(null); if (viewUrl) { URL.revokeObjectURL(viewUrl); setViewUrl(null); } void load(); }} />
+      )}
+      {docParam && (
+        <RefPopup r={{ society: societyId, kind: 'doc', id: docParam }}
+          onClose={() => router.replace(`/society/${societyId}/documents${folder ? `?folder=${folder}` : ''}`)} />
+      )}
+      {noteView && (
+        <NoteViewer title={noteView.title} html={noteView.body} byline={noteView.byline} sealed={noteView.sealed} onClose={closeNote}
+          onEdit={noteView.canEdit ? () => void editNote(noteView.id) : undefined} />
+      )}
+      {noteEdit && (
+        <NoteEditor key={noteEdit.id ?? 'new'} society={societyId} noteId={noteEdit.id ?? undefined} isNew={!noteEdit.id} sealed={!!(noteEdit.sealRoot || (!noteEdit.id && hereRoot))}
+          initial={{ title: noteEdit.title, body: noteEdit.body, folderId: noteEdit.folderId }}
+          folders={noteEdit.id && !noteEdit.sealRoot ? allFolders.filter(f => !(f as { sealed?: boolean }).sealed) : null}
+          onSave={saveNote} onClose={() => setNoteEdit(null)} />
       )}
       {dialog && <SecureAccessDialog mode={dialog} onDone={() => setDialog(null)} onClose={() => setDialog(null)} />}
       {hereRoot && (
@@ -419,6 +524,7 @@ export default function DocumentsBrowser({ societyId }: { societyId: number }) {
           )}
           {data.canPost && canWriteHere && (
             <>
+              <button onClick={() => { setPanel('none'); setNoteEdit({ id: null, title: '', body: '', folderId: data.folderId ?? 'root', sealRoot: null }); }} className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 hover:border-slate-500">+ Note</button>
               <button onClick={() => setPanel(panel === 'link' ? 'none' : 'link')} className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 hover:border-slate-500">+ Link</button>
               <button onClick={() => setPanel(panel === 'upload' ? 'none' : 'upload')} className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-500">Upload</button>
             </>
@@ -514,7 +620,7 @@ export default function DocumentsBrowser({ societyId }: { societyId: number }) {
       {data.folders.length === 0 && sorted.length === 0 ? (
         <div className="rounded-2xl border border-slate-800 bg-dr-card p-10 text-center text-sm text-slate-500">
           {data.path.length ? 'This folder is empty.' : 'No documents yet.'}
-          {data.canPost ? ' Upload a file or add a link.' : ''}
+          {data.canPost ? ' Upload a file, add a link or write a note.' : ''}
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-800 bg-dr-card">
@@ -564,9 +670,14 @@ export default function DocumentsBrowser({ societyId }: { societyId: number }) {
                   <div className="sm:grid sm:grid-cols-[minmax(0,1fr)_5rem_6.5rem_3.5rem_5rem_17rem] sm:items-center sm:gap-3">
                     <div className="flex min-w-0 items-center gap-3">
                       <TypeIcon item={i} />
-                      <div className="min-w-0">
+                      <div className="min-w-0" title={i.description || undefined}>
                         <a href={openHref(i)} target="_blank" rel="noopener noreferrer"
                           onClick={e => {
+                            // Notes open in a pop-up here (Ctrl/middle clicks open the page in a new tab)
+                            if (i.kind === 'note') {
+                              if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+                              e.preventDefault(); void openNote(i.id); return;
+                            }
                             // Sealed: opened here (a file in the viewer, a link at its real address)
                             if (i.protection === 'sealed') {
                               e.preventDefault();
@@ -580,14 +691,14 @@ export default function DocumentsBrowser({ societyId }: { societyId: number }) {
                           }}
                           className="block truncate text-sm font-medium text-slate-100 hover:text-blue-300">{i.protection === 'sealed' && <span className="mr-1" title="Sealed: end-to-end encrypted">🔐</span>}{i.title}</a>
                         <p className="truncate text-xs text-slate-500">
-                          {i.kind === 'link' ? (i.url?.startsWith('http') ? new URL(i.url).hostname : '') : i.file_name}
+                          {i.kind === 'link' ? (i.url?.startsWith('http') ? new URL(i.url).hostname : '') : i.kind === 'note' ? 'Note' : i.file_name}
                           {i.uploader ? ` · @${i.uploader}` : ''}
                           {i.description ? ` · ${i.description}` : ''}
                         </p>
                       </div>
                     </div>
                     {/* On phones these show as a compact line under the name */}
-                    <span className="hidden sm:block text-xs text-slate-400">{i.kind === 'file' ? bytes(i.size_bytes) : 'Link'}</span>
+                    <span className="hidden sm:block text-xs text-slate-400">{i.kind === 'file' ? bytes(i.size_bytes) : i.kind === 'note' ? 'Note' : 'Link'}</span>
                     <span className="hidden sm:block text-xs text-slate-400">{day(i.created_at)}</span>
                     <span className="hidden sm:block text-right text-xs text-slate-300 tabular-nums">{i.open_count}</span>
                     <span className="hidden sm:block text-right text-xs text-slate-300 tabular-nums">{i.kind === 'file' ? i.download_count : '—'}</span>
@@ -602,11 +713,10 @@ export default function DocumentsBrowser({ societyId }: { societyId: number }) {
                         <a href={`${base}/documents/${i.id}/file?download=1`} className="text-blue-400 hover:text-blue-300"
                           title={INLINE.has(i.mime_type ?? '') ? 'Download' : 'Download (opens as a download)'}>Download</a>
                       )}
-                      {data.canModerate && i.kind === 'file' && (i.protection !== 'sealed' || !!(i.seal_root && rootKeys.get(i.seal_root)?.keys.size)) && (
-                        <button onClick={() => setSharing(i)} className="text-emerald-300 hover:text-emerald-200" title="Make a link for people outside this Society">Share</button>
-                      )}
+                      <button onClick={() => setSharing(i)} className="text-emerald-300 hover:text-emerald-200"
+                        title={shareOutside(i) ? 'Reference it in a note, event or discussion, or make a link for people outside this Society' : 'Reference it in a note, event or discussion'}>Share</button>
                       {canSend && !hereRoot && i.protection !== 'sealed' && <button onClick={() => startSend({ type: 'doc', id: i.id, name: i.title })} className="text-violet-300 hover:text-violet-200">Move / copy</button>}
-                      {canEdit(i) && canWriteHere && <button onClick={() => startEdit(i)} className="text-slate-400 hover:text-slate-200">Edit</button>}
+                      {canEdit(i) && canWriteHere && <button onClick={() => (i.kind === 'note' ? void editNote(i.id) : startEdit(i))} className="text-slate-400 hover:text-slate-200">Edit</button>}
                       {canDelete(i) && <button onClick={() => remove(i)} className="text-rose-400 hover:text-rose-300">Delete</button>}
                     </span>
                   </div>
@@ -617,7 +727,7 @@ export default function DocumentsBrowser({ societyId }: { societyId: number }) {
         </div>
       )}
 
-      {sharing && <ShareDialog base={base} doc={sharing} plainBytes={() => plainBytes(sharing)} onClose={() => setSharing(null)} />}
+      {sharing && <ShareDialog base={base} society={societyId} outside={shareOutside(sharing)} doc={sharing} plainBytes={() => plainBytes(sharing)} onClose={() => setSharing(null)} />}
 
       {!data.canPost && (
         <p className="text-xs text-slate-500">

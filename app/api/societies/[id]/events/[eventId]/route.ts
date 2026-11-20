@@ -24,9 +24,9 @@ async function handlePATCH(req: NextRequest, { params }: Params) {
   const e = readEvent(await req.json().catch(() => ({})), sealed ? v => sealedFor(sealed, v, 30000) : undefined);
   if (!e.ok) return NextResponse.json({ error: e.error }, { status: 400 });
   await pool.query(
-    `UPDATE society_events SET title = $1, description = $2, location = $3, starts_at = $4, ends_at = $5, all_day = $6, updated_at = now()
+    `UPDATE society_events SET title = $1, description = $2, location = $3, starts_at = $4, ends_at = $5, all_day = $6, response_visibility = $8, updated_at = now()
      WHERE id = $7`,
-    [await sealText(a.societyId, e.title), await sealText(a.societyId, e.description), await sealText(a.societyId, e.location), e.startsAt, e.endsAt, e.allDay, eventId],
+    [await sealText(a.societyId, e.title), await sealText(a.societyId, e.description), await sealText(a.societyId, e.location), e.startsAt, e.endsAt, e.allDay, eventId, e.responseVisibility],
   );
   return NextResponse.json({ ok: true });
 }

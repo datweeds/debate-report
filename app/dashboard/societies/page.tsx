@@ -10,16 +10,17 @@ import FeaturesCard from '@/components/societies/FeaturesCard';
 import NewsCard from '@/components/societies/NewsCard';
 import WebAddressField from '@/components/societies/WebAddressField';
 import AccessLogCard from '@/components/societies/AccessLogCard';
+import LifecycleCard from '@/components/societies/LifecycleCard';
 
 type Visibility = 'public' | 'apply' | 'invite';
 
 type SocietyRow = {
   id: number; name: string; visibility: Visibility; hero_text: string | null;
-  member_count: number; pending_requests: number; debate_count: number;
+  member_count: number; pending_requests: number; debate_count: number; status: string | null;
 };
 
 type Detail = {
-  society: { id: number; name: string; visibility: Visibility; hero_text: string | null; hero_image: string | null; description: string | null; contact_email: string | null; is_default: boolean; disabled_sections: string[]; subdomain: string | null; allow_sealed: boolean };
+  society: { id: number; name: string; visibility: Visibility; hero_text: string | null; hero_image: string | null; description: string | null; contact_email: string | null; is_default: boolean; disabled_sections: string[]; subdomain: string | null; allow_sealed: boolean; status: string | null; is_demo: boolean };
   members: { user_id: string; joined_at: string; user_handle: string | null; user_full_name: string | null; is_moderator: boolean }[];
   requests: { id: string; user_id: string; message: string | null; created_at: string; user_handle: string | null; user_full_name: string | null }[];
   invites: { id: string; label: string | null; created_at: string; expires_at: string | null; revoked_at: string | null; use_count: number; last_used_at: string | null }[];
@@ -87,6 +88,7 @@ function ManageSocieties() {
                   }`}>
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm text-slate-200 truncate">{s.name}</span>
+                    {s.status === 'closed' && <span className="rounded border border-amber-500/40 bg-amber-500/10 px-1.5 text-[10px] font-semibold text-amber-300">Closed</span>}
                     {s.pending_requests > 0 && (
                       <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-300">{s.pending_requests}</span>
                     )}
@@ -305,6 +307,9 @@ function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void })
         </div>
       </div>
       {rowError && <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{rowError}</p>}
+      {s.status === 'closed' && (
+        <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">This Society is <strong>closed</strong>: it’s on no menu or list, and only its moderators can open it. Reopen it at the bottom of this page.</p>
+      )}
 
       <form onSubmit={save}>
         <Card title="Details" right={saved ? <span className="text-xs text-emerald-400">✓ Saved</span> : null}>
@@ -440,6 +445,9 @@ function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void })
           ))}
         </ul>
       </Card>
+
+      <LifecycleCard id={s.id} name={s.name} status={s.status ?? 'active'} onChanged={() => { load(); onChanged(); }}
+        blocked={s.is_default ? 'This is the site’s default Society, so it can’t be closed or deleted.' : s.is_demo ? 'This is the demo Society, so it can’t be closed or deleted. Ask a Sys Admin to choose another demo first.' : null} />
     </div>
   );
 }

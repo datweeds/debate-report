@@ -47,8 +47,12 @@ export async function getDebateAccess(
   if (session?.isSysAdmin) {
     if (debate.customer_id == null) return everything;
     const s = await getSocietyAccess(session, debate.customer_id);
-    if (!s || s.visibility === 'public' || s.breakGlass) return everything;
+    if (!s) return nothing;   // a closed Society
+    if (s.visibility === 'public' || s.breakGlass) return everything;
   }
+  // A closed Society (no access) hides its debates, even from their authors
+  const society = debate.customer_id != null ? await getSocietyAccess(session, debate.customer_id) : null;
+  if (debate.customer_id != null && !society) return nothing;
   if (userId && debate.created_by === userId) return everything;
   if (userId && debate.customer_id != null && await isCustomerAdmin(userId, debate.customer_id)) return everything;
 
@@ -58,10 +62,7 @@ export async function getDebateAccess(
   if (key?.resolutionIds.has(debate.id)) return everything;
 
   // Debates in an Apply or Invite Society are only for its members
-  if (debate.customer_id != null) {
-    const society = await getSocietyAccess(session, debate.customer_id);
-    if (society && !society.canEnter) return nothing;
-  }
+  if (society && !society.canEnter) return nothing;
 
   if (debate.debate_visibility === 'public') return everything;
 
@@ -97,7 +98,8 @@ export async function statementAccess(session: SessionPayload | null, statementI
 // should skip the filter for them rather than pass it here.
 
 function staffSql(res: string, uid: string): string {
-  return `${res}.created_by::text = ${uid}
+  return `(${res}.created_by::text = ${uid}
+      AND NOT EXISTS (SELECT 1 FROM customers cx WHERE cx.id = ${res}.customer_id AND cx.status = 'closed'))
     OR EXISTS (SELECT 1 FROM customer_roles cr
                WHERE cr.tenant_id = ${res}.customer_id AND cr.user_id = ${uid} AND cr.role = 'customer_admin')`;
 }

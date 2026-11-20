@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { sealText } from '@/lib/societyCrypto';
 import { societyContentAccess } from '@/lib/societies';
-import { isBrowserSealed, isHttpUrl, removeFile, saveFile, saveSealedBytes } from '@/lib/documents';
+import { NOTE_MAX_CHARS, NOTE_SEALED_MAX, isBrowserSealed, isHttpUrl, removeFile, saveFile, saveSealedBytes } from '@/lib/documents';
 import { lockSafe } from '@/lib/lockSafe';
 import { sealedFor } from '@/lib/sealed/server';
 import { sealRootOf } from '@/lib/sealed/folders';
@@ -13,6 +13,7 @@ type Params = { params: Promise<{ id: string; docId: string }> };
 // The browser sends its new details (and file), encrypted for 'seal' or plain for 'unseal':
 //   multipart { action, title, description?, fileName, file }  for a file
 //   JSON      { action, title, description?, url }              for a link
+//   JSON      { action, title, body? }                          for a note
 async function handlePOST(req: NextRequest, { params }: Params) {
   const { id, docId } = await params;
   const a = await societyContentAccess(req, id);
@@ -39,6 +40,16 @@ async function handlePOST(req: NextRequest, { params }: Params) {
   const title = get('title'), description = get('description');
   if (!ok(title, true) || !ok(description, false)) return NextResponse.json({ error: 'That wasn’t understood' }, { status: 400 });
   const plain = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
+
+  if (d.kind === 'note') {
+    const nb = get('body');
+    const fits = nb == null || nb === '' || (sealing ? sealedFor(root!, nb, NOTE_SEALED_MAX) : typeof nb === 'string' && !nb.startsWith('sn1:') && nb.length <= NOTE_MAX_CHARS);
+    if (!fits) return NextResponse.json({ error: 'That wasn’t understood' }, { status: 400 });
+    await pool.query(`UPDATE documents SET title = $1, body = $2, protection = $3, updated_at = now() WHERE id = $4`, sealing
+      ? [title, nb || null, 'sealed', docId]
+      : [await sealText(a.societyId, plain(title, 200)), await sealText(a.societyId, typeof nb === 'string' && nb ? nb : null), 'server', docId]);
+    return NextResponse.json({ ok: true });
+  }
 
   if (d.kind === 'link') {
     const url = get('url');

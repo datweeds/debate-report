@@ -17,6 +17,12 @@ export default async function SocietyLayout({ children, params }: {
       {access.breakGlass && <BreakGlassBanner societyId={society.id} until={access.breakGlass} />}
       {access.visibility !== 'public' && !isUnlocked() && <LockedBanner />}
       {access.isDemo && <DemoBanner loggedIn={!!session} />}
+      {access.closed && (
+        <p className="mb-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+          This Society is <strong>closed</strong>: only its moderators can see it.{' '}
+          <Link href={`/dashboard/societies?society=${society.id}`} className="font-semibold text-blue-300 hover:underline">Reopen it in Manage society</Link>
+        </p>
+      )}
       <SocietyFrame
         societyId={society.id}
         slug={society.slug}

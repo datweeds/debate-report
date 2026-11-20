@@ -63,8 +63,8 @@ export default function Gantt({ tasks, groups, projectStart, projectEnd, onOpen 
     return { start, end, span, px, today };
   }, [tasks, projectStart, projectEnd]);
 
-  if (!tasks.length) return <div className="rounded-2xl border border-slate-800 bg-dr-card p-10 text-center text-sm text-slate-500">No tasks yet.</div>;
-  if (!range) return <div className="rounded-2xl border border-slate-800 bg-dr-card p-10 text-center text-sm text-slate-500">Give tasks start, end or due dates to see them on the chart.</div>;
+  if (!tasks.length) return <div className="rounded-2xl border border-slate-800 bg-dr-card p-10 text-center text-sm text-slate-500">No project tasks yet.</div>;
+  if (!range) return <div className="rounded-2xl border border-slate-800 bg-dr-card p-10 text-center text-sm text-slate-500">Give project tasks start, end or due dates to see them on the chart.</div>;
 
   const width = range.span * range.px;
   const x = (day: number) => (day - range.start) * range.px;
@@ -104,9 +104,9 @@ export default function Gantt({ tasks, groups, projectStart, projectEnd, onOpen 
       <div className="flex">
         {/* Task names (fixed) */}
         <div className="w-36 sm:w-60 flex-shrink-0 border-r border-slate-800">
-          <div className="h-9 border-b border-slate-800 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Task</div>
+          <div className="h-9 border-b border-slate-800 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Project task</div>
           {rows.map(r => r.kind === 'group' ? (
-            <button key={r.key} onClick={() => toggle(r.key)} title={r.shut ? `Show the tasks in ${r.name}` : `Collapse ${r.name}`}
+            <button key={r.key} onClick={() => toggle(r.key)} title={r.shut ? `Show the project tasks in ${r.name}` : `Collapse ${r.name}`}
               className="flex h-8 w-full items-center gap-1.5 border-b border-slate-800/50 bg-slate-800/40 px-3 text-left text-xs font-semibold text-slate-100 hover:bg-slate-800/70">
               <span className="w-3 text-slate-400">{r.shut ? '▸' : '▾'}</span>
               <span className="truncate">{r.name}</span>

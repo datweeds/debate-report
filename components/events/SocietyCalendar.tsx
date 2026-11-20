@@ -1,18 +1,24 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import RefButton, { insertAtCursor } from '@/components/refs/RefButton';
+import { resolveRef } from '@/components/refs/resolve';
 import RichText from '@/components/discussions/RichText';
 import SecureAccessDialog from '@/components/sealed/SecureAccessDialog';
 import { useSecureAccess } from '@/components/sealed/useSecureAccess';
 import { keysFor, newItemKeys, openItemText, sealItemText, sealItemTextOrNull, societyMembers, type ItemKeys } from '@/components/sealed/items';
-import { toIcs } from '@/lib/events';
+import { toIcs, type Responses, type ResponseVisibility } from '@/lib/events';
+import EventResponses from './EventResponses';
+import CalendarTaskPreview from './CalendarTaskPreview';
 
 type Ev = {
   id: string; title: string; description: string | null; location: string | null;
   starts_at: string; ends_at: string | null; all_day: boolean; created_by_handle: string | null;
+  response_visibility: ResponseVisibility; responses: Responses | null;
 };
 // A project task on its due date ('YYYY-MM-DD', a calendar date with no time zone).
-type Task = { id: string; title: string; project: string; due_at: string; status: string; href: string };
+type Task = { id: string; kind?: 'project' | 'task'; title: string; project: string; due_at: string; status: string; href: string };
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const inputCls = 'w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:border-blue-500 focus:outline-none';
@@ -64,7 +70,8 @@ export default function SocietyCalendar({ societyId }: { societyId: number }) {
   const [cursor, setCursor] = useState({ y: today.getFullYear(), m: today.getMonth() });
   const [view, setView] = useState<'month' | 'list'>('month');
   const [showEvents, setShowEvents] = useState(true);
-  const [showTasks, setShowTasks] = useState(true);
+  const [showTasks, setShowTasks] = useState(true);            // your own (and shared) tasks
+  const [showProjectTasks, setShowProjectTasks] = useState(true);
   const [data, setData] = useState<{ events: Ev[]; tasks: Task[]; canModerate: boolean; sealed: { id: string; epoch: number } | null; canSeal: boolean } | null>(null);
   // A sealed calendar: its text is opened and sealed here, with this person's keys
   const societyBase = `/api/societies/${societyId}`;
@@ -75,6 +82,7 @@ export default function SocietyCalendar({ societyId }: { societyId: number }) {
   const [busy, setBusy] = useState('');
   const [selectedDay, setSelectedDay] = useState(localKey(today));
   const [open, setOpen] = useState<Ev | null>(null);
+  const [taskOpen, setTaskOpen] = useState<Task | null>(null);   // a task's preview
   const [editing, setEditing] = useState<Partial<FormState> | null>(null);
   const [error, setError] = useState('');
 
@@ -103,8 +111,29 @@ export default function SocietyCalendar({ societyId }: { societyId: number }) {
     location: openItemText(keys, e.location),
   }), [data?.events, sealedId, keys]);
 
+  // ?event=<id> (a reference, or a preview's "Open in Calendar"): go to its day and open it
+  const eventParam = useSearchParams().get('event');
+  const jumped = useRef<string | null>(null);
+  const toOpen = useRef<string | null>(null);
+  useEffect(() => {
+    if (!eventParam || jumped.current === eventParam) return;
+    jumped.current = eventParam;
+    resolveRef({ society: societyId, kind: 'event', id: eventParam }).then(v => {
+      if (!v?.starts_at) { setError('That event has been deleted, or you don’t have access to it.'); return; }
+      const k = v.all_day ? utcKey(new Date(v.starts_at)) : localKey(new Date(v.starts_at));
+      toOpen.current = v.id;
+      setView('month'); setShowEvents(true);
+      setCursor({ y: Number(k.slice(0, 4)), m: Number(k.slice(5, 7)) - 1 });
+      setSelectedDay(k);
+    }).catch(() => {});
+  }, [eventParam, societyId]);
+  useEffect(() => {
+    const e = toOpen.current && opened.find(x => x.id === toOpen.current);
+    if (e) { toOpen.current = null; setOpen(e); }
+  }, [opened]);
+
   const events = showEvents ? opened : [];
-  const tasks = showTasks ? data?.tasks ?? [] : [];
+  const tasks = (data?.tasks ?? []).filter(t => (t.kind === 'task' ? showTasks : showProjectTasks));
   const dayItems = (key: string) => ({
     ev: events.filter(e => onDay(e, key)),
     tk: tasks.filter(t => t.due_at === key),
@@ -205,8 +234,11 @@ export default function SocietyCalendar({ societyId }: { societyId: number }) {
         <label className="flex items-center gap-1.5 text-xs text-slate-400">
           <input type="checkbox" checked={showEvents} onChange={e => setShowEvents(e.target.checked)} className="accent-blue-500" /> Events
         </label>
-        <label className="flex items-center gap-1.5 text-xs text-slate-400" title="Project tasks with due dates">
-          <input type="checkbox" checked={showTasks} onChange={e => setShowTasks(e.target.checked)} className="accent-amber-500" /> Project tasks
+        <label className="flex items-center gap-1.5 text-xs text-slate-400" title="Your tasks, and tasks shared with you, on their due dates">
+          <input type="checkbox" checked={showTasks} onChange={e => setShowTasks(e.target.checked)} className="accent-violet-500" /> Tasks
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-slate-400" title="Project tasks on their due dates">
+          <input type="checkbox" checked={showProjectTasks} onChange={e => setShowProjectTasks(e.target.checked)} className="accent-amber-500" /> Project tasks
         </label>
         <div className="flex overflow-hidden rounded-lg border border-slate-700 text-xs">
           {(['month', 'list'] as const).map(v => (
@@ -251,7 +283,7 @@ export default function SocietyCalendar({ societyId }: { societyId: number }) {
                     {count > 0 && (
                       <div className="mt-1 flex justify-center gap-0.5 sm:hidden">
                         {ev.slice(0, 3).map(e => <span key={e.id} className="h-1.5 w-1.5 rounded-full bg-blue-400" />)}
-                        {tk.slice(0, 2).map(t => <span key={t.id} className="h-1.5 w-1.5 rounded-full bg-amber-400" />)}
+                        {tk.slice(0, 2).map(t => <span key={t.id} className={`h-1.5 w-1.5 rounded-full ${t.kind === 'task' ? 'bg-violet-400' : 'bg-amber-400'}`} />)}
                       </div>
                     )}
                     {/* Larger screens: chips */}
@@ -263,9 +295,9 @@ export default function SocietyCalendar({ societyId }: { societyId: number }) {
                         </button>
                       ))}
                       {tk.slice(0, Math.max(0, 3 - ev.length)).map(t => (
-                        <a key={t.id} href={t.href} onClick={e2 => e2.stopPropagation()}
-                          className="block truncate rounded bg-amber-500/15 px-1.5 py-0.5 text-[11px] text-amber-100 hover:bg-amber-500/25">
-                          ◆ {t.title}
+                        <a key={t.id} href={t.href} onClick={e2 => { e2.stopPropagation(); if (plainClick(e2)) { e2.preventDefault(); setTaskOpen(t); } }}
+                          className={`block truncate rounded px-1.5 py-0.5 text-[11px] ${t.kind === 'task' ? 'bg-violet-500/15 text-violet-100 hover:bg-violet-500/25' : 'bg-amber-500/15 text-amber-100 hover:bg-amber-500/25'}`}>
+                          {t.kind === 'task' ? '☑' : '◆'} {t.title}
                         </a>
                       ))}
                       {count > 3 && <p className="px-1 text-[10px] text-slate-500">+{count - 3} more</p>}
@@ -279,12 +311,12 @@ export default function SocietyCalendar({ societyId }: { societyId: number }) {
           {/* The selected day's items (the main view on phones) */}
           <DayList
             title={new Date(selectedDay + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
-            events={sel.ev} tasks={sel.tk} onOpen={setOpen}
+            events={sel.ev} tasks={sel.tk} onOpen={setOpen} onTask={setTaskOpen}
             empty={data.canModerate ? 'Nothing on this day. Double-click a day, or use “Add event”.' : 'Nothing on this day.'}
           />
         </>
       ) : (
-        <UpcomingList events={events} tasks={tasks} onOpen={setOpen} />
+        <UpcomingList events={events} tasks={tasks} onOpen={setOpen} onTask={setTaskOpen} />
       )}
 
       {open && (
@@ -293,6 +325,7 @@ export default function SocietyCalendar({ societyId }: { societyId: number }) {
           <p className="mt-1 text-sm text-blue-300">{rangeLabel(open)}</p>
           {open.location && <div className="mt-3 flex gap-2 text-sm text-slate-300"><span aria-hidden>📍</span><RichText text={open.location} /></div>}
           {open.description && <div className="mt-3"><RichText text={open.description} /></div>}
+          {open.responses && <EventResponses key={open.id} url={`${base}/${open.id}/response`} initial={open.responses} onChanged={() => void load()} />}
           <div className="mt-5 flex flex-wrap items-center gap-3 text-sm">
             {sealedId
               ? <button onClick={() => downloadIcs(open)} className="rounded-lg border border-slate-600 px-3 py-1.5 text-slate-200 hover:border-slate-400">Add to my calendar</button>
@@ -309,14 +342,21 @@ export default function SocietyCalendar({ societyId }: { societyId: number }) {
         </Modal>
       )}
 
+      {taskOpen && (
+        <CalendarTaskPreview key={taskOpen.id} society={societyId} kind={taskOpen.kind === 'task' ? 'task' : 'project'} id={taskOpen.id} onClose={() => setTaskOpen(null)} />
+      )}
+
       {editing && (
-        <EventForm initial={editing} base={base} seal={seal} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
+        <EventForm society={societyId} initial={editing} base={base} seal={seal} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />
       )}
     </div>
   );
 }
 
-function DayList({ title, events, tasks, onOpen, empty }: { title: string; events: Ev[]; tasks: Task[]; onOpen: (e: Ev) => void; empty: string }) {
+// A plain click opens a preview; Ctrl/⌘/Shift-click or middle-click still follow the link
+const plainClick = (e: React.MouseEvent) => e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey;
+
+function DayList({ title, events, tasks, onOpen, onTask, empty }: { title: string; events: Ev[]; tasks: Task[]; onOpen: (e: Ev) => void; onTask: (t: Task) => void; empty: string }) {
   return (
     <div className="rounded-2xl border border-slate-800 bg-dr-card p-4">
       <p className="text-sm font-semibold text-slate-200 mb-2">{title}</p>
@@ -334,8 +374,8 @@ function DayList({ title, events, tasks, onOpen, empty }: { title: string; event
           ))}
           {tasks.map(t => (
             <li key={t.id}>
-              <a href={t.href} className="flex items-start gap-3">
-                <span className="w-14 flex-shrink-0 text-xs text-amber-300">Task due</span>
+              <a href={t.href} onClick={e => { if (plainClick(e)) { e.preventDefault(); onTask(t); } }} className="flex items-start gap-3">
+                <span className={`w-14 flex-shrink-0 text-xs ${t.kind === 'task' ? 'text-violet-300' : 'text-amber-300'}`}>{t.kind === 'task' ? '☑ Due' : '◆ Due'}</span>
                 <span className="min-w-0 text-sm text-slate-100">{t.title}<span className="block truncate text-xs text-slate-500">{t.project} · {t.status}</span></span>
               </a>
             </li>
@@ -346,7 +386,7 @@ function DayList({ title, events, tasks, onOpen, empty }: { title: string; event
   );
 }
 
-function UpcomingList({ events, tasks, onOpen }: { events: Ev[]; tasks: Task[]; onOpen: (e: Ev) => void }) {
+function UpcomingList({ events, tasks, onOpen, onTask }: { events: Ev[]; tasks: Task[]; onOpen: (e: Ev) => void; onTask: (t: Task) => void }) {
   const todayKey = localKey(new Date());
   const groups = new Map<string, { ev: Ev[]; tk: Task[] }>();
   const add = (k: string) => { if (!groups.has(k)) groups.set(k, { ev: [], tk: [] }); return groups.get(k)!; };
@@ -357,7 +397,7 @@ function UpcomingList({ events, tasks, onOpen }: { events: Ev[]; tasks: Task[]; 
   return (
     <div className="space-y-3">
       {keys.map(k => (
-        <DayList key={k} events={groups.get(k)!.ev} tasks={groups.get(k)!.tk} onOpen={onOpen} empty=""
+        <DayList key={k} events={groups.get(k)!.ev} tasks={groups.get(k)!.tk} onOpen={onOpen} onTask={onTask} empty=""
           title={new Date(k + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} />
       ))}
     </div>
@@ -385,31 +425,32 @@ function Modal({ children, onClose, keepOpen = false }: { children: React.ReactN
 
 type FormState = {
   id?: string; title: string; date: string; startTime: string; endDate: string; endTime: string;
-  allDay: boolean; location: string; description: string;
+  allDay: boolean; location: string; description: string; responseVisibility: ResponseVisibility;
 };
 
 function toForm(e: Ev): Partial<FormState> {
   const s = new Date(e.starts_at), en = e.ends_at ? new Date(e.ends_at) : null;
   const hm = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
   return {
-    id: e.id, title: e.title, allDay: e.all_day, location: e.location ?? '', description: e.description ?? '',
+    id: e.id, title: e.title, allDay: e.all_day, location: e.location ?? '', description: e.description ?? '', responseVisibility: e.response_visibility,
     date: e.all_day ? utcKey(s) : localKey(s), startTime: e.all_day ? '' : hm(s),
     endDate: en ? (e.all_day ? utcKey(en) : localKey(en)) : '', endTime: en && !e.all_day ? hm(en) : '',
   };
 }
 
-function EventForm({ initial, base, seal, onClose, onSaved }: {
-  initial: Partial<FormState>; base: string; seal?: (v: string) => string; onClose: () => void; onSaved: () => void;
+function EventForm({ society, initial, base, seal, onClose, onSaved }: {
+  society: number; initial: Partial<FormState>; base: string; seal?: (v: string) => string; onClose: () => void; onSaved: () => void;
 }) {
   // A sealed calendar: the text is encrypted here before it's sent
   const out = (v: string) => (seal ? seal(v.trim()) : v);
   const [f, setF] = useState<FormState>({
     title: '', date: initial.date ?? localKey(new Date()), startTime: '19:00', endDate: '', endTime: '20:00',
-    allDay: false, location: '', description: '', ...initial,
+    allDay: false, location: '', description: '', responseVisibility: 'counts', ...initial,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const set = (k: keyof FormState, v: string | boolean) => setF(p => ({ ...p, [k]: v }));
+  const details = useRef<HTMLTextAreaElement>(null);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -422,7 +463,7 @@ function EventForm({ initial, base, seal, onClose, onSaved }: {
     setSaving(true); setError('');
     const r = await fetch(f.id ? `${base}/${f.id}` : base, {
       method: f.id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: out(f.title), startsAt, endsAt, allDay: f.allDay, location: out(f.location), description: out(f.description) }),
+      body: JSON.stringify({ title: out(f.title), startsAt, endsAt, allDay: f.allDay, location: out(f.location), description: out(f.description), responseVisibility: f.responseVisibility }),
     });
     setSaving(false);
     if (!r.ok) { setError((await r.json()).error ?? 'Could not save'); return; }
@@ -456,7 +497,20 @@ function EventForm({ initial, base, seal, onClose, onSaved }: {
           )}
         </div>
         <input value={f.location} onChange={e => set('location', e.target.value)} maxLength={500} placeholder="Location, or a meeting link (optional)" className={inputCls} />
-        <textarea value={f.description} onChange={e => set('description', e.target.value)} rows={4} maxLength={5000} placeholder="Details (optional)" className={inputCls} />
+        <div>
+          <textarea ref={details} value={f.description} onChange={e => set('description', e.target.value)} rows={4} maxLength={5000} placeholder="Details (optional)" className={inputCls} />
+          <div className="flex justify-end">
+            <RefButton society={society} className="rounded px-2 py-0.5 text-xs text-slate-400 hover:bg-slate-700/50 hover:text-slate-200"
+              onPick={p => insertAtCursor(details.current, f.description, v => set('description', v), p.url)} />
+          </div>
+        </div>
+        <label className="block text-xs text-slate-400">Members’ responses (“Planning to attend” / “Not coming”)
+          <select value={f.responseVisibility} onChange={e => set('responseVisibility', e.target.value)} className={`${inputCls} mt-1`}>
+            <option value="all">Everyone can see who’s responded</option>
+            <option value="counts">Members see just the numbers</option>
+            <option value="author">Only the event’s author and moderators see responses</option>
+            <option value="off">Don’t ask for responses</option>
+          </select></label>
         {error && <p className="text-xs text-rose-400">{error}</p>}
         <div className="flex gap-2">
           <button type="submit" disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50">{saving ? 'Saving…' : 'Save event'}</button>

@@ -15,7 +15,7 @@ export async function GET(req: NextRequest, { params }: Params) {
   if (!ctx) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const [{ rows: [society] }, { rows: members }, { rows: requests }, { rows: invites }] = await Promise.all([
     pool.query(
-      `SELECT id, name, visibility, hero_text, hero_image, description, contact_email, subdomain, is_default, disabled_sections, allow_sealed
+      `SELECT id, name, visibility, hero_text, hero_image, description, contact_email, subdomain, is_default, disabled_sections, allow_sealed, status, is_demo
        FROM customers WHERE id = $1`, [ctx.id]),
     pool.query(
       `SELECT m.user_id, m.joined_at, u.user_handle, u.user_full_name,

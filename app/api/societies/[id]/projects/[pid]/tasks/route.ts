@@ -13,20 +13,20 @@ async function handlePOST(req: NextRequest, { params }: Params) {
   const { id, pid } = await params;
   const c = await projectContext(req, id, pid);
   if (!c) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!c.canManage) return NextResponse.json({ error: 'Only the Project Manager or a moderator can add tasks' }, { status: 403 });
+  if (!c.canManage) return NextResponse.json({ error: 'Only the Project Manager or a moderator can add project tasks' }, { status: 403 });
   const b = await req.json().catch(() => ({}));
   const name = ptext(c, b.name, 200);
-  if (!name) return NextResponse.json({ error: 'A task name is required' }, { status: 400 });
+  if (!name) return NextResponse.json({ error: 'A project task name is required' }, { status: 400 });
   let parent: string | null = null;
   if (b.parentId) {
-    if (typeof b.parentId !== 'string' || !UUID_RE.test(b.parentId)) return NextResponse.json({ error: 'Parent task not found' }, { status: 404 });
+    if (typeof b.parentId !== 'string' || !UUID_RE.test(b.parentId)) return NextResponse.json({ error: 'Parent project task not found' }, { status: 404 });
     const { rows } = await pool.query('SELECT 1 FROM project_tasks WHERE id = $1 AND project_id = $2', [b.parentId, pid]);
-    if (!rows.length) return NextResponse.json({ error: 'Parent task not found' }, { status: 404 });
+    if (!rows.length) return NextResponse.json({ error: 'Parent project task not found' }, { status: 404 });
     parent = b.parentId;
   }
   // The due date defaults to the end date
   const start = readDate(b.startDate) ?? null, end = readDate(b.endDate) ?? null, due = readDate(b.dueDate) ?? end;
-  if (start && end && end < start) return NextResponse.json({ error: 'The task must end after it starts' }, { status: 400 });
+  if (start && end && end < start) return NextResponse.json({ error: 'The project task must end after it starts' }, { status: 400 });
   const status = (TASK_STATUSES as readonly string[]).includes(b.status) ? b.status : 'new';
   const doc = await readDocumentId(c.a.societyId, b.documentId);
   if (doc === false) return NextResponse.json({ error: 'That document was not found' }, { status: 404 });

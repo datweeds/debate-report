@@ -12,6 +12,7 @@ export const SOCIETY_SECTIONS = [
   { slug: 'projects',    label: 'Projects' },
   { slug: 'news',        label: 'News' },
   { slug: 'meet',        label: 'Meet' },
+  { slug: 'tasks',       label: 'Tasks' },
   { slug: 'principles',  label: 'Principles' },
   { slug: 'about',       label: 'About' },
 ] as const;

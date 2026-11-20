@@ -187,8 +187,8 @@ async function transferDoc(client: PoolClient, doc: DocRow, target: number, fold
     await copyFile(storedPath(doc.customer_id, doc.stored_name), storedPath(target, storedName));
   }
   const { rows: [copy] } = await client.query(
-    `INSERT INTO documents (customer_id, folder_id, kind, title, description, url, file_name, stored_name, mime_type, size_bytes, uploaded_by, created_at)
-     SELECT $2, $3, kind, title, description, url, file_name, $4, mime_type, size_bytes, uploaded_by, created_at
+    `INSERT INTO documents (customer_id, folder_id, kind, title, description, url, file_name, body, stored_name, mime_type, size_bytes, uploaded_by, created_at)
+     SELECT $2, $3, kind, title, description, url, file_name, body, $4, mime_type, size_bytes, uploaded_by, created_at
      FROM documents WHERE id = $1 RETURNING id`,
     [doc.id, target, folderId, storedName],
   );

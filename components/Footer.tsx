@@ -78,6 +78,7 @@ export default function Footer() {
               <li><FooterLink href="/privacy">Privacy policy</FooterLink></li>
               <li><FooterLink href="/terms">Terms &amp; conditions</FooterLink></li>
               <li><FooterLink href="/features#privacy">How we protect your data</FooterLink></li>
+              <li><FooterLink href="/security">Report a security problem</FooterLink></li>
             </FooterColumn>
           </div>
 

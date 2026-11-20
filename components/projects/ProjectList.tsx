@@ -99,7 +99,7 @@ export default function ProjectList({ societyId }: { societyId: number }) {
             <label className="flex items-start gap-2.5 rounded-lg border border-slate-800 p-2.5 text-xs">
               <input type="checkbox" checked={sealIt} onChange={e => setSealIt(e.target.checked)} className="mt-0.5 accent-emerald-500" />
               <span className="text-slate-300">
-                <span className="font-semibold text-slate-100">🔐 Seal this project</span>: its name, tasks, comments, reports, RAID log and group names are end-to-end
+                <span className="font-semibold text-slate-100">🔐 Seal this project</span>: its name, project tasks, comments, reports, RAID log and group names are end-to-end
                 encrypted, so only members can read them, not new.vote. Dates, statuses and dependencies stay visible.
                 {sealIt && <span className="mt-1 block text-amber-200/90">No AI, abuse scanning or Sys Admin emergency access. Members need secure access to read it.
                   {access.status === 'none' && <> <button type="button" onClick={() => setDialog('setup')} className="font-semibold text-blue-300 hover:underline">Set up secure access</button> first.</>}
@@ -134,7 +134,7 @@ export default function ProjectList({ societyId }: { societyId: number }) {
                 </p>
                 <div className="mt-3"><ProgressBar done={p.done_count} total={p.task_count} /></div>
                 <p className="mt-1.5 text-[11px] text-slate-500">
-                  {p.done_count}/{p.task_count} tasks complete
+                  {p.done_count}/{p.task_count} project tasks complete
                   {p.overdue_count > 0 && <span className="text-rose-400"> · {p.overdue_count} overdue</span>}
                   {p.open_raid > 0 && <span className="text-amber-300"> · {p.open_raid} open RAID</span>}
                 </p>

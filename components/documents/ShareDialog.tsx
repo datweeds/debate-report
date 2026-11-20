@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { makeShareCopy } from '@/lib/sealed/shareLink';
+import { refUrl, REF_NAME } from '@/lib/refs';
 
 type Share = {
   id: string; mode: 'public' | 'private'; created_at: string; expires_at: string | null;
   open_count: number; last_opened_at: string | null; created_by: string | null; state: 'ok' | 'expired' | 'not-allowed';
 };
-type Doc = { id: string; title: string; file_name: string | null; mime_type: string | null; protection: 'server' | 'sealed' };
+type Doc = { id: string; kind: 'file' | 'link' | 'note'; title: string; file_name: string | null; mime_type: string | null; protection: 'server' | 'sealed' };
 
 const CAP = 14;
 const ALL_DAYS: (number | null)[] = [1, 3, 7, 14, 30, 90, null];
@@ -19,11 +20,15 @@ async function copy(text: string) {
   try { await navigator.clipboard.writeText(text); return true; } catch { return false; }
 }
 
-// Share links for one document (moderators): public, or private with the key
+// Sharing one document. Inside new.vote: its reference, to paste into a note,
+// event or discussion message (shown there as a chip that opens a preview).
+// Outside (moderators, files only): share links, public or private with the key
 // in the link. A new link is shown once (and copied); only its hash is kept.
-export default function ShareDialog({ base, doc, plainBytes, onClose }: {
-  base: string; doc: Doc; plainBytes: () => Promise<Uint8Array>; onClose: () => void;
+export default function ShareDialog({ base, society, doc, outside, plainBytes, onClose }: {
+  base: string; society: number; doc: Doc; outside: boolean; plainBytes: () => Promise<Uint8Array>; onClose: () => void;
 }) {
+  const refKind = doc.kind === 'note' ? 'note' as const : 'doc' as const;
+  const refLink = refUrl({ society, kind: refKind, id: doc.id });
   const url = `${base}/documents/${doc.id}/shares`;
   const sealed = doc.protection === 'sealed';
   const [shares, setShares] = useState<Share[] | null>(null);
@@ -44,7 +49,7 @@ export default function ShareDialog({ base, doc, plainBytes, onClose }: {
     if (!r.ok) { setError(d.error ?? 'Couldn’t load the links'); return; }
     setShares(d.shares); setPrivateSociety(d.privateSociety);
   }, [url]);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (outside) load(); }, [load, outside]);
   // Keep the chosen expiry within what this kind of link allows
   useEffect(() => { if (capped(mode) && (days == null || days > CAP)) setDays(CAP); }, [mode, privateSociety]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -90,6 +95,23 @@ export default function ShareDialog({ base, doc, plainBytes, onClose }: {
           <h2 className="min-w-0 text-base font-semibold text-slate-100 break-words">Share “{doc.title}”</h2>
           <button onClick={onClose} className="text-slate-500 hover:text-slate-300" aria-label="Close">✕</button>
         </div>
+        {/* Inside new.vote */}
+        <div className="space-y-2 rounded-xl border border-slate-800 p-3">
+          <p className="text-sm font-medium text-slate-100">📎 Reference it inside new.vote</p>
+          <p className="text-xs text-slate-400">
+            Paste this into a note, an event or a discussion message in this Society (or use the 📎 button there).
+            Readers see the {REF_NAME[refKind]}’s name, and clicking it opens a preview with a link to it here.
+            Only people who can open this {REF_NAME[refKind]} see its name.
+          </p>
+          <div className="flex gap-2">
+            <input readOnly value={refLink} onFocus={e => e.target.select()} aria-label="Reference" className={`${inputCls} min-w-0 flex-1 font-mono text-xs`} />
+            <button onClick={() => copyPart(refLink, 'ref')} className="rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-blue-500/60 hover:bg-blue-500/10">
+              {copiedWhat === 'ref' ? 'Copied' : 'Copy'}
+            </button>
+          </div>
+        </div>
+
+        {outside && (<>
         <p className="text-xs text-slate-400">A link lets people outside this Society open this document, without an account.</p>
 
         {/* New link */}
@@ -170,6 +192,7 @@ export default function ShareDialog({ base, doc, plainBytes, onClose }: {
               </div>
             ))}
         </div>
+        </>)}
       </div>
     </div>
   );

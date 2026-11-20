@@ -7,7 +7,7 @@ import { societyContentAccess, type SocietyContentAccess } from './societies';
 import { openRows, sealText } from './societyCrypto';
 import { DEP_KINDS, depProblem, family, makesLoop, type Dep } from '@/components/projects/deps';
 
-export const TASK_STATUSES = ['new', 'in_progress', 'complete'] as const;
+export const TASK_STATUSES = ['new', 'in_progress', 'paused', 'complete'] as const;
 export const PROJECT_STATUSES = ['active', 'on_hold', 'complete'] as const;
 export const RAID_KINDS = ['risk', 'issue', 'dependency', 'assumption'] as const;
 export const LEVELS = ['low', 'medium', 'high'] as const;
@@ -146,7 +146,7 @@ export async function checkDeps(projectId: string, taskId: string | null, parent
       // A sealed project's names can't be read here: say it without them
       const sealedNames = name.startsWith('sn1:') || String(named.name).startsWith('sn1:');
       const shown = sealedNames ? { ...named, name: 'another task' } : named;
-      return `${sealedNames ? 'This task' : `“${name}”`} ${depProblem({ id: self, name, ...dates }, shown, d.kind)}. Move its start date, or change the dependency.`;
+      return `${sealedNames ? 'This project task' : `“${name}”`} ${depProblem({ id: self, name, ...dates }, shown, d.kind)}. Move its start date, or change the dependency.`;
     }
   }
   return null;

@@ -59,17 +59,43 @@ export async function verifyToken(token: string): Promise<SessionPayload | null>
   }
 }
 
+// Sessions are signed tokens that last a week, so a deleted or suspended
+// account is turned away here too. Checked at most once a minute per account.
+const STATUS_TTL = 60_000;
+const statusCache = new Map<string, { active: boolean; at: number }>();
+
+async function stillActive(s: SessionPayload | null): Promise<SessionPayload | null> {
+  if (!s?.sub) return s;
+  const hit = statusCache.get(s.sub);
+  if (hit && Date.now() - hit.at < STATUS_TTL) return hit.active ? s : null;
+  try {
+    const { default: pool } = await import('./db');
+    const { rows: [u] } = await pool.query('SELECT user_status FROM users WHERE id = $1', [s.sub]);
+    const active = u?.user_status === 'active';
+    if (statusCache.size > 10_000) statusCache.clear();
+    statusCache.set(s.sub, { active, at: Date.now() });
+    return active ? s : null;
+  } catch {
+    return s;   // the database being briefly unreachable shouldn't sign everyone out
+  }
+}
+
+/** Sign an account out everywhere straight away (it's been deleted or suspended). */
+export function forgetSessionsOf(userId: string) {
+  statusCache.set(userId, { active: false, at: Date.now() });
+}
+
 export async function getSession(): Promise<SessionPayload | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;
   if (!token) return null;
-  return verifyToken(token);
+  return stillActive(await verifyToken(token));
 }
 
-export function getSessionFromRequest(req: NextRequest): Promise<SessionPayload | null> {
+export async function getSessionFromRequest(req: NextRequest): Promise<SessionPayload | null> {
   const token = req.cookies.get(COOKIE_NAME)?.value;
-  if (!token) return Promise.resolve(null);
-  return verifyToken(token);
+  if (!token) return null;
+  return stillActive(await verifyToken(token));
 }
 
 export function sessionCookie(token: string) {

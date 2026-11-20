@@ -19,12 +19,13 @@ export type SocietyAccess = {
   breakGlass: string | null; // SysAdmin emergency access to a private Society: when it ends
   disabled: string[];        // features the Society has switched off (lib/features.ts)
   isDemo: boolean;           // the demo Society: everything readable, even without an account
+  closed: boolean;           // closed by its moderators: only they can open it (to reopen it)
 };
 
 export async function getSocietyAccess(session: SessionPayload | null, customerId: number): Promise<SocietyAccess | null> {
   const uid = session?.sub ?? null;
   const { rows: [row] } = await pool.query(
-    `SELECT c.visibility, c.disabled_sections, c.is_demo,
+    `SELECT c.visibility, c.disabled_sections, c.is_demo, c.status,
             EXISTS (SELECT 1 FROM customer_members m WHERE m.customer_id = c.id AND m.user_id = $2) AS is_member,
             EXISTS (SELECT 1 FROM customer_roles r WHERE r.tenant_id = c.id AND r.user_id = $2 AND r.role = 'customer_admin') AS is_moderator,
             EXISTS (SELECT 1 FROM society_join_requests j WHERE j.customer_id = c.id AND j.user_id = $2 AND j.status = 'pending') AS pending,
@@ -34,6 +35,8 @@ export async function getSocietyAccess(session: SessionPayload | null, customerI
     [customerId, uid, !!session?.isSysAdmin],
   );
   if (!row) return null;
+  // A closed Society is gone for everyone but its moderators (even Sys Admin: they reopen it from Admin)
+  if (row.status === 'closed' && !row.is_moderator) return null;
   const inside = row.is_member || row.is_moderator;
   // A SysAdmin may only look inside a private Society during a logged
   // emergency ("break-glass") grant: see lib/breakGlass.ts
@@ -48,6 +51,7 @@ export async function getSocietyAccess(session: SessionPayload | null, customerI
     breakGlass,
     disabled: row.disabled_sections ?? [],
     isDemo: !!row.is_demo,
+    closed: row.status === 'closed',
   };
 }
 
@@ -57,10 +61,12 @@ export async function getSocietyAccess(session: SessionPayload | null, customerI
  * `uid` is the placeholder holding the viewer id as text, e.g. '$2::text'.
  */
 export function societyOpenSql(res: string, uid: string): string {
+  // A closed Society's debates are only for its moderators
   return `(${res}.customer_id IS NULL OR EXISTS (
     SELECT 1 FROM customers sx WHERE sx.id = ${res}.customer_id AND (
-      sx.visibility = 'public'
-      OR EXISTS (SELECT 1 FROM customer_members sm WHERE sm.customer_id = sx.id AND sm.user_id = ${uid})
+      (sx.status IS DISTINCT FROM 'closed' AND (
+        sx.visibility = 'public'
+        OR EXISTS (SELECT 1 FROM customer_members sm WHERE sm.customer_id = sx.id AND sm.user_id = ${uid})))
       OR EXISTS (SELECT 1 FROM customer_roles sr WHERE sr.tenant_id = sx.id AND sr.user_id = ${uid} AND sr.role = 'customer_admin'))))`;
 }
 

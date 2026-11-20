@@ -9,11 +9,11 @@ import { DEP_KINDS, DEP_LABEL, depProblem, earliestStart, family, type Dep, type
 export type Report = { body: string; status: string; created_at: string; by: string | null };
 export type Task = {
   id: string; parent_id: string | null; sort_order: number; name: string; description: string | null;
-  status: 'new' | 'in_progress' | 'complete'; comments: string | null;
+  status: 'new' | 'in_progress' | 'paused' | 'complete'; comments: string | null;
   start_date: string | null; end_date: string | null; due_date: string | null;
   assignees: { id: string; handle: string; name: string | null }[];
   latest_report: Report | null; report_count: number;
-  document_id: string | null; doc_kind: 'file' | 'link' | null; doc_title: string | null; doc_file_name: string | null; doc_mime: string | null;
+  document_id: string | null; doc_kind: 'file' | 'link' | 'note' | null; doc_title: string | null; doc_file_name: string | null; doc_mime: string | null;
   doc_protection?: 'server' | 'sealed' | null; doc_folder?: string | null;
   dependencies: Dep[];
   group_id: string | null;
@@ -51,7 +51,7 @@ export function depSummary(t: Task, byId: Map<string, Task>): string {
   return (t.dependencies ?? []).map(d => `after “${byId.get(d.task_id)?.name ?? '?'}” ${DEP_LABEL[d.kind]}`).join(', ');
 }
 
-type DocOption = { id: string; kind: 'file' | 'link'; title: string; file_name: string | null; mime_type: string | null; folder: string };
+type DocOption = { id: string; kind: 'file' | 'link' | 'note'; title: string; file_name: string | null; mime_type: string | null; folder: string };
 const societyBaseOf = (base: string) => base.replace(/\/projects\/[^/]+$/, '');
 
 // The task's linked document: a file opens in the viewer, a link in a new tab
@@ -62,8 +62,13 @@ function TaskDocLink({ base, task, onOpen, compact }: { base: string; task: Task
     ? 'max-w-[12rem] truncate rounded border border-sky-500/30 bg-sky-500/10 px-1.5 py-0.5 text-[11px] text-sky-300 hover:bg-sky-500/20'
     : 'inline-flex max-w-full items-center gap-1.5 truncate rounded-lg border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-sm text-sky-200 hover:bg-sky-500/20';
   // In a sealed folder: it can only be opened where its key is, on the Documents page
+  const docsPage = `${societyBaseOf(base).replace('/api/societies/', '/society/')}/documents`;
   if (task.doc_protection === 'sealed') {
-    return <a href={`${societyBaseOf(base).replace('/api/societies/', '/society/')}/documents${task.doc_folder ? `?folder=${task.doc_folder}` : ''}`} className={cls} title="Open it in its sealed folder">🔐 {label}</a>;
+    const q = [task.doc_folder ? `folder=${task.doc_folder}` : '', task.doc_kind === 'note' ? `note=${task.document_id}` : ''].filter(Boolean).join('&');
+    return <a href={`${docsPage}${q ? `?${q}` : ''}`} className={cls} title="Open it in its sealed folder">🔐 {label}</a>;
+  }
+  if (task.doc_kind === 'note') {
+    return <a href={`${docsPage}?note=${task.document_id}`} className={cls} title={`Open the note ${label}`}>📝 {label}</a>;
   }
   if (task.doc_kind === 'link') {
     return <a href={`${societyBaseOf(base)}/documents/${task.document_id}/open`} target="_blank" rel="noopener noreferrer" className={cls} title={`Open ${label} in a new tab`}>🔗 {label}</a>;
@@ -121,7 +126,7 @@ export default function TaskTree({ base, tasks, groups, me, canManage, onChanged
       if (!name || name === g.name) return;
       err = await send(`${base}/groups/${g.id}`, 'PATCH', { name });
     } else if (action === 'delete') {
-      if (!confirm(`Delete the group “${g.name}”? Its tasks are kept, ungrouped.`)) return;
+      if (!confirm(`Delete the group “${g.name}”? Its project tasks are kept, ungrouped.`)) return;
       err = await send(`${base}/groups/${g.id}`, 'DELETE');
     } else err = await send(`${base}/groups/${g.id}`, 'PATCH', { move: action });
     if (err) setError(err); else onChanged();
@@ -159,14 +164,14 @@ export default function TaskTree({ base, tasks, groups, me, canManage, onChanged
         {canManage && (
           <span className="flex gap-2">
             <button onClick={addGroup} className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-slate-500">+ Add group</button>
-            <button onClick={() => setCreating({ parentId: null })} className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-500">+ Add task</button>
+            <button onClick={() => setCreating({ parentId: null })} className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-500">+ Add project task</button>
           </span>
         )}
       </div>
       {error && <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{error}</p>}
 
       {tasks.length === 0 && groups.length === 0 ? (
-        <div className="rounded-2xl border border-slate-800 bg-dr-card p-10 text-center text-sm text-slate-500">No tasks yet.</div>
+        <div className="rounded-2xl border border-slate-800 bg-dr-card p-10 text-center text-sm text-slate-500">No project tasks yet.</div>
       ) : (
         <ul className="divide-y divide-slate-800/60 overflow-hidden rounded-2xl border border-slate-800 bg-dr-card">
           {secs.map(sec => {
@@ -187,7 +192,7 @@ export default function TaskTree({ base, tasks, groups, me, canManage, onChanged
                   </button>
                   {canManage && sec.group && (
                     <span className="flex gap-2 text-[11px]">
-                      <button onClick={() => setCreating({ parentId: null, groupId: sec.group!.id })} className="text-blue-400 hover:text-blue-300">+ Task</button>
+                      <button onClick={() => setCreating({ parentId: null, groupId: sec.group!.id })} className="text-blue-400 hover:text-blue-300">+ Project task</button>
                       <button onClick={() => groupAction(sec.group!, 'rename')} className="text-slate-400 hover:text-slate-200">Rename</button>
                       <button onClick={() => groupAction(sec.group!, 'up')} aria-label="Move group up" className="text-slate-500 hover:text-slate-200">↑</button>
                       <button onClick={() => groupAction(sec.group!, 'down')} aria-label="Move group down" className="text-slate-500 hover:text-slate-200">↓</button>
@@ -241,7 +246,7 @@ export default function TaskTree({ base, tasks, groups, me, canManage, onChanged
       )}
 
       {creating && (
-        <Sheet title={creating.parentId ? `New sub-task of “${tasks.find(t => t.id === creating.parentId)?.name}”` : 'New task'} onClose={() => setCreating(null)}>
+        <Sheet title={creating.parentId ? `New sub-task of “${tasks.find(t => t.id === creating.parentId)?.name}”` : 'New project task'} onClose={() => setCreating(null)}>
           <TaskForm base={base} tasks={tasks} groups={groups} parentId={creating.parentId} groupId={creating.groupId} onDone={() => { setCreating(null); onChanged(); }} />
         </Sheet>
       )}
@@ -302,7 +307,7 @@ function TaskForm({ base, tasks, groups, parentId, groupId, task, onDone }: {
   }
   return (
     <form onSubmit={save} className="space-y-3">
-      <input value={f.name} onChange={e => setF(v => ({ ...v, name: e.target.value }))} required maxLength={200} placeholder="Task name" className={inputCls} autoFocus />
+      <input value={f.name} onChange={e => setF(v => ({ ...v, name: e.target.value }))} required maxLength={200} placeholder="Project task name" className={inputCls} autoFocus />
       <textarea value={f.description} onChange={e => setF(v => ({ ...v, description: e.target.value }))} rows={3} maxLength={5000} placeholder="Description" className={inputCls} />
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <label className="text-xs text-slate-400">Start<input type="date" value={f.startDate} onChange={e => setF(v => ({ ...v, startDate: e.target.value }))} className={`${inputCls} mt-1`} /></label>
@@ -333,17 +338,17 @@ function TaskForm({ base, tasks, groups, parentId, groupId, task, onDone }: {
           )}
         </div>
       ) : (
-        <p className="text-[11px] text-slate-500">Sub-tasks sit in their parent task’s group.</p>
+        <p className="text-[11px] text-slate-500">Sub-tasks sit in their parent project task’s group.</p>
       )}
       <div className="rounded-lg border border-slate-800 p-2.5">
         <p className="text-xs text-slate-400">Depends on</p>
-        {deps.length === 0 && <p className="mt-1 text-[11px] text-slate-600">No dependencies: this task can start any time.</p>}
+        {deps.length === 0 && <p className="mt-1 text-[11px] text-slate-600">No dependencies: this project task can start any time.</p>}
         {deps.map((d, i) => (
           <div key={i} className="mt-1.5 flex items-center gap-1.5 text-xs">
             <span className="text-slate-500">Starts after</span>
             <select value={d.taskId} onChange={e => setDeps(ds => ds.map((x, j) => j === i ? { ...x, taskId: e.target.value } : x))}
-              className="min-w-0 flex-1 rounded border border-slate-700 bg-slate-900 px-1.5 py-1 text-slate-200" aria-label="Task it depends on">
-              <option value="">Choose a task…</option>
+              className="min-w-0 flex-1 rounded border border-slate-700 bg-slate-900 px-1.5 py-1 text-slate-200" aria-label="Project task it depends on">
+              <option value="">Choose a project task…</option>
               {choices.map(t => (
                 <option key={t.id} value={t.id} disabled={deps.some((x, j) => j !== i && x.taskId === t.id)}>
                   {'\u00a0\u00a0'.repeat(t.depth)}{t.name}
@@ -379,7 +384,7 @@ function TaskForm({ base, tasks, groups, parentId, groupId, task, onDone }: {
           <option value="">{docs === null ? 'Loading documents…' : docs.length ? '— None —' : 'No documents in this Society yet'}</option>
           {[...folders].map(([folder, list]) => (
             <optgroup key={folder} label={folder}>
-              {list.map(d => <option key={d.id} value={d.id}>{d.kind === 'link' ? '🔗 ' : '📄 '}{d.title || d.file_name}</option>)}
+              {list.map(d => <option key={d.id} value={d.id}>{d.kind === 'link' ? '🔗 ' : d.kind === 'note' ? '📝 ' : '📄 '}{d.title || d.file_name}</option>)}
             </optgroup>
           ))}
         </select>
@@ -448,7 +453,7 @@ function TaskSheet({ base, task, tasks, groups, me, canManage, onClose, onChange
         <TaskForm base={base} tasks={tasks} groups={groups} task={task} onDone={() => { setMode('view'); onChanged(); }} />
       ) : mode === 'allocate' ? (
         <div className="space-y-3">
-          <p className="text-xs text-slate-400">Choose the members working on this task.</p>
+          <p className="text-xs text-slate-400">Choose the members working on this project task.</p>
           <ul className="max-h-[50vh] space-y-1 overflow-y-auto">
             {members.map(m => (
               <li key={m.id}>
@@ -524,7 +529,7 @@ function TaskSheet({ base, task, tasks, groups, me, canManage, onClose, onChange
             <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-500">Comments</p>
             {(canManage || allocated) ? (
               <div className="space-y-2">
-                <textarea value={comments} onChange={e => setComments(e.target.value)} rows={2} maxLength={5000} className={inputCls} placeholder="Notes on this task" />
+                <textarea value={comments} onChange={e => setComments(e.target.value)} rows={2} maxLength={5000} className={inputCls} placeholder="Notes on this project task" />
                 {comments !== (task.comments ?? '') && (
                   <button onClick={async () => { const err = await send(`${base}/tasks/${task.id}`, 'PATCH', { comments }); if (err) setError(err); else onChanged(); }}
                     className="rounded bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-500">Save comments</button>
@@ -540,7 +545,7 @@ function TaskSheet({ base, task, tasks, groups, me, canManage, onClose, onChange
                 <textarea value={report.body} onChange={e => setReport(r => ({ ...r, body: e.target.value }))} rows={3} maxLength={5000} required
                   placeholder="Progress since the last report, what's next, anything blocking" className={inputCls} />
                 <div className="flex flex-wrap items-center gap-2">
-                  <label className="text-xs text-slate-400">Task status now
+                  <label className="text-xs text-slate-400">Project task status now
                     <select value={report.status} onChange={e => setReport(r => ({ ...r, status: e.target.value }))} className="ml-2 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200">
                       {Object.entries(TASK_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                     </select>
@@ -568,8 +573,8 @@ function TaskSheet({ base, task, tasks, groups, me, canManage, onClose, onChange
 
           {canManage && (
             <div className="flex gap-3 border-t border-slate-800 pt-3 text-sm">
-              <button onClick={() => setMode('edit')} className="text-slate-300 hover:text-white">Edit task</button>
-              <button onClick={remove} className="text-rose-400 hover:text-rose-300">Delete task</button>
+              <button onClick={() => setMode('edit')} className="text-slate-300 hover:text-white">Edit project task</button>
+              <button onClick={remove} className="text-rose-400 hover:text-rose-300">Delete project task</button>
             </div>
           )}
         </div>

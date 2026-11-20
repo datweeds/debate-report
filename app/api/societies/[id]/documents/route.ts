@@ -6,7 +6,7 @@ import { notifyNew } from '@/lib/notify';
 import pool from '@/lib/db';
 import { openRows, sealText } from '@/lib/societyCrypto';
 import { societyContentAccess } from '@/lib/societies';
-import { MEMBER_LIMIT_BYTES, MODERATOR_LIMIT_BYTES, formatBytes, isHttpUrl, saveFile, isBrowserSealed, saveSealedBytes } from '@/lib/documents';
+import { MEMBER_LIMIT_BYTES, MODERATOR_LIMIT_BYTES, NOTE_MAX_CHARS, NOTE_SEALED_MAX, formatBytes, isHttpUrl, saveFile, isBrowserSealed, saveSealedBytes } from '@/lib/documents';
 import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ id: string }> };
@@ -47,9 +47,9 @@ export async function GET(req: NextRequest, { params }: Params) {
   const tree = req.nextUrl.searchParams.get('tree');
   if (tree && a.canModerate && UUID.test(tree)) {
     const { rows: docs } = await pool.query(
-      `SELECT id, kind, title, description, url, file_name, mime_type, folder_id, protection FROM documents
+      `SELECT id, kind, title, description, url, file_name, body, mime_type, folder_id, protection FROM documents
        WHERE folder_id = ANY($1::uuid[]) AND customer_id = $2 AND deleted_at IS NULL`, [await folderTree(a.societyId, tree), a.societyId]);
-    await openRows(a.societyId, docs, ['title', 'description', 'url', 'file_name']);
+    await openRows(a.societyId, docs, ['title', 'description', 'url', 'file_name', 'body']);
     return NextResponse.json({ documents: docs });
   }
   const folderId = await folderInSociety(a.societyId, req.nextUrl.searchParams.get('folder'));
@@ -107,7 +107,8 @@ export async function GET(req: NextRequest, { params }: Params) {
 }
 
 // POST — multipart { file, title?, description?, folderId? } to upload, or
-// JSON { url, title, description?, folderId? } to add a link.
+// JSON { url, title, description?, folderId? } to add a link, or
+// JSON { kind: 'note', title, body, folderId? } to write a note (body is HTML).
 async function handlePOST(req: NextRequest, { params }: Params) {
   const a = await societyContentAccess(req, (await params).id);
   if (!a) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -153,7 +154,34 @@ async function handlePOST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ id: d.id }, { status: 201 });
   }
 
-  const { url, title, description, folderId: rawFolder } = await req.json().catch(() => ({}));
+  const json = await req.json().catch(() => ({}));
+  if (json?.kind === 'note') {
+    const folderId = await folderInSociety(a.societyId, json.folderId);
+    if (folderId === false) return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
+    // A sealed folder: the note's title and text arrive encrypted
+    const root = await sealRootOf(a.societyId, folderId);
+    if (root) {
+      if (!sealedFor(root, json.title, 30000) || !(json.body == null || json.body === '' || sealedFor(root, json.body, NOTE_SEALED_MAX))) {
+        return NextResponse.json({ error: 'This sealed folder’s keys have changed: reload the page and try again' }, { status: 400 });
+      }
+      const { rows: [d] } = await pool.query(
+        `INSERT INTO documents (customer_id, folder_id, kind, title, body, uploaded_by, protection) VALUES ($1, $2, 'note', $3, $4, $5, 'sealed') RETURNING id`,
+        [a.societyId, folderId, json.title, json.body || null, a.session!.sub]);
+      notifyNew({ societyId: a.societyId, kind: 'documents', authorId: a.session!.sub, private: true, url: `/society/${a.societyId}/documents?folder=${folderId}` });
+      return NextResponse.json({ id: d.id }, { status: 201 });
+    }
+    const title = typeof json.title === 'string' ? json.title.trim() : '';
+    const body = typeof json.body === 'string' ? json.body : '';
+    if (!title) return NextResponse.json({ error: 'Give the note a title' }, { status: 400 });
+    if (title.startsWith('sn1:') || body.startsWith('sn1:')) return NextResponse.json({ error: 'This folder isn’t sealed: reload the page' }, { status: 400 });
+    if (body.length > NOTE_MAX_CHARS) return NextResponse.json({ error: 'This note is too long. Split it into two notes, or upload it as a file.' }, { status: 413 });
+    const { rows: [d] } = await pool.query(
+      `INSERT INTO documents (customer_id, folder_id, kind, title, body, uploaded_by) VALUES ($1, $2, 'note', $3, $4, $5) RETURNING id`,
+      [a.societyId, folderId, await sealText(a.societyId, title.slice(0, 200)), await sealText(a.societyId, body || null), a.session!.sub]);
+    notifyNew({ societyId: a.societyId, kind: 'documents', authorId: a.session!.sub, title, url: `/society/${a.societyId}/documents?note=${d.id}` });
+    return NextResponse.json({ id: d.id }, { status: 201 });
+  }
+  const { url, title, description, folderId: rawFolder } = json;
   const folderId = await folderInSociety(a.societyId, rawFolder);
   if (folderId === false) return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
   // A sealed folder: the link's address and details arrive encrypted

@@ -33,7 +33,7 @@ async function handlePOST(req: NextRequest, { params }: Params) {
   const task = c ? await taskInProject(pid, tid) : null;
   if (!c || !task) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const { rows } = c.me ? await pool.query('SELECT 1 FROM project_task_assignees WHERE task_id = $1 AND user_id = $2', [tid, c.me]) : { rows: [] };
-  if (!rows.length && !c.canManage) return NextResponse.json({ error: 'Only people allocated to this task can report on it' }, { status: 403 });
+  if (!rows.length && !c.canManage) return NextResponse.json({ error: 'Only people allocated to this project task can report on it' }, { status: 403 });
   const b = await req.json().catch(() => ({}));
   const body = ptext(c, b.body, 5000);
   if (!body) return NextResponse.json({ error: 'Write the status update' }, { status: 400 });

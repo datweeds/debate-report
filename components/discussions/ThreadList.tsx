@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import EmojiPicker from './EmojiPicker';
+import RefButton, { insertAtCursor } from '@/components/refs/RefButton';
 import SecureAccessDialog from '@/components/sealed/SecureAccessDialog';
 import { useSecureAccess } from '@/components/sealed/useSecureAccess';
 import { allThreadKeys, newSealedThread, openThreadText, type SealedMember } from '@/components/sealed/items';
@@ -200,6 +201,7 @@ export default function ThreadList({ societyId }: { societyId: number }) {
           {error && <p className="text-xs text-rose-400">{error}</p>}
           <div className="flex items-center gap-2">
             <EmojiPicker onPick={insertEmoji} />
+            <RefButton society={societyId} onPick={p => insertAtCursor(bodyRef.current, body, setBody, p.url)} />
             <span className="flex-1" />
             <button type="button" onClick={() => setComposing(false)} className="text-sm text-slate-500 hover:text-slate-300 px-2">Cancel</button>
             <button type="submit" disabled={saving || !title.trim() || !body.trim()}

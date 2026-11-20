@@ -42,7 +42,7 @@ export function StatusReport({ base, tasks, onOpen }: { base: string; tasks: Tas
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
         {[
-          ['Tasks', tasks.length, 'text-slate-100'],
+          ['Project tasks', tasks.length, 'text-slate-100'],
           ['Complete', count('complete'), 'text-emerald-300'],
           ['In progress', count('in_progress'), 'text-blue-300'],
           ['Not started', count('new'), 'text-slate-300'],
@@ -57,7 +57,7 @@ export function StatusReport({ base, tasks, onOpen }: { base: string; tasks: Tas
       <ProgressBar done={count('complete')} total={tasks.length} />
 
       {rows.length === 0 ? (
-        <p className="text-sm text-slate-500">No tasks yet.</p>
+        <p className="text-sm text-slate-500">No project tasks yet.</p>
       ) : (
         <ul className="divide-y divide-slate-800/60 overflow-hidden rounded-2xl border border-slate-800 bg-dr-card">
           {rows.map(t => {

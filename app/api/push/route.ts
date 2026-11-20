@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const [{ rows: [prefs] }, { rows: societies }, { rows: [devices] }] = await Promise.all([
     pool.query('SELECT muted_kinds, muted_societies FROM push_prefs WHERE user_id = $1', [session.sub]),
     pool.query(
-      `SELECT c.id, c.name FROM customers c WHERE c.id IN (
+      `SELECT c.id, c.name FROM customers c WHERE c.status IS DISTINCT FROM 'closed' AND c.id IN (
          SELECT customer_id FROM customer_members WHERE user_id::text = $1
          UNION SELECT tenant_id FROM customer_roles WHERE user_id::text = $1 AND role = 'customer_admin') ORDER BY c.name`, [session.sub]),
     pool.query('SELECT count(*)::int AS n FROM push_subscriptions WHERE user_id = $1', [session.sub]),

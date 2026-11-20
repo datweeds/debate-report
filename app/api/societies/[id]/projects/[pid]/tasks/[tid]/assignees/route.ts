@@ -11,7 +11,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
   const { id, pid, tid } = await params;
   const c = await projectContext(req, id, pid);
   if (!c || !UUID_RE.test(tid)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!c.canManage) return NextResponse.json({ error: 'Only the Project Manager or a moderator can allocate tasks' }, { status: 403 });
+  if (!c.canManage) return NextResponse.json({ error: 'Only the Project Manager or a moderator can allocate project tasks' }, { status: 403 });
   const { rows: [t] } = await pool.query('SELECT 1 FROM project_tasks WHERE id = $1 AND project_id = $2', [tid, pid]);
   if (!t) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const { userIds } = await req.json().catch(() => ({}));

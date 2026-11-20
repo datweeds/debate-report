@@ -362,3 +362,38 @@
 [data-theme="light"] .prose-dark { color: #334155; }
 [data-theme="light"] .prose-dark :is(h2, h3, strong) { color: #0f172a; }
 [data-theme="light"] .prose-dark a { color: #2563eb; }
+
+/* Notes (Documents): rich text in the viewer and editor */
+.note-html { line-height: 1.6; overflow-wrap: anywhere; }
+.note-html > * + * { margin-top: 0.6em; }
+.note-html h2 { font-size: 1.25em; font-weight: 700; color: rgb(241 245 249); margin-top: 1em; }
+.note-html h3 { font-size: 1.1em; font-weight: 600; color: rgb(241 245 249); margin-top: 0.9em; }
+.note-html h4 { font-weight: 600; margin-top: 0.8em; }
+.note-html ul { list-style: disc; padding-left: 1.4em; }
+.note-html ol { list-style: decimal; padding-left: 1.4em; }
+.note-html li > p { margin: 0; }
+.note-html blockquote { border-left: 3px solid rgb(71 85 105); padding-left: 0.9em; color: rgb(148 163 184); }
+.note-html a { color: rgb(96 165 250); text-decoration: underline; }
+.note-html code { background: rgb(30 41 59); border-radius: 4px; padding: 0.1em 0.3em; font-size: 0.9em; }
+.note-html pre { background: rgb(15 23 42); border-radius: 8px; padding: 0.75em; overflow-x: auto; }
+.note-html hr { border-color: rgb(51 65 85); }
+.note-html.tiptap p.is-editor-empty:first-child::before { content: attr(data-placeholder); color: rgb(71 85 105); float: left; height: 0; pointer-events: none; }
+
+/* References to other items in a Society: a chip with the item's name that opens a preview */
+.ref-chip, .note-html a.ref-chip {
+  display: inline-flex; align-items: baseline; gap: 0.25em; max-width: 100%;
+  padding: 0 0.45em; border-radius: 0.4em; vertical-align: baseline;
+  border: 1px solid rgb(59 130 246 / 0.35); background: rgb(59 130 246 / 0.10);
+  color: rgb(147 197 253); text-decoration: none; font-weight: 500; line-height: 1.5;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
+}
+.ref-chip:hover, .note-html a.ref-chip:hover { background: rgb(59 130 246 / 0.22); color: rgb(191 219 254); }
+.ref-chip[data-gone] { border-style: dashed; color: rgb(148 163 184); background: transparent; }
+/* In the note editor, references show as chips too (by their address) */
+.tiptap a[href*="/society/"][href*="note="], .tiptap a[href*="/society/"][href*="doc="],
+.tiptap a[href*="/society/"][href*="event="], .tiptap a[href*="/discussions/"] {
+  padding: 0 0.35em; border-radius: 0.4em; background: rgb(59 130 246 / 0.12); text-decoration: none;
+}
+[data-theme="light"] .ref-chip, [data-theme="light"] .note-html a.ref-chip { color: rgb(29 78 216); background: rgb(59 130 246 / 0.08); }
+[data-theme="light"] .ref-chip:hover, [data-theme="light"] .note-html a.ref-chip:hover { color: rgb(30 64 175); background: rgb(59 130 246 / 0.16); }
+[data-theme="light"] .ref-chip[data-gone] { color: rgb(100 116 139); background: transparent; }

@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   const session = await getSessionFromRequest(req);
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
   const { rows } = await pool.query(
-    `SELECT c.id, c.name, c.visibility, c.hero_text,
+    `SELECT c.id, c.name, c.visibility, c.hero_text, c.status,
             (SELECT COUNT(*)::int FROM customer_members m WHERE m.customer_id = c.id) AS member_count,
             (SELECT COUNT(*)::int FROM society_join_requests j WHERE j.customer_id = c.id AND j.status = 'pending') AS pending_requests,
             (SELECT COUNT(*)::int FROM statements s WHERE s.customer_id = c.id AND s.stat_type = 'resolution') AS debate_count

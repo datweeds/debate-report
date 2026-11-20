@@ -7,6 +7,7 @@ export type Member = { id: string; handle: string; name: string | null };
 export const TASK_STATUS: Record<string, { label: string; cls: string; bar: string }> = {
   new:         { label: 'New',         cls: 'bg-slate-500/20 text-slate-300 border-slate-500/40',       bar: 'bg-slate-400' },
   in_progress: { label: 'In progress', cls: 'bg-blue-500/15 text-blue-300 border-blue-500/40',          bar: 'bg-blue-500' },
+  paused:      { label: 'Paused',      cls: 'bg-amber-500/15 text-amber-300 border-amber-500/40',       bar: 'bg-amber-500' },
   complete:    { label: 'Complete',    cls: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40', bar: 'bg-emerald-500' },
 };
 

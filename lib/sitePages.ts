@@ -1,9 +1,9 @@
 // Pages of the main new.vote site (not inside a Society): the header shows
 // their own title, and they get a Back link. Shared by server and browser.
 export const SITE_PAGES: Record<string, string> = {
-  '/features': 'Features', '/about': 'About', '/how-it-works': 'How debate works', '/privacy': 'Privacy',
+  '/features': 'Features', '/about': 'About', '/how-it-works': 'How debate works', '/privacy': 'Privacy', '/security': 'Security',
   '/pricing': 'Pricing', '/blog': 'Newsletter', '/support': 'Support & Investors', '/contact': 'Contact',
-  '/my-content': 'My content',
+  '/my-stuff': 'My Stuff', '/my-data': 'Your data',
   '/guides': 'Guides', '/guides/admin': 'Admin guide', '/guides/member': 'Member guide', '/guides/guest': 'Guest guide',
 };
 

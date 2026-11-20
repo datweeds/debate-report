@@ -32,7 +32,8 @@ export default function SocietyFrame({ societyId, slug, manage, disabled }: { so
     const section = SOCIETY_SECTIONS.find(s => isSectionActive(pathname, ref, s.slug));
     const key = section ? (section.slug || 'debates') : null;
     (async () => {
-      if (key && key !== 'about' && key !== 'meet') {
+      // Tasks are personal: no new-item counts
+      if (key && key !== 'about' && key !== 'meet' && key !== 'tasks') {
         await fetch(`/api/societies/${societyId}/seen`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ section: key }) });
       }
       const r = await fetch(`/api/societies/${societyId}/unread`);

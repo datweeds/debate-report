@@ -30,8 +30,8 @@ export function notifyNew(item: NewItem): void {
 }
 
 async function send(item: NewItem) {
-  const { rows: [s] } = await pool.query('SELECT name, visibility FROM customers WHERE id = $1', [item.societyId]);
-  if (!s) return;
+  const { rows: [s] } = await pool.query('SELECT name, visibility, status FROM customers WHERE id = $1', [item.societyId]);
+  if (!s || s.status === 'closed') return;   // a closed Society sends nothing
   const to = (item.to ?? await membersOf(item.societyId)).filter(id => id !== item.authorId);
   if (!to.length) return;
   const showTitle = !item.private && s.visibility === 'public' && !!item.title && !item.title.startsWith('sn1:');

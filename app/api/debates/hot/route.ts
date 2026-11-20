@@ -21,7 +21,7 @@ export async function GET() {
      WHERE s.stat_type = 'resolution'
        AND s.retracted_at IS NULL
        AND s.debate_visibility = 'public'  -- a public feed: never Apply/Invite debates
-       AND NOT EXISTS (SELECT 1 FROM customers pc WHERE pc.id = s.customer_id AND pc.visibility <> 'public')  -- nor private Societies' debates
+       AND NOT EXISTS (SELECT 1 FROM customers pc WHERE pc.id = s.customer_id AND (pc.visibility <> 'public' OR pc.status = 'closed'))  -- nor private Societies' debates
      GROUP BY s.id, s.stat_title, s.created_at, s.vote_for, s.vote_against
      ORDER BY last_activity DESC
      LIMIT 20`,

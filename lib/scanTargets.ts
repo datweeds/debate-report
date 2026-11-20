@@ -50,8 +50,8 @@ export const SCAN_TARGETS: ScanTarget[] = [
     from: 'discussion_posts t JOIN discussion_threads th ON th.id = t.thread_id', where: 't.deleted_at IS NULL AND th.deleted_at IS NULL',
     society: 'th.customer_id', author: 't.created_by', href: society('th.customer_id', `/discussions/' || th.id || '`),
   },
-  ...(['title', 'description'] as const).map(c => ({
-    type: `document_${c}`, label: `Document ${c}`, table: 'documents', column: c, idColumn: 'id',
+  ...(['title', 'description', 'body'] as const).map(c => ({
+    type: `document_${c}`, label: c === 'body' ? 'Note text' : `Document ${c}`, table: 'documents', column: c, idColumn: 'id',
     from: 'documents t', where: 't.deleted_at IS NULL',
     society: 't.customer_id', author: 't.uploaded_by',
     href: `'/society/' || t.customer_id || '/documents' || COALESCE('?folder=' || t.folder_id, '')`,
@@ -61,6 +61,14 @@ export const SCAN_TARGETS: ScanTarget[] = [
     from: 'document_folders t', society: 't.customer_id', author: 't.created_by',
     href: `'/society/' || t.customer_id || '/documents?folder=' || t.id`,
   },
+  // Tasks are private to their author: only shared ones are checked
+  ...(['name', 'description', 'notes'] as const).map(c => ({
+    type: `task_${c}`, label: c === 'name' ? 'Task title' : `Task ${c}`, table: 'society_tasks', column: c, idColumn: 'id',
+    from: 'society_tasks t',
+    where: 't.deleted_at IS NULL AND (t.shared_all OR EXISTS (SELECT 1 FROM task_shares s WHERE s.task_id = t.id))',
+    society: 't.customer_id', author: 't.owner_id',
+    href: `'/society/' || t.customer_id || '/tasks?task=' || t.id`,
+  })),
   ...(['title', 'description', 'location'] as const).map(c => ({
     type: `event_${c}`, label: `Event ${c}`, table: 'society_events', column: c, idColumn: 'id',
     from: 'society_events t', where: 't.deleted_at IS NULL',

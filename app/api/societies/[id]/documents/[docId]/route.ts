@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sealedFor } from '@/lib/sealed/server';
 import { sealRootOf } from '@/lib/sealed/folders';
 import pool from '@/lib/db';
-import { sealText } from '@/lib/societyCrypto';
+import { openRows, sealText } from '@/lib/societyCrypto';
 import { societyContentAccess } from '@/lib/societies';
-import { removeFile } from '@/lib/documents';
+import { NOTE_MAX_CHARS, NOTE_SEALED_MAX, removeFile } from '@/lib/documents';
 import { lockSafe } from '@/lib/lockSafe';
 import { revokeShares } from '@/lib/documentShares';
 
@@ -14,13 +14,33 @@ const UUID = /^[0-9a-f-]{36}$/i;
 async function load(societyId: number, docId: string) {
   if (!UUID.test(docId)) return null;
   const { rows: [d] } = await pool.query(
-    'SELECT id, uploaded_by, stored_name, folder_id, protection FROM documents WHERE id = $1 AND customer_id = $2 AND deleted_at IS NULL',
+    'SELECT id, kind, uploaded_by, stored_name, folder_id, protection FROM documents WHERE id = $1 AND customer_id = $2 AND deleted_at IS NULL',
     [docId, societyId],
   );
   return d ?? null;
 }
 
-// PATCH { title?, description?, folderId? } — the uploader or a moderator.
+// GET — a note, to read (counted as an open) or, with ?edit=1, to edit (not counted).
+// A sealed note comes back as stored, with the sealed folder whose key opens it.
+export async function GET(req: NextRequest, { params }: Params) {
+  const { id, docId } = await params;
+  const a = await societyContentAccess(req, id);
+  if (!a || !UUID.test(docId)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  const count = req.nextUrl.searchParams.get('edit') === '1' ? 0 : 1;
+  const { rows: [d] } = await pool.query(
+    `UPDATE documents SET open_count = open_count + $3
+     WHERE id = $1 AND customer_id = $2 AND kind = 'note' AND deleted_at IS NULL
+     RETURNING id, kind, title, body, folder_id, protection, uploaded_by, created_at, updated_at`,
+    [docId, a.societyId, count]);
+  if (!d) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (d.protection !== 'sealed') await openRows(a.societyId, [d], ['title', 'body']);
+  const root = d.protection === 'sealed' ? await sealRootOf(a.societyId, d.folder_id) : null;
+  const res = NextResponse.json({ note: { ...d, seal_root: root?.id ?? null } });
+  res.headers.set('Cache-Control', 'no-store');
+  return res;
+}
+
+// PATCH { title?, description?, body? (notes), folderId? } — the uploader or a moderator.
 async function handlePATCH(req: NextRequest, { params }: Params) {
   const { id, docId } = await params;
   const a = await societyContentAccess(req, id);
@@ -39,6 +59,13 @@ async function handlePATCH(req: NextRequest, { params }: Params) {
   }
   if (typeof body.title === 'string' && body.title.trim()) set('title', root ? body.title : await sealText(a.societyId, body.title.trim().slice(0, 200)));
   if (typeof body.description === 'string') set('description', root ? body.description || null : await sealText(a.societyId, body.description.trim().slice(0, 2000) || null));
+  if (typeof body.body === 'string' && doc.kind === 'note') {
+    if (root ? !(body.body === '' || sealedFor(root, body.body, NOTE_SEALED_MAX)) : body.body.startsWith('sn1:')) {
+      return NextResponse.json({ error: root ? 'This sealed folder’s keys have changed: reload the page and try again' : 'This document isn’t sealed' }, { status: 400 });
+    }
+    if (!root && body.body.length > NOTE_MAX_CHARS) return NextResponse.json({ error: 'This note is too long. Split it into two notes, or upload it as a file.' }, { status: 413 });
+    set('body', root ? body.body || null : await sealText(a.societyId, body.body || null));
+  }
   if ('folderId' in body) {
     const target = body.folderId === null || body.folderId === 'root' ? null : typeof body.folderId === 'string' && UUID.test(body.folderId) ? body.folderId : undefined;
     if (target) {
