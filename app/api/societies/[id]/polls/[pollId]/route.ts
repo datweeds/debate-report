@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { certificateOf, certify, fixRoll, formalProblem, formalView } from '@/lib/polls/formal';
+import { entitlementsFor, planRefusal } from '@/lib/plans';
 import { sealedFor } from '@/lib/sealed/server';
 import { notifyNew } from '@/lib/notify';
 import pool from '@/lib/db';
@@ -18,6 +20,8 @@ export async function GET(req: NextRequest, { params }: Params) {
   const { poll, manager } = c;
   const voted = c.voterKey ? await hasVoted(poll.id, c.voterKey) : false;
   const { payload: _p, ...settings } = poll;
+  // Scrutineers see the result once the ballot closes, whatever the result setting
+  const res = resultsVisible(poll, manager) || (c.scrutineer && poll.status === 'closed') ? await results(poll, manager) : null;
   return NextResponse.json({
     poll: { ...settings, payload: voterPayload(poll, manager), open_questions: openQuestions(poll), question_count: questionCount(poll) },
     voted,
@@ -26,7 +30,9 @@ export async function GET(req: NextRequest, { params }: Params) {
     isMember: c.a.isMember, manager,
     members: manager ? await memberCount(c.a.societyId) : null,
     voters: manager ? (await voterSplit([poll.id])).get(poll.id) ?? { members: 0, codes: 0 } : null,
-    results: resultsVisible(poll, manager) ? await results(poll, manager) : null,
+    results: res,
+    scrutineer: c.scrutineer,
+    formal: poll.formal ? await formalView(poll, res, manager || c.scrutineer) : null,
   }, { headers: { 'Cache-Control': 'no-store' } });
 }
 
@@ -43,6 +49,10 @@ async function handlePATCH(req: NextRequest, { params }: Params) {
   if (b.action) {
     if (b.action === 'open') {
       if (poll.status !== 'draft') return NextResponse.json({ error: 'Only a draft can be opened' }, { status: 409 });
+      if (poll.formal) {
+        const problem = await formalProblem(c.a.societyId, { formal: true, is_quiz: poll.is_quiz, sealed: !!poll.sealed_payload });
+        if (problem) return problem;
+      }
       // A sealed poll's questions were checked in the browser that wrote them
       const v = poll.sealed_payload ? { ok: true as const } : validatePayload(poll.payload);
       if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 });
@@ -51,8 +61,15 @@ async function handlePATCH(req: NextRequest, { params }: Params) {
       }
       if (!poll.members_may_vote && !poll.allow_codes) return NextResponse.json({ error: 'Let members vote, or allow access codes' }, { status: 400 });
       if (poll.question_order === 'sequential' && !poll.allow_revote) return NextResponse.json({ error: 'Questions revealed one at a time need voters to be able to update their ballot' }, { status: 400 });
-      await pool.query(`UPDATE society_polls SET status = 'open', opened_at = now(), questions_revealed = $2, updated_at = now() WHERE id = $1`,
-        [poll.id, poll.question_order === 'sequential' ? 1 : questionCount(poll)]);
+      // A formal ballot's voter roll is fixed in the same step
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(`UPDATE society_polls SET status = 'open', opened_at = now(), questions_revealed = $2, updated_at = now() WHERE id = $1`,
+          [poll.id, poll.question_order === 'sequential' ? 1 : questionCount(poll)]);
+        if (poll.formal) await fixRoll(client, poll);
+        await client.query('COMMIT');
+      } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
       if (poll.members_may_vote) notifyNew({
         societyId: c.a.societyId, kind: 'polls', authorId: c.a.session?.sub ?? null, title: poll.payload.title,
         heading: 'A poll has opened in {society}', url: `/society/${c.a.societyId}/polls/${poll.id}`,
@@ -62,11 +79,16 @@ async function handlePATCH(req: NextRequest, { params }: Params) {
       await pool.query(`UPDATE society_polls SET status = 'closed', closed_at = now(), updated_at = now() WHERE id = $1`, [poll.id]);
     } else if (b.action === 'reopen') {
       if (poll.status !== 'closed') return NextResponse.json({ error: 'It is not closed' }, { status: 409 });
+      if (poll.formal && await certificateOf(poll)) return NextResponse.json({ error: 'This result has been certified, so the ballot can’t be reopened' }, { status: 409 });
       await pool.query(`UPDATE society_polls SET status = 'open', closed_at = NULL, close_mode = 'manual', updated_at = now() WHERE id = $1`, [poll.id]);
     } else if (b.action === 'reveal') {
       if (poll.status !== 'open' || poll.question_order !== 'sequential') return NextResponse.json({ error: 'Not a live, one-at-a-time poll' }, { status: 409 });
       if (poll.questions_revealed >= questionCount(poll)) return NextResponse.json({ error: 'Every question is already open' }, { status: 409 });
       await pool.query(`UPDATE society_polls SET questions_revealed = questions_revealed + 1, updated_at = now() WHERE id = $1`, [poll.id]);
+    } else if (b.action === 'certify') {
+      const r = await certify(poll, c.a.session!.sub);
+      if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status });
+      return NextResponse.json({ ok: true, timestamped: r.timestamped });
     } else return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
     return NextResponse.json({ ok: true });
   }
@@ -78,6 +100,15 @@ async function handlePATCH(req: NextRequest, { params }: Params) {
     // Once voting starts, only timing and who sees results can change: the rest would change what voters agreed to
     for (const k of Object.keys(set)) if (!['closes_at', 'close_mode', 'result_visibility'].includes(k)) delete set[k];
     if (b.payload) return NextResponse.json({ error: 'Questions can only be edited while the poll is a draft' }, { status: 409 });
+  }
+  if (poll.status === 'draft') {
+    const problem = await formalProblem(c.a.societyId, {
+      formal: (set.formal ?? poll.formal) as boolean, is_quiz: (set.is_quiz ?? poll.is_quiz) as boolean, sealed: !!poll.sealed_payload });
+    if (problem) return problem;
+  }
+  if (set.allow_codes === true && !poll.allow_codes) {
+    const ent = await entitlementsFor(c.a.societyId);
+    if (ent.enforced && !ent.limits.votingCodes) return planRefusal(`Voting codes for people without an account are on the Team and Network plans; this Society is on ${ent.name}.`);
   }
   const item = pollItem(poll);
   if (item) { set.is_quiz = false; set.allow_codes = false; delete set.members_may_vote; }   // sealed: see creating one

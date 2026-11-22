@@ -1,50 +1,41 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
 
+// Where Stripe Checkout returns to after paying. The plan itself is switched on
+// by Stripe's webhook, usually within a few seconds.
 export default function StripeSuccessPage() {
   const { refresh } = useAuth();
+  const [next, setNext] = useState('/dashboard/billing');
 
-  // Refresh session so user.plan reflects the new paid status
   useEffect(() => {
-    const t = setTimeout(() => { void refresh(); }, 1500);
+    const n = new URLSearchParams(window.location.search).get('next') ?? '';
+    if (n.startsWith('/') && !n.startsWith('//') && !n.includes('\\')) setNext(n);
+    // Refresh the session so a personal plan shows straight away
+    const t = setTimeout(() => { void refresh(); }, 2000);
     return () => clearTimeout(t);
   }, [refresh]);
 
   return (
-    <div className="min-h-screen bg-[#080d1a] flex items-center justify-center px-4">
+    <div className="flex min-h-screen items-center justify-center bg-[#080d1a] px-4">
       <div className="w-full max-w-md text-center">
-        <div className="mx-auto mb-6 h-16 w-16 rounded-full bg-emerald-500/10 flex items-center justify-center">
-          <svg className="h-8 w-8 text-emerald-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10">
+          <svg className="h-8 w-8 text-emerald-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" aria-hidden>
             <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
           </svg>
         </div>
-        <h1 className="text-2xl font-bold text-slate-100 mb-3">Welcome to new.vote Paid</h1>
-        <p className="text-slate-400 text-sm mb-8 leading-relaxed">
-          Your subscription is active. You now have access to unlimited private forums and public debates.
+        <h1 className="mb-3 text-2xl font-bold text-slate-100">Thank you</h1>
+        <p className="mb-8 text-sm leading-relaxed text-slate-400">
+          Your payment went through. Your plan switches on within a few seconds, and Stripe emails you a receipt.
         </p>
-        <div className="flex flex-col gap-3">
-          <Link
-            href="/chamber"
-            className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-500 transition-colors"
-          >
-            Go to the Chamber
-          </Link>
-          <Link
-            href="/dashboard/debates"
-            className="rounded-xl border border-slate-700 px-6 py-3 text-sm font-medium text-slate-300 hover:border-slate-600 hover:text-slate-100 transition-colors"
-          >
-            Manage your debates
-          </Link>
-        </div>
+        <Link href={next} className="inline-block rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-500">
+          Continue
+        </Link>
         <p className="mt-8 text-xs text-slate-600">
-          Manage or cancel your subscription any time in{' '}
-          <Link href="/dashboard/billing" className="text-blue-500 hover:text-blue-400">
-            Billing settings
-          </Link>
-          .
+          Manage or cancel any time in{' '}
+          <Link href="/dashboard/billing" className="text-blue-500 hover:text-blue-400">Billing</Link>.
         </p>
       </div>
     </div>

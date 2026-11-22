@@ -684,6 +684,11 @@ export default function Header() {
                 >
                   Alerts &amp; Flags
                 </NavLink>
+                {user && !isModerator && (
+                  <NavLink href="/dashboard/societies" onClick={close} pathname={pathname} icon={icons.forums}>
+                    Start a Society
+                  </NavLink>
+                )}
                 {isModerator && (
                   <>
                     {/* Moderator accounts' Dashboard (Sys Admin finds it under Admin) */}
@@ -694,6 +699,9 @@ export default function Header() {
                     )}
                     <NavLink href="/dashboard/societies" onClick={close} pathname={pathname} icon={icons.forums}>
                       Societies
+                    </NavLink>
+                    <NavLink href="/dashboard/billing" onClick={close} pathname={pathname} icon={icons.forums}>
+                      Plans &amp; billing
                     </NavLink>
                     <NavLink href="/dashboard/analytics" onClick={close} pathname={pathname} icon={icons.poll}>
                       Analytics

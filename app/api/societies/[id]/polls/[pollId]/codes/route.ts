@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { entitlementsFor, planRefusal } from '@/lib/plans';
 import pool from '@/lib/db';
 import { pollContext } from '@/lib/polls/access';
 import { hashCode, newCode } from '@/lib/polls/server';
@@ -27,7 +28,10 @@ async function handlePOST(req: NextRequest, { params }: Params) {
   if (!c) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (c.poll.sealed_payload) return NextResponse.json({ error: 'Sealed polls are for members only: access codes can’t be used' }, { status: 409 });
   if (!c.manager) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const ent = await entitlementsFor(c.a.societyId);
+  if (ent.enforced && !ent.limits.votingCodes) return planRefusal(`Voting codes for people without an account are on the Team and Network plans; this Society is on ${ent.name}.`);
   if (!c.poll.allow_codes) return NextResponse.json({ error: 'Turn on access codes for this poll first' }, { status: 400 });
+  if (c.poll.formal && c.poll.status !== 'draft') return NextResponse.json({ error: 'The voter roll was fixed when voting opened, so codes can’t be added now' }, { status: 409 });
   if (c.poll.status === 'closed') return NextResponse.json({ error: 'This poll is closed' }, { status: 409 });
   const b = await req.json().catch(() => ({}));
   const labels: (string | null)[] = Array.isArray(b.labels) && b.labels.length

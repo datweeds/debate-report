@@ -108,8 +108,8 @@ export default function HomePage() {
 
           {/* Subtext */}
           <p className="mx-auto mb-4 max-w-2xl text-lg sm:text-xl text-slate-400 leading-relaxed">
-            Every Society on new.vote gets its own space to debate with evidence, vote by secret ballot,
-            talk, meet and plan, run by its own members.
+            Give your group one place for discussions, documents, events and video calls, with projects,
+            polls and debates when you need them. Everything a community needs, free to start.
           </p>
           <p className="mx-auto mb-10 max-w-2xl text-base text-slate-500 leading-relaxed">
             Public when you want to be heard, private and encrypted when you don’t.
@@ -120,7 +120,7 @@ export default function HomePage() {
             <Link href="/features" className="rounded-lg border border-blue-700/50 px-5 py-3 text-sm font-semibold text-slate-200 hover:bg-blue-500/10 transition-colors">See all features</Link>
           </div>
           <div className="mt-6 flex flex-wrap justify-center gap-2 text-xs text-slate-400">
-            {['Evidence-led', 'Encrypted private Societies', 'Secret ballots', 'No ads or tracking', 'Your choice of AI'].map(t => (
+            {['Free to start', 'Encrypted private Societies', 'Polls and secret ballots', 'No ads or tracking', 'Your choice of AI'].map(t => (
               <span key={t} className="rounded-full border border-blue-900/40 px-3 py-1">{t}</span>
             ))}
           </div>

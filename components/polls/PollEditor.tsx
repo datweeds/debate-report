@@ -13,6 +13,7 @@ type Settings = Omit<PollSettings, 'status' | 'questions_revealed'>;
 const DEFAULTS: Settings = {
   close_mode: 'manual', closes_at: null, question_order: 'all_at_once', result_visibility: 'after_close',
   ballot_mode: 'secret', allow_revote: true, is_quiz: false, allow_codes: false, members_may_vote: true,
+  formal: false, quorum_pct: null, majority: 'simple',
 };
 
 const newQuestion = (type: QuestionType = 'single_choice'): Question => ({
@@ -187,12 +188,12 @@ export default function PollEditor({ societyId, pollId }: { societyId: number; p
         <p className="text-sm font-semibold text-slate-200">Settings</p>
         <fieldset disabled={!draft} className="grid gap-4 disabled:opacity-60 sm:grid-cols-2">
           <Choice label="Ballot" value={settings.ballot_mode} set={v => setS({ ballot_mode: v as Settings['ballot_mode'] })} options={[
-            ['secret', 'Secret: no one can see who chose what'], ['named', 'Named: moderators see who chose what']]} />
+            ['secret', 'Secret: no one can see who chose what'], ['named', 'Named: Society Admins see who chose what']]} />
           <Choice label="Questions" value={settings.question_order} set={v => setS({ question_order: v as Settings['question_order'], ...(v === 'sequential' ? { allow_revote: true } : {}) })} options={[
-            ['all_at_once', 'All at once'], ['sequential', 'One at a time, opened by a moderator (live meetings)']]} />
+            ['all_at_once', 'All at once'], ['sequential', 'One at a time, opened by a Society Admin (live meetings)']]} />
           <div className="space-y-2 text-xs text-slate-300">
             <Check label="Members can change their vote until it closes" on={settings.allow_revote} disabled={settings.question_order === 'sequential'} set={v => setS({ allow_revote: v })} />
-            {!sealed && <Check label="Quiz: mark correct answers and score ballots" on={settings.is_quiz} set={v => setS({ is_quiz: v })} />}
+            {!sealed && !settings.formal && <Check label="Quiz: mark correct answers and score ballots" on={settings.is_quiz} set={v => setS({ is_quiz: v })} />}
           </div>
           <div className="space-y-2 text-xs text-slate-300">
             <Check label="Members vote (signed in)" on={settings.members_may_vote} set={v => setS({ members_may_vote: v })} />
@@ -201,10 +202,10 @@ export default function PollEditor({ societyId, pollId }: { societyId: number; p
         </fieldset>
         <div className="grid gap-4 sm:grid-cols-2">
           <Choice label="Who sees results" value={settings.result_visibility} set={v => setS({ result_visibility: v as Settings['result_visibility'] })} options={[
-            ['live', 'Voters, as votes come in'], ['after_close', 'Voters, once it closes'], ['never', 'Only moderators']]} />
+            ['live', 'Voters, as votes come in'], ['after_close', 'Voters, once it closes'], ['never', 'Only Society Admins']]} />
           <div className="space-y-2">
             <Choice label="Closing" value={settings.close_mode} set={v => setS({ close_mode: v as Settings['close_mode'] })} options={[
-              ['manual', 'A moderator closes it'], ['fixed', 'At a set time']]} />
+              ['manual', 'A Society Admin closes it'], ['fixed', 'At a set time']]} />
             {settings.close_mode === 'fixed' && (
               <input type="datetime-local" className={inputCls}
                 value={settings.closes_at ? toLocal(settings.closes_at) : ''}
@@ -212,6 +213,27 @@ export default function PollEditor({ societyId, pollId }: { societyId: number; p
             )}
           </div>
         </div>
+        {!sealed && (
+          <fieldset disabled={!draft} className="space-y-3 rounded-xl border border-amber-500/25 bg-amber-500/5 p-3 disabled:opacity-60">
+            <Check label="Formal ballot: for AGMs, elections and constitutional votes" on={settings.formal} set={v => setS({ formal: v, ...(v ? { is_quiz: false } : {}) })} />
+            <p className="text-xs text-slate-400">
+              The voter roll is fixed when voting opens: the members at that moment, and any access codes made by then. You can appoint scrutineers,
+              and once it closes you certify the result: it’s written up, hashed and independently timestamped, so anyone can later check it hasn’t changed.
+            </p>
+            {settings.formal && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="text-xs text-slate-400">Quorum: share of the roll that must vote (optional)
+                  <span className="mt-1 flex items-center gap-2">
+                    <input type="number" min={1} max={100} value={settings.quorum_pct ?? ''} aria-label="Quorum percentage"
+                      onChange={e => setS({ quorum_pct: e.target.value ? Math.max(1, Math.min(100, Math.round(Number(e.target.value)))) : null })} className={`${inputCls} w-24`} />%
+                  </span>
+                </label>
+                <Choice label="Motions (Yes / No questions) pass with" value={settings.majority} set={v => setS({ majority: v as Settings['majority'] })} options={[
+                  ['simple', 'More than half of votes cast'], ['two_thirds', 'At least two-thirds'], ['three_quarters', 'At least three-quarters']]} />
+              </div>
+            )}
+          </fieldset>
+        )}
       </div>
 
       {error && <p className="text-sm text-rose-300">{error}</p>}

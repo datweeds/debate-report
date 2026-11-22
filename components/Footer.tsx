@@ -48,7 +48,7 @@ export default function Footer() {
                 </span>
               </Link>
               <p className="text-xs text-slate-500 leading-relaxed">
-                Structured debate and democratic tools for society. Evidence-led. Open to all.
+                One place for your community to talk, plan and decide together. Free to start.
               </p>
               <Link href="/blog" className="mt-4 inline-block text-sm font-medium text-blue-400 underline-offset-4 decoration-blue-400/50 transition-colors hover:text-blue-300 hover:underline">Subscribe to the newsletter →</Link>
             </div>
@@ -61,7 +61,7 @@ export default function Footer() {
             </FooterColumn>
 
             <FooterColumn title="Start a Society">
-              <li><FooterLink href={user ? '/profile' : '/register'}>{user ? 'Become a moderator' : 'Sign up'}</FooterLink></li>
+              <li><FooterLink href={user ? '/dashboard/societies' : '/register'}>{user ? 'Start a Society' : 'Sign up'}</FooterLink></li>
               <li><FooterLink href="/pricing">Pricing</FooterLink></li>
               {user && <li><FooterLink href="/dashboard/societies">Manage your Societies</FooterLink></li>}
               <li><FooterLink href="/support">Support &amp; Investors</FooterLink></li>
@@ -84,7 +84,7 @@ export default function Footer() {
 
           {/* What we stand for */}
           <p className="mt-10 flex flex-wrap justify-center gap-x-5 gap-y-1 border-t border-blue-900/10 pt-6 text-sm text-slate-500">
-            {['Evidence-led', 'Encrypted private Societies', 'Secret ballots', 'No ads or tracking', 'Your choice of AI'].map((t, i) => (
+            {['Free to start', 'Encrypted private Societies', 'Polls and secret ballots', 'No ads or tracking', 'Your choice of AI'].map((t, i) => (
               <span key={t} className="flex items-center gap-5">{i > 0 && <span aria-hidden="true" className="text-slate-700">·</span>}{t}</span>
             ))}
           </p>

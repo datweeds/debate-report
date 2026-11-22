@@ -12,21 +12,21 @@ const SECTIONS: GuideSection[] = [
     <P>
       new.vote supports communities online and helps them grow: places where people debate with evidence, make decisions
       together, and organise what happens next. Each community is a <strong className="text-slate-100">Society</strong>,
-      with its own members, its own moderators and its own rules.
+      with its own members, its own Society Admins and its own rules.
     </P>
     <P>
-      As a Society’s admin (a <em>moderator</em>), you shape the space: who can join, which tools are switched on, the
+      As a Society Admin, you shape the space: who can join, which tools are switched on, the
       principles it runs by, and how its debates and decisions are conducted. new.vote provides the platform, security and
       safety tools; your Society decides how it works.
     </P>
-    <Note>Throughout new.vote, Society admins are called <strong>moderators</strong>. A Society can have several.</Note>
+    <Note>A Society can have several Society Admins. In its debates, they are the moderators.</Note>
   </> },
 
   { id: 'start', title: 'Getting started', short: 'Start', body: <>
     <Steps items={[
       <>Create a free account: just a username and a passkey on your device. Keep the recovery code you’re shown.</>,
-      <>Ask for Moderator tools from {a('/profile', 'your profile')}. The Moderator plan is £9 a month, free while billing is in preview.</>,
-      <>Once approved, open <strong className="text-slate-100">Manage Societies</strong> from the menu and choose <strong className="text-slate-100">+ New Society</strong>.</>,
+      <>Open {a('/dashboard/societies', 'Manage Societies')} and choose <strong className="text-slate-100">+ New Society</strong>. No approval is needed.</>,
+      <>It uses your plan: Huddle is free for up to 3 Societies. Move to Team or Network from {a('/dashboard/billing', 'Plans & billing')} for more Societies, room, longer calls or formal ballots (see {a('/pricing', 'Pricing')}).</>,
       <>Fill in the details: name, a short line for the top of its pages, a description, a contact email (never shown publicly) and an image.</>,
       <>Choose who can see it, switch on the tools you want, invite your first members, and write its principles.</>,
     ]} />
@@ -66,11 +66,11 @@ const SECTIONS: GuideSection[] = [
     ]} />
   </> },
 
-  { id: 'members', title: 'Members and moderators', short: 'Members', body: <>
+  { id: 'members', title: 'Members and Society Admins', short: 'Members', body: <>
     <List items={[
       <Item name="Invite links:">make a link (with a label and an expiry if you like), share it, and revoke it when you’re done. Anyone who opens it can join.</Item>,
       <Item name="Requests to join:">for an Apply Society, approve or decline each request.</Item>,
-      <Item name="Moderators:">make any member a co-moderator, or remove the role. Share the load: a Society should never depend on one person.</Item>,
+      <Item name="Society Admins:">make any member a co-admin, or remove the role. Share the load: a Society should never depend on one person.</Item>,
       <Item name="Removing members:">remove anyone who no longer belongs; their past contributions stay.</Item>,
     ]} />
   </> },
@@ -88,7 +88,7 @@ const SECTIONS: GuideSection[] = [
     <Sub title="Polls">
       <List items={[
         <>Build a poll from the Polls tab: questions of eight kinds, images, comments and quiz answers. Drafts can be edited; once voting opens, questions are fixed.</>,
-        <>Choose a <em>secret</em> ballot (no one can tie a ballot to a voter) or a <em>named</em> one (moderators see who chose what), whether voters may change their vote, and who sees results and when.</>,
+        <>Choose a <em>secret</em> ballot (no one can tie a ballot to a voter) or a <em>named</em> one (Society Admins see who chose what), whether voters may change their vote, and who sees results and when.</>,
         <>For a live meeting, open questions one at a time and show results on the <em>Present live</em> screen.</>,
         <>Track turnout, make one-use access codes for people without an account, download a CSV, and press <strong className="text-slate-100">Verify</strong> to recount every ballot and check the numbers agree.</>,
       ]} />
@@ -100,7 +100,7 @@ const SECTIONS: GuideSection[] = [
       <List items={[
         <>Discussions: pin, lock or remove threads and posts; act on members’ reports.</>,
         <>Meet: create audio or video rooms, choose end-to-end encryption for sensitive calls, and mute, remove or ban people in a call.</>,
-        <>Documents: create folders; moderators upload files up to 50 MB (members up to 10 MB); move or copy material between your Societies.</>,
+        <>Documents: create folders; Society Admins upload files up to 50 MB (members up to 10 MB); move or copy material between your Societies.</>,
         <>Events: add and edit events; members can add them to their own calendars.</>,
       ]} />
     </Sub>
@@ -148,7 +148,7 @@ const SECTIONS: GuideSection[] = [
       <>Review alerts, reports and appeals promptly.</>,
       <>Protect your members’ privacy: don’t copy private content out of the Society, and choose visibility thoughtfully.</>,
       <>Keep a working contact email, so the platform team and your members can reach you.</>,
-      <>Appoint at least one co-moderator, and keep your member list current.</>,
+      <>Appoint at least one co-admin, and keep your member list current.</>,
       <>Follow the {a('/privacy', 'privacy policy')} and the site’s terms; tell us about anything unlawful.</>,
     ]} />
   </> },
@@ -162,7 +162,7 @@ export default async function AdminGuide() {
   if (!(await getSession().catch(() => null))) return <LoginForGuide name="Admin guide" />;
   return (
     <GuideShell kicker="Admin" title="Admin guide"
-      lead={<>For Society moderators: what new.vote is for, how to set up and configure your Society, and what running one involves.</>}
+      lead={<>For Society Admins: what new.vote is for, how to set up and configure your Society, and what running one involves.</>}
       sections={SECTIONS}
       others={[{ href: '/guides/member', label: 'Member guide' }, { href: '/guides/guest', label: 'Guest guide' }]} />
   );

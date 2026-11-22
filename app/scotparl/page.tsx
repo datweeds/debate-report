@@ -201,7 +201,7 @@ export default async function ScotparlPage({
           <div className={hasAside ? 'grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] items-start' : ''}>
             <div className="rounded-2xl border border-slate-800 bg-dr-card p-6 space-y-4">
               <p className="text-sm text-slate-300">
-                This Society&apos;s discussions, events, projects, documents and debates are open to its members. Ask to join and a moderator will review your request.
+                This Society&apos;s discussions, events, projects, documents and debates are open to its members. Ask to join and a Society Admin will review your request.
               </p>
               <JoinSocietyButton societyId={activeSociety.id} loggedIn={!!session} pending={access.pendingRequest} />
             </div>

@@ -1,5 +1,6 @@
 'use client';
 
+import ReportButton from '@/components/ReportButton';
 import MembersOnly from './MembersOnly';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -193,7 +194,9 @@ export default function ThreadView({ societyId, threadId }: { societyId: number;
         ...(isSealed ? { text: data?.posts.find(p => p.id === reporting.id)?.body ?? '' } : {}) }),
     });
     const d = await r.json().catch(() => ({}));
-    setReporting({ ...reporting, done: r.ok ? 'Reported. The Society’s moderators will review it.' : d.error ?? 'Could not send the report.' });
+    setReporting({ ...reporting, done: r.ok
+      ? (d.route === 'platform' ? 'Reported. The new.vote team will review it urgently.' : 'Reported. The Society’s admins will review it.')
+      : d.error ?? 'Could not send the report.' });
   }
 
   async function remove(post: Post) {
@@ -289,7 +292,7 @@ export default function ThreadView({ societyId, threadId }: { societyId: number;
                 {data.canPost && <button onClick={() => { setReplyTo(p); inputRef.current?.focus(); }} className="hover:text-slate-300">Reply</button>}
                 {mine && <button onClick={() => setEditing({ id: p.id, text: p.body ?? '' })} className="hover:text-slate-300">Edit</button>}
                 {(mine || data.canTakeDown) && <button onClick={() => remove(p)} className="hover:text-rose-400">Delete</button>}
-                {!mine && data.canPost && <button onClick={() => setReporting({ id: p.id, reason: 'inappropriate', note: '' })} className="hover:text-amber-300">Report</button>}
+                {!mine && <button onClick={() => setReporting({ id: p.id, reason: 'inappropriate', note: '' })} className="hover:text-amber-300">Report</button>}
               </span>
             </div>
           )}
@@ -302,18 +305,21 @@ export default function ThreadView({ societyId, threadId }: { societyId: number;
                 </div>
               ) : (
                 <>
-                  <p className="font-semibold text-amber-200">Report this message to the moderators</p>
+                  <p className="font-semibold text-amber-200">Report this message to the Society Admins</p>
                   <select value={reporting.reason} onChange={e => setReporting({ ...reporting, reason: e.target.value })}
                     className="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-slate-200">
                     <option value="inappropriate">Inappropriate or abusive</option>
+                    <option value="harassment">Harassment or bullying</option>
                     <option value="hate_speech">Hate speech</option>
                     <option value="personal_data">Shares personal data</option>
+                    <option value="spam">Spam or a scam</option>
+                    <option value="illegal">Possibly illegal (goes to the new.vote team)</option>
                     <option value="other">Something else</option>
                   </select>
                   <textarea value={reporting.note} onChange={e => setReporting({ ...reporting, note: e.target.value })} rows={2} maxLength={1000}
                     placeholder="Optional: what’s wrong?" className="w-full rounded border border-slate-700 bg-slate-900 px-2 py-1.5 text-slate-200" />
                   <p className="text-slate-500">
-                    The moderators and new.vote’s admins are told. The author isn’t told who reported it.
+                    The Society Admins and new.vote’s admins are told. The author isn’t told who reported it.
                     {isSealed && ' This discussion is sealed, so your report includes the message as you see it.'}
                   </p>
                   <div className="flex gap-2">
@@ -382,6 +388,8 @@ export default function ThreadView({ societyId, threadId }: { societyId: number;
         {data.canTakeDown && (
           <button onClick={deleteThread} className="rounded px-2 py-1 text-xs text-rose-400 hover:bg-rose-500/10">Delete</button>
         )}
+        <ReportButton kind="discussion_thread" id={threadId} what="this discussion" sealed={isSealed} shown={() => data.thread.title}
+          className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-800 hover:text-amber-300" />
         <button onClick={() => setFull(f => !f)} aria-label={full ? 'Exit full screen' : 'Full screen'} title={full ? 'Exit full screen' : 'Full screen'}
           className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-slate-200">
           {full ? (

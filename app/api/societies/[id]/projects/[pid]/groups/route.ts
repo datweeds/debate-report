@@ -9,7 +9,7 @@ async function handlePOST(req: NextRequest, { params }: Params) {
   const { id, pid } = await params;
   const c = await projectContext(req, id, pid);
   if (!c) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!c.canManage) return NextResponse.json({ error: 'Only the Project Manager or a moderator can add groups' }, { status: 403 });
+  if (!c.canManage) return NextResponse.json({ error: 'Only the Project Manager or a Society Admin can add groups' }, { status: 403 });
   const b = await req.json().catch(() => ({}));
   const g = await readGroup(pid, c.a.societyId, c.me, { newGroup: b.name }, c);
   if (!g || 'error' in g || !g.id) return NextResponse.json({ error: 'A group name is required' }, { status: 400 });

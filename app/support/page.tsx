@@ -47,7 +47,7 @@ export default function SupportPage() {
                 new.vote is an online platform for structured, evidence-led public debate and democratic participation. It gives groups the tools to debate the issues that matter — from local planning decisions to national legislation — with the rigour and courtesy that good democracy demands.
               </p>
               <p className="mt-3 text-sm text-slate-400 leading-relaxed">
-                It carries forward the debate engine of debate.report, and adds what groups need around it: Societies with their own members and moderators, secret-ballot polls, discussions, documents, events, projects and calls, with private Societies encrypted. See the <Link href="/features" className="text-blue-400 hover:underline">full list of features</Link>.
+                It carries forward the debate engine of debate.report, and adds what groups need around it: Societies with their own members and Society Admins, secret-ballot polls, discussions, documents, events, projects and calls, with private Societies encrypted. See the <Link href="/features" className="text-blue-400 hover:underline">full list of features</Link>.
               </p>
             </div>
           </div>

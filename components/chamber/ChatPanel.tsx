@@ -1,5 +1,6 @@
 'use client';
 
+import ReportButton from '@/components/ReportButton';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import type { ChatGraphMessage } from './ChatGraph';
@@ -170,6 +171,10 @@ function MessageNode({
               >
                 Delete
               </button>
+            )}
+            {!isOwn && !node.is_deleted && (
+              <ReportButton kind="comment" id={node.id} what="this message" shown={() => node.body}
+                className="text-[10px] text-slate-600 hover:text-amber-300 transition-colors" />
             )}
           </div>
         )}
@@ -414,7 +419,7 @@ export default function ChatPanel({
           </div>
         ) : userId ? (
           <p className="text-xs text-slate-600 text-center">
-            Voter, Debater, or Moderator tier required to chat
+            Voter, Debater, or Society Admin tier required to chat
           </p>
         ) : (
           <p className="text-xs text-slate-600 text-center">Log in to join the chat</p>

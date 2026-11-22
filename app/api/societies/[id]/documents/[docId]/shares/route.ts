@@ -28,7 +28,7 @@ export async function GET(req: NextRequest, { params }: Params) {
   const { id, docId } = await params;
   const m = await moderatorDoc(req, id, docId);
   if (!m) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!m.a.canModerate) return NextResponse.json({ error: 'Only moderators can share documents' }, { status: 403 });
+  if (!m.a.canModerate) return NextResponse.json({ error: 'Only Society Admins can share documents' }, { status: 403 });
   const { rows } = await pool.query(
     `SELECT s.id, s.mode, s.created_at, s.expires_at, s.extended_at, s.open_count, s.last_opened_at, u.user_handle AS created_by
        FROM document_shares s LEFT JOIN users u ON u.id = s.created_by
@@ -50,7 +50,7 @@ async function handlePOST(req: NextRequest, { params }: Params) {
   const m = await moderatorDoc(req, id, docId);
   if (!m) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const { a, d } = m;
-  if (!a.canModerate) return NextResponse.json({ error: 'Only moderators can share documents' }, { status: 403 });
+  if (!a.canModerate) return NextResponse.json({ error: 'Only Society Admins can share documents' }, { status: 403 });
   if (d.kind !== 'file') return NextResponse.json({ error: 'Only files can be shared this way: for a link, share its address' }, { status: 400 });
 
   const multipart = (req.headers.get('content-type') ?? '').includes('multipart/form-data');

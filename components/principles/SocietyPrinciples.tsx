@@ -1,5 +1,6 @@
 'use client';
 
+import ReportButton from '@/components/ReportButton';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import RichText from '@/components/discussions/RichText';
@@ -386,6 +387,10 @@ export default function SocietyPrinciples({ societyId }: { societyId: number }) 
                     {/* Discuss, debate, review */}
                     {isCurrent && (
                       <div className="mt-3 flex flex-wrap items-center gap-2 pl-9 text-xs">
+                        <span className="order-last ml-auto">
+                          <ReportButton kind="principle" id={p.id} what="this principle" sealed={!!sealedId}
+                            shown={() => [p.title, p.body, p.grounding].filter(Boolean).join('\n')} />
+                        </span>
                         {(p.thread_id || data.canPost) && (
                           <button onClick={() => discuss(p)} disabled={busy === p.id} className="rounded-lg border border-slate-700 px-2.5 py-1 text-slate-300 hover:border-slate-500">
                             💬 Discuss{p.thread_id ? ` (${p.post_count ?? 0})` : ''}

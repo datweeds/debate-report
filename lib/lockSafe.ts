@@ -11,6 +11,8 @@ export function lockSafe<A extends unknown[], R extends Response>(handler: (...a
     } catch (e) {
       // Text sealed (or not) when it shouldn't be: a clear message, not a crash
       if ((e as { code?: string })?.code === 'SEALED_TEXT') return NextResponse.json({ error: (e as Error).message }, { status: 400 });
+      // A held (read-only) Society: see db/migrations/083_holds.sql
+      if ((e as { hint?: string })?.hint === 'society_held') return NextResponse.json({ error: (e as Error).message, held: true }, { status: 423 });
       if (!isLockedError(e)) throw e;
       return NextResponse.json(
         { error: 'This private Society is locked for a moment: an administrator needs to unlock it. Please try again later.', locked: true },

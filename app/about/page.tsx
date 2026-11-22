@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 const BELIEFS = [
   { title: 'Sophisticated community tools', text: 'Debates mapped argument by argument; secret ballots with receipts and full recounts, and ranked-choice runoffs; encrypted private Societies and end-to-end encrypted calls; and a news magazine built around your topics.' },
-  { title: 'Groups run themselves', text: 'Each Society sets its own rules, moderators and tools. We provide the space; its members decide how it works.' },
+  { title: 'Groups run themselves', text: 'Each Society sets its own rules, Society Admins and tools. We provide the space; its members decide how it works.' },
   { title: 'Private means private', text: 'Private Societies are encrypted with their own key, and our team has no routine access to what’s inside.' },
   { title: 'No ads, no tracking', text: 'We don’t sell attention or data. new.vote uses only the cookies the site needs to work.' },
   { title: 'Fair to every side', text: 'Both sides of a debate are set out and weighed on the same terms, and votes are counted openly and accurately.' },
@@ -67,7 +67,7 @@ export default function AboutPage() {
           <li className="flex flex-col gap-2 border-t-2 border-blue-500 pt-4">
             <span className="text-sm font-semibold text-blue-300">new.vote</span>
             <p className="text-sm leading-relaxed text-slate-300">
-              Societies with their own members and moderators, and a toolkit they switch on as they need it:{' '}
+              Societies with their own members and Society Admins, and a toolkit they switch on as they need it:{' '}
               {FEATURES.map(f => f.label).join(', ').replace(/, ([^,]*)$/, ' and $1')}. Private Societies are encrypted, and
               ballots are secret and verifiable.
             </p>

@@ -7,7 +7,7 @@ import {
 } from '@livekit/components-react';
 import { ExternalE2EEKeyProvider, Room, RoomEvent } from 'livekit-client';
 
-type Joined = { url: string; token: string; choices: LocalUserChoices };
+type Joined = { url: string; token: string; choices: LocalUserChoices; endsAt?: number | null };
 
 // End-to-end encrypted rooms: media is encrypted in the browser with a key
 // derived from a passphrase members share outside new.vote. It is never sent
@@ -40,7 +40,7 @@ export default function CallRoom({ societyId, roomId, roomName, mode, e2ee, canM
     const r = await fetch(`/api/societies/${societyId}/rtc/rooms/${roomId}/token`, { method: 'POST' });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) { setError(d.error ?? 'Could not join the room.'); return; }
-    setJoined({ url: d.url, token: d.token, choices });
+    setJoined({ url: d.url, token: d.token, choices, endsAt: d.endsAt ?? null });
   }
 
   return (
@@ -49,6 +49,7 @@ export default function CallRoom({ societyId, roomId, roomName, mode, e2ee, canM
         <span className="font-semibold">{roomName}{mode === 'audio' && <span className="ml-2 text-xs font-normal text-slate-400">audio only</span>}
           {e2ee && <span className="ml-2 text-xs font-normal text-emerald-300">🔐 end-to-end encrypted</span>}</span>
         <div className="flex items-center gap-2">
+          {joined?.endsAt && <CallTimer endsAt={joined.endsAt} />}
           {joined && canModerate && (
             <button onClick={() => setShowPeople(v => !v)} className="rounded-md border border-white/15 px-2.5 py-1 text-xs hover:bg-white/10">
               {showPeople ? 'Hide moderation' : 'Moderate'}
@@ -62,7 +63,7 @@ export default function CallRoom({ societyId, roomId, roomName, mode, e2ee, canM
         <form onSubmit={e => { e.preventDefault(); if (passphrase.length >= 8) setPassphraseSet(true); }}
           className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-3 p-4 text-sm text-slate-300">
           <p className="text-base font-semibold text-slate-100">🔐 This room is end-to-end encrypted</p>
-          <p>Enter the room passphrase. Your moderator shares it with members outside new.vote (in person, or by an encrypted messenger). It never leaves your device, so not even new.vote can see or hear this call.</p>
+          <p>Enter the room passphrase. Your Society Admin shares it with members outside new.vote (in person, or by an encrypted messenger). It never leaves your device, so not even new.vote can see or hear this call.</p>
           <input type="password" autoFocus value={passphrase} onChange={e => setPassphrase(e.target.value)} placeholder="Room passphrase (at least 8 characters)"
             className="rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-slate-100" />
           <p className="text-xs text-slate-500">Everyone must use exactly the same passphrase. With a different one you’ll join but won’t see or hear the others.</p>
@@ -159,12 +160,25 @@ function ModerationPanel({ societyId, roomId, me }: { societyId: number; roomId:
         ))}
       </ul>
       <div className="mt-4 flex flex-wrap gap-2 border-t border-white/10 pt-3">
-        <button onClick={() => act({ locked: true }, 'Room locked: only moderators can join now')} className="rounded border border-white/15 px-2 py-1 text-xs hover:bg-white/10">Lock room</button>
+        <button onClick={() => act({ locked: true }, 'Room locked: only Society Admins can join now')} className="rounded border border-white/15 px-2 py-1 text-xs hover:bg-white/10">Lock room</button>
         <button onClick={() => act({ locked: false }, 'Room unlocked')} className="rounded border border-white/15 px-2 py-1 text-xs hover:bg-white/10">Unlock</button>
         <button onClick={() => { if (confirm('End the call for everyone?')) void act({ action: 'end' }, 'Call ended'); }}
           className="rounded border border-rose-400/40 px-2 py-1 text-xs text-rose-300 hover:bg-rose-950/40">End for everyone</button>
       </div>
       {msg && <p className="mt-2 text-xs text-slate-400">{msg}</p>}
     </aside>
+  );
+}
+
+// The Society's plan limits call length: time left, amber in the last 5 minutes
+function CallTimer({ endsAt }: { endsAt: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+  const left = Math.max(0, endsAt - now);
+  const m = Math.floor(left / 60000), s = Math.floor((left % 60000) / 1000);
+  return (
+    <span title="This Society’s plan limits how long a call lasts" className={`rounded-md px-2 py-1 text-xs tabular-nums ${left < 5 * 60000 ? 'bg-amber-500/20 text-amber-200' : 'text-slate-400'}`}>
+      {left > 0 ? `Call ends in ${m}:${String(s).padStart(2, '0')}` : 'Call time is up'}
+    </span>
   );
 }

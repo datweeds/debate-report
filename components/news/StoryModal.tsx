@@ -119,7 +119,7 @@ export default function StoryModal({ story, societyId, canPost, canModerate, onC
           </div>
           {canModerate && (
             <div className="mt-3 flex flex-wrap gap-2 text-xs">
-              <span className="py-1.5 text-slate-500">Moderator:</span>
+              <span className="py-1.5 text-slate-500">Society Admin:</span>
               {!story.is_headline && (
                 <button disabled={busy} onClick={() => act({ action: 'headline' }, 'Now the headline.')}
                   className="rounded-md border border-slate-700 px-2.5 py-1.5 text-slate-300 hover:bg-slate-800">Make headline</button>

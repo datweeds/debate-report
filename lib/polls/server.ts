@@ -28,7 +28,7 @@ export const pollItem = (p: PollRow): SealedItem | null =>
 
 const COLS = `id, customer_id, payload, status, close_mode, closes_at, opened_at, closed_at, question_order, questions_revealed,
   result_visibility, ballot_mode, allow_revote, is_quiz, allow_codes, members_may_vote, vote_count, created_at, created_by,
-  protection, sealed_epoch, question_count`;
+  protection, sealed_epoch, question_count, formal, quorum_pct, majority`;
 
 async function hydrate(r: Record<string, unknown>): Promise<PollRow> {
   // Sealed: the questions can only be read in members' browsers
@@ -126,6 +126,11 @@ export async function castBallot(poll: PollRow, voter: { key: string; userId?: s
     if (voter.codeId) {
       const { rows: [c] } = await client.query('SELECT revoked_at FROM poll_codes WHERE id = $1 AND poll_id = $2 FOR UPDATE', [voter.codeId, poll.id]);
       if (!c || c.revoked_at) { await client.query('ROLLBACK'); return { ok: false, status: 403, error: 'This code is not valid' }; }
+    }
+    // A formal ballot: only those on the roll fixed when voting opened
+    if (poll.formal) {
+      const { rows: onRoll } = await client.query('SELECT 1 FROM poll_roll WHERE poll_id = $1 AND voter_key = $2', [poll.id, voter.key]);
+      if (!onRoll.length) { await client.query('ROLLBACK'); return { ok: false, status: 403, error: 'You’re not on this ballot’s voter roll: it was fixed when voting opened.' }; }
     }
     const { rows: [already] } = await client.query(
       'SELECT 1 FROM poll_participants WHERE poll_id = $1 AND voter_key = $2 FOR UPDATE', [poll.id, voter.key]);

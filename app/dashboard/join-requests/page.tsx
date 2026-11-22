@@ -80,7 +80,7 @@ export default function JoinRequestsPage() {
   const resolved = requests.filter(r => r.status !== 'pending');
 
   return (
-    <div className="px-6 py-8 max-w-3xl">
+    <div className="mx-auto px-6 py-8 max-w-3xl">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-slate-100">Join Requests</h1>
         <p className="text-sm text-slate-500 mt-1">

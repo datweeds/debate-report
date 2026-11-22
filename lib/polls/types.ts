@@ -62,6 +62,9 @@ export type PollSettings = {
   is_quiz: boolean;
   allow_codes: boolean;
   members_may_vote: boolean;
+  formal: boolean;                          // a formal ballot (lib/polls/formal.ts)
+  quorum_pct: number | null;
+  majority: 'simple' | 'two_thirds' | 'three_quarters';
 };
 
 export const YES_NO: PollOption[] = [{ id: 'yes', text: 'Yes' }, { id: 'no', text: 'No' }];

@@ -3,6 +3,8 @@ import pool from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { moderatedSocietyIds } from '@/lib/roles';
 import { hideEndToEnd, openDeep, openText } from '@/lib/societyCrypto';
+import { canMaskKind, KIND_LABELS } from '@/lib/reports';
+import { TARGET_BY_TYPE } from '@/lib/scanTargets';
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -29,10 +31,11 @@ export async function GET(req: NextRequest) {
   let filterClause = 'ca.status = $1';
   const filterParams: (string | number | number[])[] = [status];
   if (mine) {
-    filterClause += ` AND ca.author_id = $${filterParams.length + 1}`;
+    // Reports for the new.vote team aren't shown to the author
+    filterClause += ` AND ca.author_id = $${filterParams.length + 1} AND ca.report_route IS DISTINCT FROM 'platform'`;
     filterParams.push(session.sub);
   } else if (!session.isSysAdmin) {
-    filterClause += ` AND COALESCE(ca.customer_id, r.customer_id) = ANY($${filterParams.length + 1}::int[])`;
+    filterClause += ` AND ca.report_route IS DISTINCT FROM 'platform' AND COALESCE(ca.customer_id, r.customer_id) = ANY($${filterParams.length + 1}::int[])`;
     filterParams.push(moderated);
   }
 
@@ -51,7 +54,7 @@ export async function GET(req: NextRequest) {
          owner.user_handle AS owner_handle,
          owner.email       AS owner_email,
          rep.user_handle   AS reporter_handle,
-         ca.report_reason
+         ca.report_reason, ca.urgent, ca.report_route, ca.item_kind
        FROM content_alerts ca
        LEFT JOIN users      u     ON u.id     = ca.author_id
        LEFT JOIN users      rv    ON rv.id    = ca.reviewed_by
@@ -61,7 +64,7 @@ export async function GET(req: NextRequest) {
        LEFT JOIN users      rep   ON rep.id   = ca.reported_by
        LEFT JOIN customers  soc   ON soc.id   = COALESCE(ca.customer_id, r.customer_id)
        WHERE ${filterClause}
-       ORDER BY ca.created_at DESC
+       ORDER BY ca.urgent DESC, ca.created_at DESC
        LIMIT $${filterParams.length + 1} OFFSET $${filterParams.length + 2}`,
       [...filterParams, limit, offset],
     ),
@@ -85,7 +88,11 @@ export async function GET(req: NextRequest) {
   }
   for (const al of alerts) {
     const sid = al.society_id as number | null;
-    const hidden = !mine && sid != null && al.society_visibility !== 'public' && !moderated.includes(sid) && !granted.has(sid);
+    // A report sent to the new.vote team is the reporter's to share: Sys Admin sees it without break-glass
+    const hidden = !mine && sid != null && al.report_route !== 'platform' && al.society_visibility !== 'public' && !moderated.includes(sid) && !granted.has(sid);
+    if (!session.isSysAdmin) al.reporter_handle = null;   // moderators aren't told who reported
+    al.item_label = al.item_kind ? KIND_LABELS[al.item_kind] ?? null : null;
+    al.maskable = al.item_kind ? canMaskKind(al.item_kind) : TARGET_BY_TYPE.has(al.content_type);
     if (hidden) {
       Object.assign(al, { flagged_text: null, appeal_body: null, author_email: null, owner_email: null,
         statement_title: null, resolution_title: null, report_reason: null, content_hidden: true });

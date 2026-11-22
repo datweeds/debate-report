@@ -7,7 +7,7 @@ import { type Digest, NewsError, loadSettings, newsFetch, storeEdition, syncSubs
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const a = await societyContentAccess(req, (await params).id);
   if (!a) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!a.canModerate) return NextResponse.json({ error: 'Moderators only' }, { status: 403 });
+  if (!a.canModerate) return NextResponse.json({ error: 'Society Admins only' }, { status: 403 });
   try {
     let settings = await loadSettings(a.societyId);
     if (!settings?.sections.length) return NextResponse.json({ error: 'Set up the News sections first' }, { status: 400 });

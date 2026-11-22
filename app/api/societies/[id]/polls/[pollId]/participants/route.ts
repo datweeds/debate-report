@@ -10,7 +10,7 @@ export async function GET(req: NextRequest, { params }: Params) {
   const { id, pollId } = await params;
   const c = await pollContext(req, id, pollId);
   if (!c) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!c.manager) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!c.manager && !c.scrutineer) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const [{ rows: voted }, { rows: notYet }] = await Promise.all([
     pool.query(
       `SELECT p.voted_at, u.user_handle AS handle, u.user_full_name AS name, k.label AS code_label

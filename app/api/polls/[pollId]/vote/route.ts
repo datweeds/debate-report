@@ -1,10 +1,11 @@
+import { clientIp } from '@/lib/clientIp';
 import { NextRequest, NextResponse } from 'next/server';
 import { pollSociety } from '@/lib/polls/access';
 import { castBallot, codeAttemptAllowed, codeAttemptFailed, codeVoter, findCode, loadPoll } from '@/lib/polls/server';
 import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ pollId: string }> };
-const ip = (req: NextRequest) => req.headers.get('x-real-ip') ?? req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+const ip = (req: NextRequest) => clientIp(req.headers);
 
 // POST { code, answers, receiptHash } — vote with an access code.
 async function handlePOST(req: NextRequest, { params }: Params) {

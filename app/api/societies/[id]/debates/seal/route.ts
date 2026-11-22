@@ -13,7 +13,7 @@ type Params = { params: Promise<{ id: string }> };
 async function moderatorAccess(req: NextRequest, id: string) {
   const a = await societyContentAccess(req, id);
   if (!a?.session) return { error: NextResponse.json({ error: 'Not found' }, { status: 404 }) };
-  if (!a.canModerate || !a.isMember) return { error: NextResponse.json({ error: 'Only the Society’s moderators can do this' }, { status: 403 }) };
+  if (!a.canModerate || !a.isMember) return { error: NextResponse.json({ error: 'Only the Society’s admins can do this' }, { status: 403 }) };
   return { a };
 }
 

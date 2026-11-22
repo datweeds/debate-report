@@ -7,6 +7,9 @@ const REASON_LABELS: Record<string, string> = {
   inappropriate: 'Inappropriate, profane or offensive language',
   hate_speech:   'Hate Speech',
   personal_data: 'Contains personal data',
+  harassment:    'Harassment or bullying',
+  spam:          'Spam or a scam',
+  illegal:       'Possibly illegal (e.g. terrorism, child abuse, threats, fraud): also goes to the new.vote team',
 };
 
 type Props = {
@@ -116,7 +119,7 @@ export default function FlagModal({ statementId, statementTitle, onClose, onFlag
               </div>
               <p className="text-sm font-semibold text-red-300">Flag submitted</p>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Thank you for helping keep debates civil. A moderator will review this statement.
+                Thank you for helping keep debates civil. A Society Admin will review this statement.
               </p>
               {status && (
                 <p className="text-xs text-slate-500">Total flags on this statement: {status.flagCount}</p>
@@ -184,7 +187,7 @@ export default function FlagModal({ statementId, statementTitle, onClose, onFlag
                 <>
                   <div>
                     <p className="text-xs text-slate-400 leading-relaxed mb-3">
-                      Flagging a statement alerts moderators to review it for policy violations.
+                      Flagging a statement alerts Society Admins to review it for policy violations.
                       Please select the most appropriate reason:
                     </p>
                     <div className="space-y-2">

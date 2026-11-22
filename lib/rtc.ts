@@ -3,6 +3,7 @@
 // through short-lived tokens. Rooms are created only here, never by
 // browsers. Server-only.
 
+import { enforcementOn, entitlementsFor } from './plans';
 import { AccessToken, RoomServiceClient, TrackSource, TrackType } from 'livekit-server-sdk';
 import pool from './db';
 
@@ -101,4 +102,30 @@ export async function logRtc(societyId: number, roomId: string | null, actor: st
   await pool.query(
     'INSERT INTO society_rtc_log (customer_id, room_id, actor, action, target) VALUES ($1, $2, $3, $4, $5)',
     [societyId, roomId, actor, action, target]).catch(err => console.error('[rtc] log', err));
+}
+
+// When a room's call started (LiveKit creates the room on first join), or null if it isn't running
+export async function roomStartedAt(room: RtcRoom): Promise<number | null> {
+  if (!rtcConfigured()) return null;
+  const [r] = await service().listRooms([livekitName(room.id)]).catch(() => []);
+  return r ? Number(r.creationTimeMs) || Number(r.creationTime) * 1000 : null;
+}
+
+// Plan limits: end calls that have run past their plan's length. Every
+// minute (instrumentation.ts), only while plan limits are enforced.
+export async function enforceCallLimits() {
+  if (!rtcConfigured() || !(await enforcementOn())) return;
+  const live = await service().listRooms().catch(() => []);
+  for (const r of live) {
+    const m = /^dr-([0-9a-f-]{36})$/.exec(r.name);
+    if (!m) continue;
+    const { rows: [row] } = await pool.query('SELECT customer_id FROM society_rtc_rooms WHERE id = $1', [m[1]]);
+    if (!row) continue;
+    const e = await entitlementsFor(row.customer_id);
+    const started = Number(r.creationTimeMs) || Number(r.creationTime) * 1000;
+    if (e.limits.meetMinutes && Date.now() - started >= e.limits.meetMinutes * 60_000) {
+      await service().deleteRoom(r.name).catch(() => {});
+      await logRtc(row.customer_id, m[1], null, 'time_limit');
+    }
+  }
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { formalProblem } from '@/lib/polls/formal';
 import { allowsSealed, firstLocks, readLocks, sealedFor, UUID_RE_SEALED } from '@/lib/sealed/server';
 import pool from '@/lib/db';
 import { societyContentAccess } from '@/lib/societies';
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 async function handlePOST(req: NextRequest, { params }: Params) {
   const a = await societyContentAccess(req, (await params).id);
   if (!a) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!a.canModerate) return NextResponse.json({ error: 'Only moderators can create polls' }, { status: 403 });
+  if (!a.canModerate) return NextResponse.json({ error: 'Only Society Admins can create polls' }, { status: 403 });
   const b = await req.json().catch(() => ({}));
   // Sealed: { protection: 'sealed', id, payload (the questions, sealed in the browser), questionCount, locks, ...settings }
   if (b.protection === 'sealed') {
@@ -50,7 +51,7 @@ async function handlePOST(req: NextRequest, { params }: Params) {
     const s = readSettings(b);
     if ('error' in s) return NextResponse.json({ error: s.error }, { status: 400 });
     // Every member holds the key, so a quiz's answers couldn't be hidden; and code voters have no key
-    const settings = { ...s.settings, is_quiz: false, allow_codes: false, members_may_vote: true };
+    const settings = { ...s.settings, is_quiz: false, allow_codes: false, members_may_vote: true, formal: false };
     const cols = Object.keys(settings);
     const client = await pool.connect();
     try {
@@ -70,6 +71,8 @@ async function handlePOST(req: NextRequest, { params }: Params) {
   if (JSON.stringify(payload).length > 3_000_000) return NextResponse.json({ error: 'The poll is too large (images?)' }, { status: 400 });
   const s = readSettings(b);
   if ('error' in s) return NextResponse.json({ error: s.error }, { status: 400 });
+  const problem = await formalProblem(a.societyId, { formal: s.settings.formal === true, is_quiz: s.settings.is_quiz === true, sealed: false });
+  if (problem) return problem;
   const cols = Object.keys(s.settings);
   const { rows: [p] } = await pool.query(
     `INSERT INTO society_polls (customer_id, payload, created_by${cols.map(c => `, ${c}`).join('')})

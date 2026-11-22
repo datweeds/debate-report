@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSessionFromRequest } from '@/lib/auth';
 import { isSocietyModerator } from '@/lib/roles';
-import { deleteSociety, protectedReason, sentenceMatches } from '@/lib/societyDelete';
+import { deleteSociety, protectedReason, sentenceMatches, reportHold } from '@/lib/societyDelete';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -39,6 +39,8 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   const blocked = await protectedReason(g.id);
   if (blocked) return NextResponse.json({ error: blocked }, { status: blocked === 'Not found' ? 404 : 400 });
   try {
+    const hold = await reportHold(g.id);
+    if (hold) return NextResponse.json({ error: hold }, { status: 409 });
     const r = await deleteSociety(g.id, g.session.sub);
     return NextResponse.json({ ok: true, ...r });
   } catch (e) {

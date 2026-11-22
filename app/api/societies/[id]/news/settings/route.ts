@@ -7,7 +7,7 @@ import { checkSettings } from '@/lib/newsSettings';
 async function moderatorOnly(req: NextRequest, rawId: string) {
   const a = await societyContentAccess(req, rawId);
   if (!a) return { error: NextResponse.json({ error: 'Not found' }, { status: 404 }) };
-  if (!a.canModerate) return { error: NextResponse.json({ error: 'Only this Society’s moderators can change its News' }, { status: 403 }) };
+  if (!a.canModerate) return { error: NextResponse.json({ error: 'Only this Society’s admins can change its News' }, { status: 403 }) };
   return { a };
 }
 

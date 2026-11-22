@@ -13,7 +13,7 @@ async function handlePOST(req: NextRequest, { params }: Params) {
   const { id, pid } = await params;
   const c = await projectContext(req, id, pid);
   if (!c) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!c.canManage) return NextResponse.json({ error: 'Only the Project Manager or a moderator can add project tasks' }, { status: 403 });
+  if (!c.canManage) return NextResponse.json({ error: 'Only the Project Manager or a Society Admin can add project tasks' }, { status: 403 });
   const b = await req.json().catch(() => ({}));
   const name = ptext(c, b.name, 200);
   if (!name) return NextResponse.json({ error: 'A project task name is required' }, { status: 400 });

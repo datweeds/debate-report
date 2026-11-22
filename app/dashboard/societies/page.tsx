@@ -1,5 +1,6 @@
 'use client';
 
+import PlanCard from '@/components/PlanCard';
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -25,6 +26,7 @@ type Detail = {
   requests: { id: string; user_id: string; message: string | null; created_at: string; user_handle: string | null; user_full_name: string | null }[];
   invites: { id: string; label: string | null; created_at: string; expires_at: string | null; revoked_at: string | null; use_count: number; last_used_at: string | null }[];
   me: string;
+  owner: string | null;
 };
 
 const VIS_OPTIONS: { value: Visibility; label: string; hint: string }[] = [
@@ -208,7 +210,7 @@ function CreateSociety({ onCreated }: { onCreated: (id: number) => void }) {
             <label className="block text-xs text-slate-400 mb-1">Description</label>
             <textarea value={description} onChange={e => setDescription(e.target.value)} rows={5} className={inputCls} />
           </div>
-          <p className="text-xs text-slate-500">You&apos;ll be its moderator. You can add an image once it&apos;s created.</p>
+          <p className="text-xs text-slate-500">You&apos;ll be its Society Admin. You can add an image once it&apos;s created.</p>
           {error && <p className="text-xs text-rose-400">{error}</p>}
           <button type="submit" disabled={saving || name.trim().length < 3 || !slugOk}
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50">
@@ -264,8 +266,9 @@ function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void })
     load(); onChanged();
   }
 
-  async function member(userId: string, action: 'remove' | 'make_moderator' | 'remove_moderator') {
+  async function member(userId: string, action: 'remove' | 'make_moderator' | 'remove_moderator' | 'make_owner') {
     if (action === 'remove' && !confirm('Remove this member from the Society?')) return;
+    if (action === 'make_owner' && !confirm('Hand this Society to them? It will use their plan (and count towards their Societies), not yours.')) return;
     setRowError('');
     const r = await fetch(`/api/manage/societies/${id}/members`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, action }),
@@ -308,7 +311,7 @@ function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void })
       </div>
       {rowError && <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{rowError}</p>}
       {s.status === 'closed' && (
-        <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">This Society is <strong>closed</strong>: it’s on no menu or list, and only its moderators can open it. Reopen it at the bottom of this page.</p>
+        <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">This Society is <strong>closed</strong>: it’s on no menu or list, and only its Society Admins can open it. Reopen it at the bottom of this page.</p>
       )}
 
       <form onSubmit={save}>
@@ -428,14 +431,18 @@ function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void })
           {data.members.map(m => (
             <li key={m.user_id} className="flex flex-wrap items-center gap-2 py-2">
               <span className="text-sm text-slate-200">{m.user_full_name || `@${m.user_handle ?? 'unknown'}`}</span>
-              {m.is_moderator && <span className="rounded border border-blue-500/40 bg-blue-500/10 px-1.5 text-[10px] font-semibold text-blue-300">Moderator</span>}
+              {m.is_moderator && <span className="rounded border border-blue-500/40 bg-blue-500/10 px-1.5 text-[10px] font-semibold text-blue-300">Society Admin</span>}
+              {m.user_id === data.owner && <span className="rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 text-[10px] font-semibold text-emerald-300">Owner: uses their plan</span>}
               {m.user_id === data.me && <span className="text-[10px] text-slate-500">(you)</span>}
               <span className="text-[11px] text-slate-600">joined {fmt(m.joined_at)}</span>
               <span className="ml-auto flex gap-3 text-xs">
+                {m.is_moderator && m.user_id !== data.owner && data.owner === data.me && (
+                  <button onClick={() => member(m.user_id, 'make_owner')} className="text-emerald-400 hover:text-emerald-300">Make owner</button>
+                )}
                 {m.is_moderator ? (
-                  moderatorCount > 1 && <button onClick={() => member(m.user_id, 'remove_moderator')} className="text-slate-400 hover:text-slate-200">Remove moderator</button>
+                  moderatorCount > 1 && m.user_id !== data.owner && <button onClick={() => member(m.user_id, 'remove_moderator')} className="text-slate-400 hover:text-slate-200">Remove Society Admin</button>
                 ) : (
-                  <button onClick={() => member(m.user_id, 'make_moderator')} className="text-blue-400 hover:text-blue-300">Make moderator</button>
+                  <button onClick={() => member(m.user_id, 'make_moderator')} className="text-blue-400 hover:text-blue-300">Make Society Admin</button>
                 )}
                 {!(m.is_moderator && moderatorCount === 1) && (
                   <button onClick={() => member(m.user_id, 'remove')} className="text-rose-400 hover:text-rose-300">Remove</button>
@@ -445,6 +452,14 @@ function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void })
           ))}
         </ul>
       </Card>
+
+      <div className="rounded-2xl border border-slate-800 bg-dr-card p-5">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold text-slate-200">Plan</h2>
+          {data.owner === data.me && <Link href="/dashboard/billing" className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500">Upgrade or change plan</Link>}
+        </div>
+        <PlanCard societyId={s.id} />
+      </div>
 
       <LifecycleCard id={s.id} name={s.name} status={s.status ?? 'active'} onChanged={() => { load(); onChanged(); }}
         blocked={s.is_default ? 'This is the site’s default Society, so it can’t be closed or deleted.' : s.is_demo ? 'This is the demo Society, so it can’t be closed or deleted. Ask a Sys Admin to choose another demo first.' : null} />

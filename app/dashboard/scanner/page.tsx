@@ -20,6 +20,7 @@ type ContentAlert = {
   content_hidden?: boolean;      // private Society, no break-glass: Sys Admin sees only that it exists
   reporter_handle?: string | null;
   report_reason?: string | null;
+  urgent?: boolean; report_route?: string | null; item_label?: string | null; maskable?: boolean;
   created_at: string;
   reviewed_at: string | null;
   appeal_body: string | null;
@@ -194,8 +195,11 @@ const FLAG_LABELS: Record<string, string> = {
   profanity:   'Profanity',
   hate_speech: 'Hate Speech',
   pii:         'Personal Data',
-  reported:      'Reported by a member',
+  reported:      'Reported',
   inappropriate: 'Inappropriate',
+  illegal:       'Possibly illegal',
+  harassment:    'Harassment',
+  spam:          'Spam',
   personal_data: 'Personal Data',
   other:         'Other',
 };
@@ -252,7 +256,7 @@ function AppealBanner({ alert, onHandled }: { alert: ContentAlert; onHandled: (i
 
       <div className="flex flex-wrap gap-1.5 items-center">
         <span className="rounded-full border bg-slate-700/50 text-slate-400 border-slate-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-          {CONTENT_LABELS[alert.content_type] ?? alert.content_type}
+          {alert.item_label ?? CONTENT_LABELS[alert.content_type] ?? alert.content_type}
         </span>
         {alert.author_handle && (
           <span className="text-xs text-slate-500">by <span className="text-slate-400">@{alert.author_handle}</span></span>
@@ -328,11 +332,13 @@ function ScannerCard({ alert, onAction }: { alert: ContentAlert; onAction: (id: 
   }
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-dr-card p-4 space-y-3">
+    <div className={`rounded-xl border ${alert.urgent ? 'border-red-600/60' : 'border-slate-800'} bg-dr-card p-4 space-y-3`}>
+      {alert.urgent && <p className="text-xs font-bold uppercase tracking-wide text-red-400">Urgent: reported as possibly illegal</p>}
+      {alert.report_route === 'platform' && <p className="text-xs font-semibold text-violet-300">For the new.vote team only: the Society’s admins and the author can’t see this report</p>}
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-wrap items-center gap-1.5 min-w-0">
           <span className="rounded-full border bg-slate-700/50 text-slate-400 border-slate-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-            {CONTENT_LABELS[alert.content_type] ?? alert.content_type}
+            {alert.item_label ?? CONTENT_LABELS[alert.content_type] ?? alert.content_type}
           </span>
           {alert.flags.map(f => (
             <span key={f} className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${FLAG_COLOURS[f] ?? 'bg-slate-700 text-slate-300 border-slate-600'}`}>
@@ -345,7 +351,7 @@ function ScannerCard({ alert, onAction }: { alert: ContentAlert; onAction: (id: 
 
       {alert.content_hidden ? (
         <p className="rounded-lg border border-slate-700/60 bg-slate-900/50 px-3 py-2 text-xs text-slate-400">
-          🔐 Private Society: the content is encrypted and handled by its moderators. You can see when they act on it;
+          🔐 Private Society: the content is encrypted and handled by its Society Admins. You can see when they act on it;
           to see the content itself in an emergency, use Admin → Privacy.
         </p>
       ) : (
@@ -355,7 +361,7 @@ function ScannerCard({ alert, onAction }: { alert: ContentAlert; onAction: (id: 
       )}
       {alert.flags.includes('reported') && (
         <p className="text-xs text-amber-300">
-          Reported by {alert.reporter_handle ? `@${alert.reporter_handle}` : 'a member'}
+          Reported by {alert.reporter_handle ? `@${alert.reporter_handle}` : 'someone (not shown)'}
           {alert.report_reason && <span className="text-slate-400">: “{truncate(alert.report_reason, 300)}”</span>}
         </p>
       )}
@@ -394,7 +400,7 @@ function ScannerCard({ alert, onAction }: { alert: ContentAlert; onAction: (id: 
           Pass
         </button>
 
-        {confirming ? (
+        {alert.maskable === false ? null : confirming ? (
           <>
             <span className="text-xs text-amber-400">Replace content with mask text?</span>
             <button
@@ -598,7 +604,7 @@ export default function ScannerPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-100">Alert Review</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Auto-detected content and user-reported flags, for your current Society
+          Reports from members and visitors, the abuse scanner’s alerts, and debate statement flags, for your current Society
           {user.isSysAdmin ? ' — showing all Societies as SysAdmin' : ''}.
         </p>
       </div>
@@ -628,7 +634,7 @@ export default function ScannerPage() {
               : 'border-transparent text-slate-500 hover:text-slate-300'
           }`}
         >
-          Auto-detected
+          Reports &amp; scanner
           {alertsTotal > 0 && (
             <span className="ml-2 rounded-full bg-orange-500/20 text-orange-300 text-[10px] px-1.5 py-0.5">{alertsTotal}</span>
           )}
@@ -641,7 +647,7 @@ export default function ScannerPage() {
               : 'border-transparent text-slate-500 hover:text-slate-300'
           }`}
         >
-          User-reported
+          Statement flags
           {flagsTotal > 0 && (
             <span className="ml-2 rounded-full bg-red-500/20 text-red-300 text-[10px] px-1.5 py-0.5">{flagsTotal}</span>
           )}
@@ -683,7 +689,7 @@ export default function ScannerPage() {
                 {alertStatus === 'pending'
                   ? 'New content is scanned automatically as it is submitted'
                   : alertStatus === 'passed'
-                  ? 'Content reviewed and cleared by a moderator'
+                  ? 'Content reviewed and cleared by a Society Admin'
                   : 'Content that has been masked in the chamber'}
               </p>
             </div>
@@ -716,7 +722,7 @@ export default function ScannerPage() {
           ) : statFlags.length === 0 ? (
             <div className="rounded-2xl border border-slate-800 bg-dr-card p-10 text-center">
               <p className="text-sm text-slate-400 font-medium">{flagStatus === 'cleared' ? 'No cleared flags' : 'No open user-reported flags'}</p>
-              <p className="text-xs text-slate-600 mt-1">{flagStatus === 'cleared' ? 'Flags a moderator has cleared are kept here as a record' : 'Statements flagged by users will appear here'}</p>
+              <p className="text-xs text-slate-600 mt-1">{flagStatus === 'cleared' ? 'Flags a Society Admin has cleared are kept here as a record' : 'Statements flagged by users will appear here'}</p>
             </div>
           ) : (
             statFlags.map(f => <StatFlagCard key={f.id} flag={f} onCleared={id => { setStatFlags(fs => fs.filter(x => x.id !== id)); setFlagsTotal(n => Math.max(0, n - 1)); }} />)

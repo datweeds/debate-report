@@ -1,5 +1,6 @@
 'use client';
 
+import ReportButton from '@/components/ReportButton';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
@@ -142,6 +143,8 @@ export default function ProjectView({ societyId, projectId }: { societyId: numbe
           <span className="flex-1" />
           {data.canManage && <button onClick={() => setSettings(true)} className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-slate-500">Project settings</button>}
           {tab === 'report' && <button onClick={() => window.print()} className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-slate-500">Print</button>}
+          <ReportButton kind="project" id={p.id} what="this project" sealed={p.protection === 'sealed'}
+            shown={() => [p.name, p.description].filter(Boolean).join('\n')} />
         </div>
         <p className="mt-1 text-xs text-slate-400">
           Project Manager: {p.manager ? <span className="text-slate-200">{p.manager.user_full_name ?? `@${p.manager.user_handle}`}</span> : <span className="text-amber-300">not yet chosen</span>}
@@ -237,7 +240,7 @@ function ProjectSettings({ societyId, base, project, canModerate, sealing, unsea
           <label className="text-xs text-slate-400">Starts<input type="date" value={f.startDate} onChange={e => setF(v => ({ ...v, startDate: e.target.value }))} className={`${inputCls} mt-1`} /></label>
           <label className="text-xs text-slate-400">Ends<input type="date" value={f.endDate} min={f.startDate || undefined} onChange={e => setF(v => ({ ...v, endDate: e.target.value }))} className={`${inputCls} mt-1`} /></label>
         </div>
-        {!canModerate && <p className="text-[11px] text-slate-500">Only a moderator can rename the project or change its Project Manager.</p>}
+        {!canModerate && <p className="text-[11px] text-slate-500">Only a Society Admin can rename the project or change its Project Manager.</p>}
         {sealing && (
           <button type="button" onClick={sealing} className="rounded-lg border border-emerald-600/50 px-3 py-1.5 text-xs text-emerald-300 hover:bg-emerald-500/10">🔐 Seal this project</button>
         )}

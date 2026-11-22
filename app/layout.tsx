@@ -16,22 +16,27 @@ const inter = Inter({
 export const metadata: Metadata = {
   metadataBase: new URL('https://new.vote'),
   title: {
-    default: 'new.vote — Democracy Tools for Society',
+    default: 'new.vote — One place for your community',
     template: '%s | new.vote',
   },
   description:
-    'Structured debate, democratic proposals, and civic tools. Evidence-led. Open to all.',
+    'Discussions, documents, events and video calls for your group, with polls, projects and debates when you need them. Free to start.',
   icons: { icon: '/favicon.svg', apple: '/apple-touch-icon.png' },
   // Installable as an app (needed for notifications on iPhone and iPad)
   manifest: '/manifest.webmanifest',
   appleWebApp: { capable: true, title: 'new.vote', statusBarStyle: 'black-translucent' },
   openGraph: {
-    title: 'new.vote — Democracy Tools for Society',
-    description: 'Structured debate, democratic proposals, and civic tools. Evidence-led. Open to all.',
+    title: 'new.vote — One place for your community',
+    description: 'Discussions, documents, events and video calls for your group, with polls, projects and debates when you need them. Free to start.',
     siteName: 'new.vote',
     url: 'https://new.vote',
     type: 'website',
     locale: 'en_GB',
+    images: [{ url: '/og-image.jpg', width: 1200, height: 630, alt: 'A group of people sitting in a circle on the grass, talking' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    images: ['/og-image.jpg'],
   },
 };
 

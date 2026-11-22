@@ -10,6 +10,7 @@ import path from 'path';
 import pool from './db';
 import { STORAGE_DIR } from './documents';
 import { forgetSociety } from './societyCrypto';
+import { cancelAllFor } from './billing';
 
 // The second confirmation: typed exactly (spacing and case aside)
 export const DELETE_SENTENCE = 'I CONFIRM TO DELETE THE SOCIETY UNDERSTANDING ALL CONTENT WILL BE ERASED FOR EVER';
@@ -25,6 +26,13 @@ export async function protectedReason(id: number): Promise<string | null> {
   return null;
 }
 
+/** Why the Society can't be deleted yet because of reports (null if it can). */
+export async function reportHold(id: number): Promise<string | null> {
+  const { rows: [r] } = await pool.query(
+    `SELECT 1 FROM content_alerts WHERE customer_id = $1 AND urgent AND status = 'pending' LIMIT 1`, [id]);
+  return r ? 'This Society has a report of possibly illegal content waiting for the new.vote team to review, so it can’t be deleted yet. Contact us if this is urgent.' : null;
+}
+
 // Tables that point at a Society without cascading (a Society id, but no foreign key, or NO ACTION)
 const TENANT_TABLES = [
   'sp_proposal_debates', 'sp_bill_debates', 'sp_bill_pvc_polls', 'sp_debate_requests', 'nsp_topics', 'proposals',
@@ -37,6 +45,9 @@ const STATEMENT_REFS: [string, string][] = [
 ];
 
 export async function deleteSociety(id: number, byUserId: string): Promise<{ name: string; debates: number }> {
+  // Its plan stops first, so nothing is charged after the Society has gone
+  await cancelAllFor({ kind: 'society', id });
+
   const client = await pool.connect();
   let hero: string | null = null, images: string[] = [], name = '', debates = 0;
   try {

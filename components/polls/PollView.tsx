@@ -1,5 +1,6 @@
 'use client';
 
+import ReportButton from '@/components/ReportButton';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import type { PollResults } from '@/lib/polls/server';
@@ -14,7 +15,16 @@ type Poll = PollSettings & {
   id: string; payload: PollPayload; open_questions: number; vote_count: number; opened_at: string | null; closed_at: string | null;
   protection: 'server' | 'sealed'; sealed_payload: string | null; question_count: number;
 };
-type Data = { poll: Poll; voted: boolean; myBallot: Answer[] | null; canVote: boolean; isMember: boolean; manager: boolean; members: number | null; voters: { members: number; codes: number } | null; results: (PollResults & { unreadable?: number; invalid?: number }) | null };
+type Outcome = {
+  turnout: { voted: number; roll: number; pct: number | null }; quorum: { required: number | null; met: boolean | null }; decided: boolean;
+  questions: { questionId: string; text: string; outcome: string; detail: string }[];
+};
+type Formal = {
+  quorum_pct: number | null; majority: string; roll: { total: number; members: number; codes: number } | null; outcome: Outcome | null;
+  certified: { digest: string; certified_at: string; tsa_time: string | null; has_timestamp: boolean } | null;
+  scrutineers: { id: string; handle: string }[] | null;
+};
+type Data = { scrutineer: boolean; formal: Formal | null; poll: Poll; voted: boolean; myBallot: Answer[] | null; canVote: boolean; isMember: boolean; manager: boolean; members: number | null; voters: { members: number; codes: number } | null; results: (PollResults & { unreadable?: number; invalid?: number }) | null };
 
 // One poll: vote, see results, and (moderators) run it.
 export default function PollView({ societyId, pollId, me }: { societyId: number; pollId: string; me: string | null }) {
@@ -73,14 +83,26 @@ export default function PollView({ societyId, pollId, me }: { societyId: number;
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <h1 className="text-xl font-semibold text-slate-100">{poll.payload.title}</h1>
             <Badge cls={st.cls}>{st.label}</Badge>
+            <span className="flex-1" />
+            <ReportButton kind="poll" id={pollId} what="this poll" sealed={sealed}
+              shown={() => [poll.payload.title, ...poll.payload.questions.map(q => q.text)].filter(Boolean).join('\n')} />
           </div>
           {poll.payload.description && <p className="mt-2 whitespace-pre-line text-sm text-slate-400">{poll.payload.description}</p>}
           <p className="mt-2 text-xs text-slate-500">
-            {poll.ballot_mode === 'secret' ? '🔒 Secret ballot: no one can see who chose what.' : '👤 Named ballot: moderators can see who chose what.'}
+            {poll.ballot_mode === 'secret' ? '🔒 Secret ballot: no one can see who chose what.' : '👤 Named ballot: Society Admins can see who chose what.'}
             {poll.status === 'open' && poll.closes_at && ` Closes ${fmtWhen(poll.closes_at)}.`}
             {poll.status === 'closed' && poll.closed_at && ` Closed ${fmtWhen(poll.closed_at)}.`}
             {poll.is_quiz && ' Quiz.'}
           </p>
+          {d.formal && (
+            <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-slate-300">
+              <span className="font-semibold text-amber-200">📜 Formal ballot. </span>
+              {d.formal.roll ? `The voter roll was fixed when voting opened: ${d.formal.roll.total} voter${d.formal.roll.total === 1 ? '' : 's'}. ` : 'The voter roll is fixed when voting opens. '}
+              {d.formal.quorum_pct ? `Quorum: ${d.formal.quorum_pct}% of the roll. ` : ''}Motions need {d.formal.majority} of votes cast.
+              {d.formal.certified && <> <Link href={`/society/${societyId}/polls/${pollId}/certificate`} className="font-semibold text-blue-300 hover:underline">Certified result ↗</Link></>}
+              {d.scrutineer && <span className="ml-1 text-amber-200">You’re a scrutineer of this ballot.</span>}
+            </div>
+          )}
         </div>
 
         {poll.status === 'open' && (
@@ -102,20 +124,35 @@ export default function PollView({ societyId, pollId, me }: { societyId: number;
         )}
         {poll.status === 'closed' && d.voted && <p className="text-sm text-emerald-300">✓ You voted in this poll.</p>}
 
+        {d.formal?.outcome && <OutcomeCard o={d.formal.outcome} />}
         {d.results ? (
           <div className={card}>
             <div className="mb-3 flex items-center justify-between gap-2">
               <p className="text-sm font-semibold text-slate-200">{poll.status === 'closed' ? 'Results' : 'Results so far'}</p>
-              {poll.result_visibility !== 'live' && poll.status !== 'closed' && d.manager && <span className="text-[11px] text-slate-500">Only moderators see these until it closes</span>}
+              {poll.result_visibility !== 'live' && poll.status !== 'closed' && d.manager && <span className="text-[11px] text-slate-500">Only Society Admins see these until it closes</span>}
             </div>
             <Results results={d.results} payload={poll.payload} />
           </div>
         ) : poll.status !== 'draft' && (
-          <p className="text-sm text-slate-500">{poll.result_visibility === 'never' ? 'Results are seen only by the moderators.' : 'Results will be shown when the poll closes.'}</p>
+          <p className="text-sm text-slate-500">{poll.result_visibility === 'never' ? 'Results are seen only by the Society Admins.' : 'Results will be shown when the poll closes.'}</p>
         )}
       </div>
 
-      {d.manager && <ManagerPanel societyId={societyId} pollId={pollId} base={base} d={d} reload={load} />}
+      {d.manager ? <ManagerPanel societyId={societyId} pollId={pollId} base={base} d={d} reload={load} />
+        : d.scrutineer && poll.status !== 'draft' && (
+          <aside className="space-y-4">
+            <div className={`${card} space-y-2 text-xs`}>
+              <p className="text-sm font-semibold text-slate-200">Scrutineer</p>
+              <p className="text-slate-400">You can check the count and see who has voted (never how), but you can’t change anything.</p>
+              <div className="flex flex-wrap gap-x-4">
+                <Link href={`/society/${societyId}/polls/${pollId}/audit`} className="text-blue-400 hover:underline">Audit log</Link>
+                {d.formal?.certified && <Link href={`/society/${societyId}/polls/${pollId}/certificate`} className="text-blue-400 hover:underline">Certified result</Link>}
+              </div>
+            </div>
+            <Verify base={base} />
+            <Turnout base={base} />
+          </aside>
+        )}
     </div>
   );
 }
@@ -156,7 +193,12 @@ function ManagerPanel({ societyId, pollId, base, d, reload }: { societyId: numbe
           {poll.status === 'open' && poll.question_order === 'sequential' && poll.open_questions < (poll.protection === 'sealed' ? poll.question_count : poll.payload.questions.length) &&
             <button className={btnPrimary} disabled={busy} onClick={() => act('reveal')}>Open question {poll.open_questions + 1}</button>}
           {poll.status === 'open' && <button className={btnGhost} disabled={busy} onClick={() => act('close', 'Close this poll now?')}>Close poll</button>}
-          {poll.status === 'closed' && <button className={btnGhost} disabled={busy} onClick={() => act('reopen', 'Reopen this poll for voting?')}>Reopen</button>}
+          {poll.status === 'closed' && !d.formal?.certified && <button className={btnGhost} disabled={busy} onClick={() => act('reopen', 'Reopen this poll for voting?')}>Reopen</button>}
+          {poll.status === 'closed' && d.formal && !d.formal.certified && (
+            <button className={btnPrimary} disabled={busy} onClick={() => act('certify', 'Certify this result? The count is checked, then the result is written up, hashed and independently timestamped. The ballot can’t be reopened afterwards.')}>
+              {busy ? 'Certifying…' : 'Certify result'}
+            </button>
+          )}
           <Link href={`/society/${societyId}/polls/${pollId}/edit`} className={btnGhost}>{poll.status === 'draft' ? 'Edit' : 'Settings'}</Link>
         </div>
         {poll.status !== 'draft' && (
@@ -171,7 +213,8 @@ function ManagerPanel({ societyId, pollId, base, d, reload }: { societyId: numbe
 
       {poll.status !== 'draft' && <Verify base={base} browserChecks={poll.protection === 'sealed' ? d.results : undefined} />}
       {poll.status !== 'draft' && <Turnout base={base} />}
-      {poll.allow_codes && poll.status !== 'closed' && <Codes base={base} pollId={pollId} draft={poll.status === 'draft'} />}
+      {d.formal && <Scrutineers base={base} initial={d.formal.scrutineers ?? []} locked={!!d.formal.certified} />}
+      {poll.allow_codes && poll.status !== 'closed' && !(d.formal && poll.status !== 'draft') && <Codes base={base} pollId={pollId} draft={poll.status === 'draft'} />}
       <button onClick={remove} className="text-xs text-rose-300 hover:underline">Delete poll</button>
     </aside>
   );
@@ -302,6 +345,73 @@ function Codes({ base, pollId, draft }: { base: string; pollId: string; draft: b
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+const OUTCOME: Record<string, [string, string]> = {
+  carried: ['Carried', 'text-emerald-300'], not_carried: ['Not carried', 'text-rose-300'], elected: ['Elected', 'text-emerald-300'],
+  tied: ['Tied', 'text-amber-300'], no_votes: ['No votes', 'text-slate-400'], see_results: ['', 'text-slate-400'],
+};
+
+// A formal ballot's outcome: turnout, quorum and each motion or election
+function OutcomeCard({ o }: { o: Outcome }) {
+  return (
+    <div className={`${card} space-y-3`}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-sm font-semibold text-slate-200">Outcome</p>
+        <p className="text-xs text-slate-400">
+          Turnout {o.turnout.voted} of {o.turnout.roll}{o.turnout.pct !== null ? ` (${o.turnout.pct}%)` : ''}
+          {o.quorum.required ? ` · quorum ${o.quorum.required}%: ${o.quorum.met ? 'met' : 'not met'}` : ''}
+        </p>
+      </div>
+      {!o.decided && <p className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">The quorum wasn’t met, so no decision was made.</p>}
+      <ul className="space-y-2">
+        {o.questions.filter(q => q.outcome !== 'see_results').map(q => {
+          const [label, cls] = OUTCOME[q.outcome] ?? ['', ''];
+          return (
+            <li key={q.questionId} className="text-sm">
+              <span className="text-slate-200">{q.text}</span>{' '}
+              <span className={`font-semibold uppercase tracking-wide ${o.decided ? cls : 'text-slate-500'}`}>{o.decided ? label : 'No decision'}</span>
+              <span className="block text-xs text-slate-400">{q.detail}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+// Moderators appoint members as scrutineers of a formal ballot
+function Scrutineers({ base, initial, locked }: { base: string; initial: { id: string; handle: string }[]; locked: boolean }) {
+  const [list, setList] = useState(initial);
+  const [handle, setHandle] = useState('');
+  const [error, setError] = useState('');
+  async function call(method: 'POST' | 'DELETE', body: unknown) {
+    setError('');
+    const r = await fetch(`${base}/scrutineers`, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { setError(d.error ?? 'That didn’t work.'); return; }
+    setList(d.scrutineers); setHandle('');
+  }
+  return (
+    <div className={`${card} space-y-2`}>
+      <p className="text-sm font-semibold text-slate-200">Scrutineers</p>
+      <p className="text-xs text-slate-500">Members who oversee this ballot: they see who has voted (never how), check the count and read the certified result. They can’t change anything.</p>
+      <ul className="space-y-1 text-xs text-slate-300">
+        {list.length === 0 && <li className="text-slate-500">None yet.</li>}
+        {list.map(s => (
+          <li key={s.id} className="flex justify-between gap-2"><span>@{s.handle}</span>
+            {!locked && <button onClick={() => call('DELETE', { userId: s.id })} className="text-rose-300 hover:underline">Remove</button>}</li>
+        ))}
+      </ul>
+      {!locked && (
+        <div className="flex gap-2">
+          <input value={handle} onChange={e => setHandle(e.target.value)} placeholder="Member’s username" className={`${inputCls} text-xs`} />
+          <button className={btnGhost} disabled={!handle.trim()} onClick={() => call('POST', { handle })}>Add</button>
+        </div>
+      )}
+      {error && <p className="text-xs text-rose-300">{error}</p>}
     </div>
   );
 }

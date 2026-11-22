@@ -121,7 +121,7 @@ function QualityInner() {
   }
 
   async function dismiss(f: Finding) {
-    const note = window.prompt('Dismiss this finding? Add a note for other moderators (optional):', '');
+    const note = window.prompt('Dismiss this finding? Add a note for other Society Admins (optional):', '');
     if (note === null || !selectedId) return;
     await fetch(`/api/quality/${selectedId}/dismiss`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

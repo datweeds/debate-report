@@ -31,7 +31,7 @@ async function handlePOST(req: NextRequest, { params }: Params) {
      JOIN statements r ON r.id = l.resolution_id AND r.stat_status <> 'deleted'
      WHERE l.lineage_id = $1`, [p.lineage_id]);
   if (link?.resolution_id) return NextResponse.json({ resolutionId: link.resolution_id });
-  if (!a.canModerate) return NextResponse.json({ error: 'Only moderators can open a debate' }, { status: 403 });
+  if (!a.canModerate) return NextResponse.json({ error: 'Only Society Admins can open a debate' }, { status: 403 });
   const b = debates ? await req.json().catch(() => ({})) : {};
   if (debates && (typeof b.title !== 'string' || typeof b.description !== 'string')) {
     return NextResponse.json({ error: 'This Society’s debates are sealed', sealedDebates: { id: debates.id } }, { status: 409 });

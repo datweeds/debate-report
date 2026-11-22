@@ -10,7 +10,7 @@ async function moderated(req: NextRequest, params: Params['params']) {
   const { id, prid } = await params;
   const r = await taskAccess(req, id);
   if ('error' in r) return r;
-  if (!r.a.canModerate) return { error: 'Only moderators can change the priorities', status: 403 };
+  if (!r.a.canModerate) return { error: 'Only Society Admins can change the priorities', status: 403 };
   if (!UUID_RE.test(prid)) return { error: 'Not found', status: 404 };
   const { rows } = await pool.query('SELECT 1 FROM task_priorities WHERE id = $1 AND customer_id = $2', [prid, r.a.societyId]);
   return rows.length ? { ...r, prid } : { error: 'Not found', status: 404 };

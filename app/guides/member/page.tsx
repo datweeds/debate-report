@@ -27,8 +27,8 @@ const SECTIONS: GuideSection[] = [
   { id: 'joining', title: 'Joining a Society', short: 'Joining', body: <>
     <List items={[
       <Item name="Public Societies:">join with one click.</Item>,
-      <Item name="Apply Societies:">ask to join; a moderator approves your request.</Item>,
-      <Item name="Invite Societies:">join through an invite link from a member or moderator.</Item>,
+      <Item name="Apply Societies:">ask to join; a Society Admin approves your request.</Item>,
+      <Item name="Invite Societies:">join through an invite link from a member or Society Admin.</Item>,
     ]} />
     <P>Societies you belong to appear in the menu, with a badge for anything new since you last looked.</P>
   </> },
@@ -51,14 +51,14 @@ const SECTIONS: GuideSection[] = [
       <>Paste your receipt into the poll’s <strong className="text-slate-100">audit log</strong> at any time to check your ballot was counted.</>,
     ]} />
     <List items={[
-      <>In a <em>secret</em> poll no one, including the moderators and new.vote, can tell how you voted. In a <em>named</em> poll the moderators can; the poll tells you which it is.</>,
+      <>In a <em>secret</em> poll no one, including the Society Admins and new.vote, can tell how you voted. In a <em>named</em> poll the Society Admins can; the poll tells you which it is.</>,
       <>If the poll allows it, you can change your vote until it closes. Your new ballot replaces the old one.</>,
     ]} />
   </> },
 
   { id: 'talk', title: 'Discussions and calls', short: 'Talk', body: <>
     <Sub title="Discussions">
-      <P>Start a thread or reply in one, react to posts, and edit or delete your own. If something crosses a line, use <strong className="text-slate-100">Report</strong>: the moderators are told, and your report is kept private.</P>
+      <P>Start a thread or reply in one, react to posts, and edit or delete your own. If something crosses a line, use <strong className="text-slate-100">Report</strong>: the Society Admins are told, and your report is kept private.</P>
     </Sub>
     <Sub title="Meet">
       <P>Join a room from the Meet tab with your microphone and camera. In an end-to-end encrypted room you’ll need the passphrase your Society shares; calls there can’t be seen or heard by anyone else, including us. Calls are never recorded.</P>
@@ -78,7 +78,7 @@ const SECTIONS: GuideSection[] = [
   { id: 'privacy', title: 'Your privacy', short: 'Privacy', body: <>
     <List items={[
       <>Private Societies are encrypted with their own key, and poll ballots always are.</>,
-      <>new.vote’s team has no routine access to private Societies; any emergency access is logged and shown to the Society’s moderators.</>,
+      <>new.vote’s team has no routine access to private Societies; any emergency access is logged and shown to the Society’s admins.</>,
       <>No ads, no tracking. Read the {a('/privacy', 'privacy policy')} for the details.</>,
     ]} />
   </> },
@@ -91,7 +91,7 @@ const SECTIONS: GuideSection[] = [
       <>Respect privacy: don’t share personal information, or private Society content, without permission.</>,
       <>Follow your Society’s principles; they’re on its Principles tab.</>,
     ]} />
-    <Note>Want to run your own Society? Ask for Moderator tools from {a('/profile', 'your profile')}, then read the {a('/guides/admin', 'Admin guide')}.</Note>
+    <Note>Want to run your own Society? Start one from {a('/dashboard/societies', 'Manage Societies')}, then read the {a('/guides/admin', 'Admin guide')}.</Note>
   </> },
 ];
 

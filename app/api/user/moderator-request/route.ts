@@ -18,7 +18,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Not logged in' }, { status: 401 });
-  if (session.tier === 'moderator') return NextResponse.json({ error: 'You are already a Moderator' }, { status: 409 });
+  if (session.tier === 'moderator') return NextResponse.json({ error: 'You are already a Society Admin' }, { status: 409 });
   const { message } = await req.json().catch(() => ({}));
   await pool.query(
     `INSERT INTO moderator_requests (user_id, message) VALUES ($1, $2)

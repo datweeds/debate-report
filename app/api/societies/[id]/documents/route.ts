@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { storageAllows } from '@/lib/holds';
+import { entitlementsFor, planRefusal, storageUsed } from '@/lib/plans';
 import { hideEndToEnd } from '@/lib/societyCrypto';
 import { allowsSealed, sealedFor } from '@/lib/sealed/server';
 import { folderTree, sealRootOf, sealRoots } from '@/lib/sealed/folders';
@@ -95,7 +97,8 @@ export async function GET(req: NextRequest, { params }: Params) {
       `SELECT count(*)::int AS n FROM documents WHERE folder_id = ANY($1::uuid[]) AND protection = 'server' AND deleted_at IS NULL`, [tree]);
     pending = n.n;
   }
-  const limit = a.canModerate ? MODERATOR_LIMIT_BYTES : MEMBER_LIMIT_BYTES;
+  const ent = await entitlementsFor(a.societyId);
+  const limit = ent.enforced ? ent.limits.maxFileBytes : (a.canModerate ? MODERATOR_LIMIT_BYTES : MEMBER_LIMIT_BYTES);
   return NextResponse.json({
     folderId, path, folders, items,
     sealed: here ? { id: here.id, epoch: here.epoch, pending } : null,
@@ -113,7 +116,8 @@ async function handlePOST(req: NextRequest, { params }: Params) {
   const a = await societyContentAccess(req, (await params).id);
   if (!a) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (!a.canPost) return NextResponse.json({ error: 'Join this Society to add documents' }, { status: 403 });
-  const limit = a.canModerate ? MODERATOR_LIMIT_BYTES : MEMBER_LIMIT_BYTES;
+  const ent = await entitlementsFor(a.societyId);
+  const limit = ent.enforced ? ent.limits.maxFileBytes : (a.canModerate ? MODERATOR_LIMIT_BYTES : MEMBER_LIMIT_BYTES);
 
   if ((req.headers.get('content-type') ?? '').includes('multipart/form-data')) {
     const form = await req.formData();
@@ -121,6 +125,10 @@ async function handlePOST(req: NextRequest, { params }: Params) {
     if (!(file instanceof File) || file.size === 0) return NextResponse.json({ error: 'Choose a file to upload' }, { status: 400 });
     if (file.size > limit) {
       return NextResponse.json({ error: `Files can be up to ${formatBytes(limit)}. For anything larger, add a link to where it's stored instead.` }, { status: 413 });
+    }
+    if (ent.enforced) {
+      const ok = await storageAllows(ent.pool, ent.limits.storageBytes, await storageUsed(a.societyId) + file.size);
+      if (!ok.ok) return planRefusal(ok.error);
     }
     const folderId = await folderInSociety(a.societyId, form.get('folderId'));
     if (folderId === false) return NextResponse.json({ error: 'Folder not found' }, { status: 404 });

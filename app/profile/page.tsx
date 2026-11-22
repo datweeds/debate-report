@@ -15,7 +15,7 @@ const TIER_INFO: Record<string, { label: string; monthly: number; annual: number
   follower:  { label: 'Follower',  monthly: 0, annual: 0,    color: 'text-slate-300',   desc: 'Read debates and follow Societies' },
   voter:     { label: 'Voter',     monthly: 0, annual: 0,    color: 'text-blue-300',    desc: 'Vote and comment' },
   debater:   { label: 'Debater',   monthly: 0, annual: 0,    color: 'text-amber-300',   desc: 'Write statements and arguments' },
-  moderator: { label: 'Moderator', monthly: 9, annual: 6.75, color: 'text-emerald-300', desc: 'Run Societies and their debates' },
+  moderator: { label: 'Society Admin', monthly: 0, annual: 0, color: 'text-emerald-300', desc: 'Runs one or more Societies' },
 };
 const FREE_TIERS = ['follower', 'voter', 'debater'];
 
@@ -440,7 +440,7 @@ export default function ProfilePage() {
           <form onSubmit={saveTier} className="space-y-4">
             {profile.user_tier === 'moderator' ? (
               <p className="text-sm text-slate-300">
-                You&apos;re a <span className="font-semibold text-emerald-300">Moderator</span>: you can create and run Societies.
+                You&apos;re a <span className="font-semibold text-emerald-300">Society Admin</span>: you can create and run Societies.
               </p>
             ) : (
               <>
@@ -467,7 +467,13 @@ export default function ProfilePage() {
               </>
             )}
           </form>
-          {profile.user_tier !== 'moderator' && <ModeratorRequest />}
+          {profile.user_tier !== 'moderator' && (
+            <div className="mt-5 rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-4">
+              <p className="text-sm font-semibold text-emerald-300">Start your own Society</p>
+              <p className="mt-1 text-xs text-slate-400">Create a Society and you become its Society Admin. Huddle is free for up to 3 Societies; Team and Network cover more, with more room and features for all of them.</p>
+              <Link href="/dashboard/societies" className="mt-3 inline-block rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500">Start a Society</Link>
+            </div>
+          )}
           <p className="mt-4 text-xs text-slate-600">
             <Link href="/pricing" className="text-blue-500 hover:text-blue-400 underline underline-offset-2">What each plan includes</Link>
           </p>
@@ -523,51 +529,6 @@ export default function ProfilePage() {
         <SecureAccessCard passkeyCount={passkeys.length} />
 
       </div>
-    </div>
-  );
-}
-
-// Moderator is the paid role; while billing isn't live, it's requested and a
-// SysAdmin approves it.
-function ModeratorRequest() {
-  const [status, setStatus] = useState<'loading' | 'none' | 'pending' | 'rejected' | 'open' | 'sending'>('loading');
-  const [message, setMessage] = useState('');
-  useEffect(() => {
-    fetch('/api/user/moderator-request').then(r => r.ok ? r.json() : null)
-      .then(d => setStatus(d?.request?.status === 'pending' ? 'pending' : d?.request?.status === 'rejected' ? 'rejected' : 'none'))
-      .catch(() => setStatus('none'));
-  }, []);
-  async function send() {
-    setStatus('sending');
-    const r = await fetch('/api/user/moderator-request', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message }),
-    });
-    setStatus(r.ok ? 'pending' : 'open');
-  }
-  if (status === 'loading') return null;
-  return (
-    <div className="mt-5 rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-4">
-      <p className="text-sm font-semibold text-emerald-300">Moderator · £9/month <span className="font-normal text-slate-400">(free while in preview)</span></p>
-      <p className="text-xs text-slate-400 mt-1">Create and run your own public and private Societies: debates, votes, discussions, documents, events, projects and principles.</p>
-      {status === 'pending' ? (
-        <p className="mt-3 text-xs text-amber-300">Your request is with the platform team. You&apos;ll get Moderator tools as soon as it&apos;s approved.</p>
-      ) : status === 'open' || status === 'sending' ? (
-        <div className="mt-3 space-y-2">
-          <textarea value={message} onChange={e => setMessage(e.target.value)} rows={3} maxLength={1000}
-            placeholder="Optional: what Society would you like to run?"
-            className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 placeholder-slate-600" />
-          <button onClick={send} disabled={status === 'sending'} className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50">
-            {status === 'sending' ? 'Sending…' : 'Send request'}
-          </button>
-        </div>
-      ) : (
-        <>
-          {status === 'rejected' && <p className="mt-2 text-xs text-slate-500">Your last request wasn&apos;t approved. You can ask again.</p>}
-          <button onClick={() => setStatus('open')} className="mt-3 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500">
-            Request Moderator access
-          </button>
-        </>
-      )}
     </div>
   );
 }

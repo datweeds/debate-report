@@ -10,7 +10,7 @@ async function handleGET(req: NextRequest, { params }: Params) {
   const { id, pollId } = await params;
   const c = await pollContext(req, id, pollId);
   if (!c) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!c.manager) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!c.manager && !c.scrutineer) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   return NextResponse.json(await verifyPoll(c.poll));
 }
 

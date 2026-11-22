@@ -49,7 +49,7 @@ export default function Ballot({ payload, open, initial, seed, busy, error, onCa
           <QuestionInput q={q} seed={seed} value={values[q.id]} onChange={v => setValues(s => ({ ...s, [q.id]: v }))} />
           {q.settings.allowComments && (
             <textarea value={comments[q.id] ?? ''} onChange={e => setComments(s => ({ ...s, [q.id]: e.target.value }))} rows={2} maxLength={1000}
-              placeholder={q.settings.commentsPublic ? 'Comment (optional, shown with the results)' : 'Comment (optional, seen by the moderators)'}
+              placeholder={q.settings.commentsPublic ? 'Comment (optional, shown with the results)' : 'Comment (optional, seen by the Society Admins)'}
               className={`${inputCls} mt-3 text-xs`} />
           )}
         </fieldset>

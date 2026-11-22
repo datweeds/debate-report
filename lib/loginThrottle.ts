@@ -28,4 +28,4 @@ export function loginFailed(account: string, address: string) {
 export function loginSucceeded(account: string) { fails.delete(`a:${account.toLowerCase()}`); }
 
 /** The caller's address, as nginx passes it on (X-Real-IP is set from the connection, so it can't be faked). */
-export const clientAddress = (h: Headers) => h.get('x-real-ip') ?? h.get('x-forwarded-for')?.split(',')[0].trim() ?? 'unknown';
+export { clientIp as clientAddress } from './clientIp';

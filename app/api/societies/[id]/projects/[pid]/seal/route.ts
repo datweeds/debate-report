@@ -18,7 +18,7 @@ async function handlePOST(req: NextRequest, { params }: Params) {
   const { id, pid } = await params;
   const c = await projectContext(req, id, pid);
   if (!c?.me) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!c.canManage || !c.a.isMember) return NextResponse.json({ error: 'Only the Project Manager or a moderator can do this' }, { status: 403 });
+  if (!c.canManage || !c.a.isMember) return NextResponse.json({ error: 'Only the Project Manager or a Society Admin can do this' }, { status: 403 });
   const b = await req.json().catch(() => ({}));
   const list = (v: unknown): T[] => (Array.isArray(v) ? v : []);
   const tasks = list(b.tasks), reports = list(b.reports), raid = list(b.raid), groups = list(b.groups);

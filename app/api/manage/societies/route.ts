@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createToken, sessionCookie } from '@/lib/auth';
+import { PLANS, enforcementOn, nextPlan, personPlan, planRefusal } from '@/lib/plans';
 import pool from '@/lib/db';
 import { getSessionFromRequest } from '@/lib/auth';
 import { slugify } from '@/lib/societies';
@@ -21,15 +23,23 @@ export async function GET(req: NextRequest) {
      ORDER BY c.name`,
     [session.sub],
   );
-  return NextResponse.json({ societies: rows, canCreate: session.tier === 'moderator' });
+  return NextResponse.json({ societies: rows, canCreate: true });
 }
 
 // POST { name, visibility, hero_text?, description? } — create a Society; the creator moderates it.
 export async function POST(req: NextRequest) {
   const session = await getSessionFromRequest(req);
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
-  if (session.tier !== 'moderator') {
-    return NextResponse.json({ error: 'Creating a Society needs the Moderator plan' }, { status: 403 });
+  // Anyone signed in can start a Society (no approval). While plan limits are
+  // enforced, their plan says how many they can run (Huddle 3, Team 10, Network 25).
+  if (!session.isSysAdmin && await enforcementOn()) {
+    const plan = (await personPlan(session.sub)).plan;
+    const cap = PLANS[plan].limits.societies;
+    const { rows: [n] } = await pool.query(`SELECT count(*)::int AS n FROM customers WHERE owner_id = $1 AND status = 'active' AND held_at IS NULL`, [session.sub]);
+    if (n.n >= cap) {
+      const up = nextPlan(plan);
+      return planRefusal(`You run ${n.n} Societies, the most ${PLANS[plan].name} covers.${up ? ` Move to ${PLANS[up].name} to run up to ${PLANS[up].limits.societies}` : ' Close one'}, or close one you no longer need.`);
+    }
   }
   const { name, visibility, hero_text, description, slug: chosen } = await req.json().catch(() => ({}));
   if (typeof name !== 'string' || name.trim().length < 3) {
@@ -58,17 +68,21 @@ export async function POST(req: NextRequest) {
     }
 
     const { rows: [society] } = await client.query(
-      `INSERT INTO customers (name, subdomain, status, visibility, hero_text, description, created_by)
-       VALUES ($1, $2, 'active', $3, $4, $5, $6) RETURNING id`,
+      `INSERT INTO customers (name, subdomain, status, visibility, hero_text, description, created_by, owner_id)
+       VALUES ($1, $2, 'active', $3, $4, $5, $6, $7) RETURNING id`,
       [name.trim().slice(0, 120), slug, vis,
        typeof hero_text === 'string' && hero_text.trim() ? hero_text.trim().slice(0, 300) : null,
        typeof description === 'string' && description.trim() ? description.trim() : null,
-       session.sub],
+       session.sub, session.sub],
     );
     await client.query(`INSERT INTO customer_roles (tenant_id, user_id, role) VALUES ($1, $2, 'customer_admin')`, [society.id, session.sub]);
     await client.query(`INSERT INTO customer_members (customer_id, user_id) VALUES ($1, $2)`, [society.id, session.sub]);
     await client.query('COMMIT');
-    return NextResponse.json({ id: society.id }, { status: 201 });
+    // The creator is now a Society Admin: their session gets the tools at once
+    await pool.query(`UPDATE users SET user_tier = 'moderator' WHERE id = $1 AND user_tier IS DISTINCT FROM 'moderator'`, [session.sub]);
+    const res = NextResponse.json({ id: society.id }, { status: 201 });
+    res.cookies.set(sessionCookie(await createToken({ ...session, tier: 'moderator', customerAdminTenants: [...(session.customerAdminTenants ?? []), society.id] })));
+    return res;
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('create society failed:', err);

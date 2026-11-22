@@ -18,7 +18,7 @@ const USER = `<item id="0">Scottish Government announces new heat pump grants fo
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const a = await societyContentAccess(req, (await params).id);
   if (!a) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!a.canModerate) return NextResponse.json({ error: 'Moderators only' }, { status: 403 });
+  if (!a.canModerate) return NextResponse.json({ error: 'Society Admins only' }, { status: 403 });
   const b = await req.json().catch(() => ({}));
   const model = typeof b.model === 'string' ? b.model.trim() : '';
   if (!model) return NextResponse.json({ error: 'Choose a model to test' }, { status: 400 });

@@ -35,7 +35,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 async function handlePOST(req: NextRequest, { params }: Params) {
   const a = await societyContentAccess(req, (await params).id);
   if (!a) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!a.canModerate) return NextResponse.json({ error: 'Only moderators can create folders' }, { status: 403 });
+  if (!a.canModerate) return NextResponse.json({ error: 'Only Society Admins can create folders' }, { status: 403 });
   const b = await req.json().catch(() => ({}));
   const { name, parentId } = b;
   if (typeof name !== 'string' || !name.trim()) return NextResponse.json({ error: 'Folder name is required' }, { status: 400 });

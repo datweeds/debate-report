@@ -228,8 +228,11 @@ async function activeSocieties(scope: Scope, me: string | null) {
 }
 
 // The nightly backup's last result (written by ~/bin/nv-backup.sh)
-function backupStatus(): { ok: boolean; at: string; message: string; bytes: number; warnings: string[] } | null {
-  try { return JSON.parse(fs.readFileSync(path.join(os.homedir(), '.config', 'backup', 'status.json'), 'utf8')); } catch { return null; }
+function backupStatus(file = 'status.json'): { ok: boolean; at: string; message: string; bytes: number; warnings: string[] } | null {
+  try {
+    const s = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.config', 'backup', file), 'utf8'));
+    return { ...s, bytes: s.bytes ?? s.bytes_added ?? 0 };
+  } catch { return null; }
 }
 
 // ── Everything, for one viewer ───────────────────────────────────────────────
@@ -272,6 +275,6 @@ export async function buildAnalytics({ scope, me, sysAdmin }: { scope: Scope; me
     activeSocieties: active,
     popularDebates: popularDebates.rows.map(({ id, stat_title, child_count, votes }) => ({ id, stat_title, child_count, votes })),
     staleDebates: staleDebates.rows.map(({ id, stat_title, idle_days }) => ({ id, stat_title, idle_days })),
-    ...(scope ? {} : { server: { uptimeSeconds: Math.floor(process.uptime()), memoryMB: Math.round(process.memoryUsage().rss / 1024 / 1024), backup: backupStatus() } }),
+    ...(scope ? {} : { server: { uptimeSeconds: Math.floor(process.uptime()), memoryMB: Math.round(process.memoryUsage().rss / 1024 / 1024), backup: backupStatus(), incremental: backupStatus('restic-status.json') } }),
   };
 }

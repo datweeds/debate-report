@@ -27,7 +27,7 @@ async function handlePOST(req: NextRequest, { params }: Params) {
   if (typeof b.projectId !== 'string') return NextResponse.json({ error: 'Choose a project' }, { status: 400 });
   const c = await projectContext(req, id, b.projectId);
   if (!c) return NextResponse.json({ error: 'That project wasn’t found' }, { status: 404 });
-  if (!c.canManage) return NextResponse.json({ error: 'Only that project’s manager or a moderator can add tasks to it' }, { status: 403 });
+  if (!c.canManage) return NextResponse.json({ error: 'Only that project’s manager or a Society Admin can add tasks to it' }, { status: 403 });
   if (c.sealed) return NextResponse.json({ error: 'Tasks can’t be converted into a sealed project yet. Add it there by hand.' }, { status: 409 });
   if (c.project.status === 'complete') return NextResponse.json({ error: 'That project is complete' }, { status: 409 });
   const group = await readGroup(c.project.id, a.societyId, a.me, b, c);

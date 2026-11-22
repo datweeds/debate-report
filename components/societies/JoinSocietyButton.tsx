@@ -20,7 +20,7 @@ export default function JoinSocietyButton({ societyId, loggedIn, pending, instan
     );
   }
   if (state === 'sent') {
-    return <p className="text-sm text-emerald-300">Request sent. A moderator will review it.</p>;
+    return <p className="text-sm text-emerald-300">Request sent. A Society Admin will review it.</p>;
   }
   if (instant) {
     return (
@@ -50,7 +50,7 @@ export default function JoinSocietyButton({ societyId, loggedIn, pending, instan
   ) : (
     <div className="space-y-2 max-w-lg">
       <textarea value={message} onChange={e => setMessage(e.target.value)} rows={3} maxLength={1000}
-        placeholder="Optional: tell the moderators why you'd like to join"
+        placeholder="Optional: tell the Society Admins why you'd like to join"
         className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 placeholder-slate-600" />
       <div className="flex items-center gap-3">
         <button onClick={send} disabled={state === 'sending'} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50">

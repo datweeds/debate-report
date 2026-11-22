@@ -13,7 +13,7 @@ const SECTIONS: GuideSection[] = [
   { id: 'about', title: 'What new.vote is', short: 'About', body: <>
     <P>
       new.vote is a home for communities online: places where people debate with evidence, decide together and organise.
-      Each community is a <strong className="text-slate-100">Society</strong>, run by its own members and moderators.
+      Each community is a <strong className="text-slate-100">Society</strong>, run by its own members and Society Admins.
       You’re welcome to look around before you join.
     </P>
   </> },
@@ -47,13 +47,13 @@ const SECTIONS: GuideSection[] = [
 
   { id: 'create', title: 'Create your own Society', short: 'Create', body: <>
     <P>
-      Moderators create and run Societies: public, by application, or invitation-only and encrypted. They choose which tools
-      to switch on, invite members, run debates and polls, and look after the community. The Moderator plan is £9 a month,
-      free while billing is in preview.
+      Anyone with an account can start a Society and become its Society Admin: public, by application, or invitation-only and
+      encrypted. Society Admins choose which tools to switch on, invite members, run debates and polls, and look after the
+      community. Every Society starts on Huddle, which is free.
     </P>
     <Steps items={[
       <>{a('/pricing', 'Sign up')} for free.</>,
-      <>Ask for Moderator tools from your profile.</>,
+      <>Choose <strong className="text-slate-100">Start a Society</strong> from the menu.</>,
       <>Create your Society, and read the Admin guide for everything else.</>,
     ]} />
   </> },

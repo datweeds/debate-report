@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
 
   const { tier } = await req.json();
   if (tier === 'moderator') {
-    return NextResponse.json({ error: 'Request Moderator access instead' }, { status: 403 });
+    return NextResponse.json({ error: 'Start a Society to become its Society Admin' }, { status: 403 });
   }
   if (!SELF_SERVICE_TIERS.includes(tier)) {
     return NextResponse.json({ error: 'Invalid tier' }, { status: 400 });

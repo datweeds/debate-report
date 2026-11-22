@@ -43,7 +43,7 @@ export default function HowItWorksPage() {
               The result is a visual graph that any reader can follow from top to bottom, understanding exactly how each
               argument supports or challenges the central resolution. We aim for an honest and challenging, but also safe
               environment. Contributions are automatically scanned for adherence to normal rules of decency, and can also
-              be manually flagged for attention by the moderators.
+              be manually flagged for attention by the Society Admins.
             </p>
           </div>
 
@@ -51,7 +51,7 @@ export default function HowItWorksPage() {
             <h2 className="text-xl font-bold text-slate-100 mb-3">Statement Types</h2>
             <div className="space-y-4">
               {[
-                { type: 'Resolution', colour: 'text-amber-300',   desc: 'The central proposition being debated. Resolutions are set by moderators and form the root of the argument graph.' },
+                { type: 'Resolution', colour: 'text-amber-300',   desc: 'The central proposition being debated. Resolutions are set by Society Admins and form the root of the argument graph.' },
                 { type: 'Framework',  colour: 'text-sky-300',     desc: 'A core principle or value that frames how the resolution should be evaluated — establishes the lens through which the debate is judged.' },
                 { type: 'Claim',      colour: 'text-slate-300',   desc: 'A direct argument for or against the resolution. Claims must be clear, falsifiable statements.' },
                 { type: 'Warrant',    colour: 'text-violet-300',  desc: 'A logical reason that explains why a claim is true or how it connects to the resolution or framework.' },

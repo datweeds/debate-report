@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 
-type Item = { key: string; type: TypeKey; role: string; title: string; sub: string | null; society: { id: number; name: string } | null; href: string; at: string };
+type Cat = { name: string; color: string };
+type Item = { cats?: Cat[]; status?: string; key: string; type: TypeKey; role: string; title: string; sub: string | null; society: { id: number; name: string } | null; href: string; at: string };
 type TypeKey = 'discussions' | 'events' | 'documents' | 'polls' | 'debate' | 'project_tasks' | 'projects' | 'tasks' | 'principles' | 'requests';
 
 const TYPES: { key: TypeKey; label: string; icon: string }[] = [
@@ -33,8 +34,17 @@ function periodStart(p: Period): number {
   return 0;
 }
 type Sort = 'new' | 'old' | 'az' | 'za';
-type Prefs = { types: TypeKey[]; period: Period; society: number | 0; sort: Sort; view: 'list' | 'tiles' };
-const DEFAULTS: Prefs = { types: [], period: 'all', society: 0, sort: 'new', view: 'list' };
+type Prefs = { types: TypeKey[]; period: Period; society: number | 0; sort: Sort; view: 'list' | 'tiles'; cats: string[]; statuses: string[] };
+const DEFAULTS: Prefs = { types: [], period: 'all', society: 0, sort: 'new', view: 'list', cats: [], statuses: [] };
+// Project task statuses, in the order they move through
+const PT_STATUSES: { key: string; label: string }[] = [
+  { key: 'new', label: 'New' }, { key: 'in_progress', label: 'In progress' }, { key: 'paused', label: 'Paused' }, { key: 'complete', label: 'Complete' },
+];
+const PT_LABEL = Object.fromEntries(PT_STATUSES.map(s => [s.key, s.label]));
+const NO_CAT = '';   // the "No category" choice
+// Categories are personal to each Society, so the same name in two Societies counts as one
+const catKey = (n: string) => n.trim().toLowerCase();
+const hasCats = (i: Item) => i.type === 'tasks' || i.type === 'project_tasks';
 const PREFS_KEY = 'nv-mystuff';
 
 // Each Society gets its own colour, kept steady by its place in your list
@@ -104,17 +114,44 @@ export default function MyStuff() {
     });
   }, [items, prefs.period, prefs.society, q]);
   const counts = useMemo(() => { const c: Record<string, number> = {}; for (const i of base) c[i.type] = (c[i.type] ?? 0) + 1; return c; }, [base]);
+
+  // Task filters show (and apply) only when Tasks or Project tasks is picked: the category
+  // filter narrows both, the status filter narrows project tasks
+  const catsOn = prefs.types.includes('tasks') || prefs.types.includes('project_tasks');
+  const statusOn = prefs.types.includes('project_tasks');
+  const typed = useMemo(() => (prefs.types.length ? base.filter(i => prefs.types.includes(i.type)) : base), [base, prefs.types]);
+  const catOptions = useMemo(() => {
+    const m = new Map<string, { name: string; color: string; n: number }>();
+    let none = 0;
+    for (const i of typed) {
+      if (!hasCats(i)) continue;
+      if (!i.cats?.length) { none++; continue; }
+      for (const c of i.cats) { const k = catKey(c.name); const o = m.get(k); if (o) o.n++; else m.set(k, { name: c.name, color: c.color, n: 1 }); }
+    }
+    return { cats: [...m].sort((a, b) => a[1].name.localeCompare(b[1].name)), none };
+  }, [typed]);
+  const statusCounts = useMemo(() => { const c: Record<string, number> = {}; for (const i of typed) if (i.type === 'project_tasks' && i.status) c[i.status] = (c[i.status] ?? 0) + 1; return c; }, [typed]);
+  const catFilter = catsOn && prefs.cats.length > 0, statusFilter = statusOn && prefs.statuses.length > 0;
+
   const list = useMemo(() => {
-    const l = prefs.types.length ? base.filter(i => prefs.types.includes(i.type)) : [...base];
+    const l = typed.filter(i => {
+      if (catFilter && hasCats(i)) {
+        const mine = i.cats?.length ? i.cats.map(c => catKey(c.name)) : [NO_CAT];
+        if (!mine.some(k => prefs.cats.includes(k))) return false;
+      }
+      if (statusFilter && i.type === 'project_tasks' && !prefs.statuses.includes(i.status ?? '')) return false;
+      return true;
+    });
     const t = (i: Item) => i.title.toLowerCase();
     l.sort(prefs.sort === 'az' ? (a, b) => t(a).localeCompare(t(b)) || (b.at > a.at ? 1 : -1)
       : prefs.sort === 'za' ? (a, b) => t(b).localeCompare(t(a)) || (b.at > a.at ? 1 : -1)
       : prefs.sort === 'old' ? (a, b) => (a.at > b.at ? 1 : -1) : (a, b) => (b.at > a.at ? 1 : -1));
     return l;
-  }, [base, prefs.types, prefs.sort]);
+  }, [typed, prefs.sort, prefs.cats, prefs.statuses, catFilter, statusFilter]);
 
   const toggleType = (k: TypeKey) => update({ types: prefs.types.includes(k) ? prefs.types.filter(x => x !== k) : [...prefs.types, k] });
-  const filtered = prefs.types.length > 0 || prefs.period !== 'all' || prefs.society !== 0 || q !== '';
+  const toggleIn = (key: 'cats' | 'statuses', v: string) => update({ [key]: prefs[key].includes(v) ? prefs[key].filter(x => x !== v) : [...prefs[key], v] } as Partial<Prefs>);
+  const filtered = prefs.types.length > 0 || prefs.period !== 'all' || prefs.society !== 0 || q !== '' || catFilter || statusFilter;
   const chip = (on: boolean) => `rounded-full border px-2.5 py-1 text-xs transition-colors ${on ? 'border-blue-500/60 bg-blue-500/15 text-blue-200' : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200'}`;
 
   return (
@@ -166,13 +203,45 @@ export default function MyStuff() {
         </div>
       </div>
 
+      {(catsOn || statusOn) && (
+        <div className="-mt-2 mb-4 space-y-2 rounded-xl border border-slate-800 bg-slate-900/40 p-3">
+          {catsOn && (
+            <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Task category">
+              <span className="mr-1 text-xs text-slate-500">Category</span>
+              <button onClick={() => update({ cats: [] })} aria-pressed={!prefs.cats.length} className={chip(!prefs.cats.length)}>All categories</button>
+              {catOptions.cats.map(([k, c]) => (
+                <button key={k} onClick={() => toggleIn('cats', k)} aria-pressed={prefs.cats.includes(k)} className={chip(prefs.cats.includes(k))}>
+                  <span className="mr-1 inline-block h-2 w-2 rounded-full align-middle" style={{ backgroundColor: c.color }} aria-hidden />{c.name} <span className="text-slate-500">{c.n}</span>
+                </button>
+              ))}
+              {catOptions.none > 0 && (
+                <button onClick={() => toggleIn('cats', NO_CAT)} aria-pressed={prefs.cats.includes(NO_CAT)} className={chip(prefs.cats.includes(NO_CAT))}>
+                  No category <span className="text-slate-500">{catOptions.none}</span>
+                </button>
+              )}
+            </div>
+          )}
+          {statusOn && (
+            <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Project task status">
+              <span className="mr-1 text-xs text-slate-500">Project task status</span>
+              <button onClick={() => update({ statuses: [] })} aria-pressed={!prefs.statuses.length} className={chip(!prefs.statuses.length)}>All statuses</button>
+              {PT_STATUSES.map(s => (
+                <button key={s.key} onClick={() => toggleIn('statuses', s.key)} aria-pressed={prefs.statuses.includes(s.key)} className={chip(prefs.statuses.includes(s.key))}>
+                  {s.label} <span className="text-slate-500">{statusCounts[s.key] ?? 0}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {error ? <p className="text-sm text-rose-400">{error}</p> : !items ? (
         <div className="h-64 animate-pulse rounded-2xl bg-slate-800/40" />
       ) : (
         <>
           <p className="mb-2 text-xs text-slate-500">
             {list.length} item{list.length === 1 ? '' : 's'}
-            {filtered && <> · <button onClick={() => { update({ types: [], period: 'all', society: 0 }); setQ(''); }} className="text-blue-400 hover:underline">Clear filters</button></>}
+            {filtered && <> · <button onClick={() => { update({ types: [], period: 'all', society: 0, cats: [], statuses: [] }); setQ(''); }} className="text-blue-400 hover:underline">Clear filters</button></>}
             {failed.length > 0 && <span className="text-amber-300"> · Some {failed.map(f => TYPE[f as TypeKey]?.label ?? f).join(', ')} couldn’t be loaded.</span>}
           </p>
           {!list.length ? (
@@ -211,6 +280,18 @@ function SocietyTag({ s, colour }: { s: Item['society']; colour?: string }) {
       style={{ color: c, borderColor: `${c}66`, backgroundColor: `${c}1a` }} title={s.name}>{s.name}</span>
   );
 }
+function Cats({ cats }: { cats?: Cat[] }) {
+  if (!cats?.length) return null;
+  return (
+    <span className="flex flex-wrap items-center gap-1">
+      {cats.map(c => (
+        <span key={c.name} className="inline-flex items-center gap-1 whitespace-nowrap text-[11px] text-slate-400">
+          <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: c.color }} aria-hidden />{c.name}
+        </span>
+      ))}
+    </span>
+  );
+}
 function Role({ role }: { role: string }) {
   return <span className={`whitespace-nowrap rounded-full border px-2 py-px text-[11px] ${ROLE_TONE[role] ?? 'border-slate-600 text-slate-300'}`}>{role}</span>;
 }
@@ -226,6 +307,8 @@ function Row({ i, colour, isNew }: { i: Item; colour?: string; isNew: boolean })
           {i.sub && <span className="block truncate text-xs text-slate-500">{i.sub}</span>}
         </span>
         <span className="flex flex-shrink-0 flex-wrap items-center gap-2">
+          <Cats cats={i.cats} />
+          {i.status && <Role role={PT_LABEL[i.status] ?? i.status} />}
           <Role role={i.role} />
           <SocietyTag s={i.society} colour={colour} />
           <span className="w-16 text-right text-xs text-slate-500">{when(i.at)}</span>
@@ -246,7 +329,7 @@ function Tile({ i, colour, isNew }: { i: Item; colour?: string; isNew: boolean }
       </div>
       <p className="line-clamp-2 text-sm font-medium text-slate-100">{isNew && <NewDot />}{i.title}</p>
       {i.sub && <p className="line-clamp-3 text-xs text-slate-500">{i.sub}</p>}
-      <div className="mt-auto flex flex-wrap items-center gap-2 pt-1"><Role role={i.role} /><SocietyTag s={i.society} colour={colour} /></div>
+      <div className="mt-auto flex flex-wrap items-center gap-2 pt-1"><Cats cats={i.cats} />{i.status && <Role role={PT_LABEL[i.status] ?? i.status} />}<Role role={i.role} /><SocietyTag s={i.society} colour={colour} /></div>
     </Link>
   );
 }

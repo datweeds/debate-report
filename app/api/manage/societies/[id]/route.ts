@@ -30,7 +30,8 @@ export async function GET(req: NextRequest, { params }: Params) {
       `SELECT id, label, created_at, expires_at, revoked_at, use_count, last_used_at
        FROM society_invites WHERE customer_id = $1 ORDER BY created_at DESC`, [ctx.id]),
   ]);
-  return NextResponse.json({ society, members, requests, invites, me: ctx.session.sub });
+  const { rows: [own] } = await pool.query('SELECT owner_id::text AS owner FROM customers WHERE id = $1', [ctx.id]);
+  return NextResponse.json({ society, members, requests, invites, me: ctx.session.sub, owner: own?.owner ?? null });
 }
 
 // PATCH { name?, visibility?, hero_text?, description?, allow_sealed? }

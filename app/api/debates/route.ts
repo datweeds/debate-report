@@ -56,7 +56,7 @@ async function handlePOST(req: NextRequest) {
   const mine = await moderatedSocietyIds(session.sub);
   const customerId = societyId != null ? Number(societyId) : await getCurrentTenantId();
   if (!mine.includes(customerId)) {
-    return NextResponse.json({ error: 'Only a moderator of this Society can create debates in it' }, { status: 403 });
+    return NextResponse.json({ error: 'Only a Society Admin of this Society can create debates in it' }, { status: 403 });
   }
 
   const { rows: [soc] } = await pool.query('SELECT disabled_sections FROM customers WHERE id = $1', [customerId]);

@@ -169,7 +169,7 @@ export default async function BillsPage() {
       {bills.length === 0 && ssis.length === 0 && acts.length === 0 ? (
         <div className="card-dr py-16 text-center space-y-2">
           <p className="text-slate-400">No data loaded yet.</p>
-          <p className="text-sm text-slate-500">A ScotParl moderator needs to run the data sync first.</p>
+          <p className="text-sm text-slate-500">A ScotParl Society Admin needs to run the data sync first.</p>
         </div>
       ) : (
         <BillList

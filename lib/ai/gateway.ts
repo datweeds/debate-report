@@ -11,6 +11,8 @@
 //   off      - no AI for this Society.
 // Every call is logged in ai_calls (task, route, tokens, cost; no content).
 
+import { aiUsedThisMonth, entitlementsFor } from '@/lib/plans';
+import { maybeCheckSpend, monthStatus } from './spend';
 import pool from '@/lib/db';
 import { decryptSecret } from './secrets';
 import { complete, ProviderError, type Completion, type ProviderConfig } from './providers';
@@ -118,6 +120,23 @@ export async function resolveRoute(societyId: number | null, tier: Tier, estimat
   if (used + cost(estimateTokens.in, estimateTokens.out, p.inPrice, p.outPrice) > status.dailyBudgetUsd) {
     throw new AiUnavailable('new.vote’s shared daily AI budget, used by every Society on new.vote’s AI, has run out for today; it resets at midnight (UK time).');
   }
+  const estimate = cost(estimateTokens.in, estimateTokens.out, p.inPrice, p.outPrice);
+  const m = await monthStatus();
+  if (m.cap != null && m.month + estimate > m.cap) {
+    throw new AiUnavailable('new.vote’s monthly AI budget, shared by every Society on new.vote’s AI, has been reached; it resets on the 1st of the month.');
+  }
+  // The Society's plan: its monthly allowance, and whether it has the costlier tasks
+  if (societyId) {
+    const e = await entitlementsFor(societyId);
+    if (e.enforced) {
+      if (tier === 'standard' && !e.limits.aiStandard) {
+        throw new AiUnavailable(`Debate Quality Reports and the AI helper are on the Team and Network plans; this Society is on ${e.name}.`);
+      }
+      if (await aiUsedThisMonth(societyId) + estimate > e.limits.aiUsdMonth) {
+        throw new AiUnavailable('This Society has used its AI allowance for the month; it renews on the 1st. A Society Admin can upgrade the plan, or connect the Society’s own AI provider.');
+      }
+    }
+  }
   if (!process.env.ANTHROPIC_API_KEY) throw new AiUnavailable('AI isn’t configured on this server.');
   return { scope: 'platform', provider: { adapter: 'anthropic', baseUrl: null, apiKey: process.env.ANTHROPIC_API_KEY }, providerName: 'platform', models: p.models, inPrice: p.inPrice, outPrice: p.outPrice };
 }
@@ -157,6 +176,7 @@ export async function aiComplete(opts: {
         status: 'ok', tokensIn: out.tokensIn, tokensOut: out.tokensOut,
         costUsd: cost(out.tokensIn, out.tokensOut, route.inPrice, route.outPrice), latencyMs: Date.now() - started,
       });
+      if (route.scope === 'platform') maybeCheckSpend();
       return { ...out, scope: route.scope };
     } catch (err) {
       lastErr = err;

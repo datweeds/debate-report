@@ -52,7 +52,7 @@ export default function PrivacyTab() {
       <p className="text-sm text-slate-400">
         You have no routine access to a private Society’s content: its discussions, documents, debates, chat, or the text of its flagged content.
         Their stored content is encrypted with the Society’s own key. In an emergency, such as a serious report or a legal request, open time-limited access ({data.minutes} minutes) with a reason.
-        The Society’s moderators see every access in their log, and its contact address is emailed straight away.
+        The Society’s admins see every access in their log, and its contact address is emailed straight away.
       </p>
 
       <MasterKeyCard />
@@ -90,7 +90,7 @@ export default function PrivacyTab() {
               </div>
               {openFor === s.id && (
                 <div className="mt-2 space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
-                  <label className="block text-xs text-slate-300">Reason (shown to the Society’s moderators and emailed to them)</label>
+                  <label className="block text-xs text-slate-300">Reason (shown to the Society’s admins and emailed to them)</label>
                   <textarea value={reason} onChange={e => setReason(e.target.value)} rows={2} maxLength={1000}
                     placeholder="e.g. Investigating a report of threats made in a discussion, ref #123"
                     className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100" />

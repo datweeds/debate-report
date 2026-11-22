@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   // Alerts and flags across every Society the viewer moderates (SysAdmin: all)
   const moderated = await moderatedSocietyIds(session.sub);
   const canReviewAlerts  = session.isSysAdmin || moderated.length > 0;
-  const alertSocietyFilter = session.isSysAdmin ? '' : 'AND COALESCE(ca.customer_id, r.customer_id) = ANY($1::int[])';
+  const alertSocietyFilter = session.isSysAdmin ? '' : `AND ca.report_route IS DISTINCT FROM 'platform' AND COALESCE(ca.customer_id, r.customer_id) = ANY($1::int[])`;
   const flagSocietyFilter = session.isSysAdmin ? '' : 'AND COALESCE(r.customer_id, s.customer_id) = ANY($1::int[])';
   const alertParams = session.isSysAdmin ? [] : [moderated];
 
@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
       [session.sub]
     ),
     // The viewer's own content awaiting a moderator's decision
-    pool.query(`SELECT COUNT(*)::int AS n FROM content_alerts WHERE author_id = $1 AND status = 'pending'`, [session.sub]),
+    pool.query(`SELECT COUNT(*)::int AS n FROM content_alerts WHERE author_id = $1 AND status = 'pending' AND report_route IS DISTINCT FROM 'platform'`, [session.sub]),
     pool.query(
       `SELECT COUNT(id)::int AS n FROM debate_invitations
        WHERE created_by = $1::uuid AND status <> 'pending' AND updated_at > $2`,

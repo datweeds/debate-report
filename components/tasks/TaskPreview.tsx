@@ -1,5 +1,6 @@
 'use client';
 
+import ReportButton from '@/components/ReportButton';
 import { useState } from 'react';
 import RefHtml from '@/components/refs/RefHtml';
 import RichText from '@/components/discussions/RichText';
@@ -40,6 +41,9 @@ export default function TaskPreview({ society, item, priorities, categories, onC
             </p>
             <h3 className="text-base font-semibold text-slate-100">{item.kind === 'project' && item.t.locked && '🔐 '}{t.name}</h3>
           </div>
+          {!(item.kind === 'task' && item.t.mine) && (
+            <ReportButton kind={item.kind === 'task' ? 'society_task' : 'project_task'} id={t.id} what="this task" />
+          )}
           <button onClick={onClose} aria-label="Close" className="rounded-lg px-2 py-1 text-lg leading-none text-slate-400 hover:bg-slate-700/50 hover:text-white">×</button>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs">

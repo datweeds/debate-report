@@ -9,7 +9,7 @@ async function moderated(req: NextRequest, { params }: Ctx) {
   const { id, roomId } = await params;
   const a = await societyContentAccess(req, id);
   if (!a) return { error: NextResponse.json({ error: 'Not found' }, { status: 404 }) };
-  if (!a.canModerate) return { error: NextResponse.json({ error: 'Moderators only' }, { status: 403 }) };
+  if (!a.canModerate) return { error: NextResponse.json({ error: 'Society Admins only' }, { status: 403 }) };
   const room = await getRoom(a.societyId, roomId);
   if (!room) return { error: NextResponse.json({ error: 'Room not found' }, { status: 404 }) };
   return { a, room };

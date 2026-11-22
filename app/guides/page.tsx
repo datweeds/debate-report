@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: 'Guides', description: 'Guides to new
 const GUIDES = [
   { href: '/guides/guest', title: 'Guest guide', text: 'What you can see and do without an account, and what opens up when you join or create a Society.', members: false },
   { href: '/guides/member', title: 'Member guide', text: 'Joining a Society, debating, voting in polls, discussions and calls, and working together.', members: true },
-  { href: '/guides/admin', title: 'Admin guide', text: 'For moderators: what new.vote is for, configuring a Society, its tools, and your responsibilities.', members: true },
+  { href: '/guides/admin', title: 'Admin guide', text: 'For Society Admins: what new.vote is for, configuring a Society, its tools, and your responsibilities.', members: true },
 ];
 
 // Logged-out visitors see only the Guest guide

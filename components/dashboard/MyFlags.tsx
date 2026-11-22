@@ -23,7 +23,7 @@ function FlagList({ title, empty, flags, onWithdraw }: { title: string; empty: s
                 <Link href={`/chamber?resolution=${f.resolution_id}&statement=${f.statement_id}`} className="truncate text-slate-200 hover:text-blue-300">
                   {f.stat_ref && <span className="font-mono font-bold text-slate-400 mr-1">{f.stat_ref}</span>}{f.stat_title}
                 </Link>
-                {f.resolved_at && <span className="ml-auto shrink-0 rounded-full border border-emerald-600/40 bg-emerald-600/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300" title="A moderator reviewed this flag and closed it">Cleared</span>}
+                {f.resolved_at && <span className="ml-auto shrink-0 rounded-full border border-emerald-600/40 bg-emerald-600/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300" title="A Society Admin reviewed this flag and closed it">Cleared</span>}
                 <span className={`${f.resolved_at ? '' : 'ml-auto '}shrink-0 text-slate-600`}>{new Date(f.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
               </div>
               <div className="mt-1 flex items-center gap-3 text-xs">

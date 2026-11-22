@@ -21,7 +21,7 @@ const E2E_NOTE = '[Sealed in members’ browsers: the server can’t read this. 
 const NEVER = new Set([
   'society_keys', 'sealed_item_keys', 'user_sealed_keys', 'user_sealed_passkeys', 'passkeys', 'sso_tokens',
   'push_subscriptions', 'push_prefs', 'access_keys', 'access_key_debates', 'master_key_state', 'master_key_log',
-  'sysadmin_access', 'society_section_seen', 'discussion_thread_seen', 'users',
+  'sysadmin_access', 'society_section_seen', 'discussion_thread_seen', 'users', 'billing_events', 'report_limits', 'site_settings', 'plan_grants', 'society_limit_alerts', 'society_storage_over',
 ]);
 // Members' personal tools: private to each member, so not in a Society export
 const PERSONAL = new Set(['task_categories', 'task_category_links']);
@@ -162,6 +162,7 @@ they shared are.
 export async function exportSociety(societyId: number) {
   return readTx(async client => {
     const { rows: [soc] } = await client.query('SELECT * FROM customers WHERE id = $1', [societyId]);
+    if (soc) delete soc.stripe_customer_id;   // an internal Stripe reference
     if (!soc) throw new Error('Not found');
     const { fks, columns } = await schema(client);
     const tenantCol = (t: string) => ['customer_id', 'tenant_id'].filter(c => columns.get(t)?.has(c));

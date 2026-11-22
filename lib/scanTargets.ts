@@ -63,7 +63,7 @@ export const SCAN_TARGETS: ScanTarget[] = [
   },
   // Tasks are private to their author: only shared ones are checked
   ...(['name', 'description', 'notes'] as const).map(c => ({
-    type: `task_${c}`, label: c === 'name' ? 'Task title' : `Task ${c}`, table: 'society_tasks', column: c, idColumn: 'id',
+    type: `society_task_${c}`, label: c === 'name' ? 'Task title' : `Task ${c}`, table: 'society_tasks', column: c, idColumn: 'id',
     from: 'society_tasks t',
     where: 't.deleted_at IS NULL AND (t.shared_all OR EXISTS (SELECT 1 FROM task_shares s WHERE s.task_id = t.id))',
     society: 't.customer_id', author: 't.owner_id',

@@ -28,7 +28,7 @@ export default function TermsPage() {
             <span className="text-slate-300">Terms &amp; Conditions</span>
           </div>
           <h1 className="text-4xl font-bold text-slate-100">Terms &amp; Conditions</h1>
-          <p className="mt-2 text-slate-500 text-sm">Last updated: 18 November 2026</p>
+          <p className="mt-2 text-slate-500 text-sm">Last updated: 21 November 2026</p>
         </div>
 
         <div className="space-y-6">
@@ -80,15 +80,24 @@ export default function TermsPage() {
 
           <Section title="4. Societies and Moderation">
             <p>
-              Each Society is run by its own moderators, who decide who may join, set its principles, and moderate
-              its content. Moderators must run their Societies within these terms and the law, and are responsible
+              Each Society is run by its own Society Admins, who decide who may join, set its principles, and moderate
+              its content. Society Admins must run their Societies within these terms and the law, and are responsible
               for what they choose to publish and for the members they admit.
             </p>
             <p>
-              New content is scanned automatically for abuse and may be flagged for review. Society moderators and
+              New content is scanned automatically for abuse and may be flagged for review. Society Admins and
               our own team may hide, remove or refuse content that breaks these terms, a Society&apos;s principles or
               the law, and may suspend accounts. If your content is masked or removed, you can appeal from the{' '}
               <Link href="/dashboard/alerts" className="text-blue-400 hover:underline">Alerts &amp; Flags</Link> page, or contact us.
+            </p>
+            <p>
+              Anyone, with or without an account, can report an item they can see (an event, a discussion reply, a
+              document, a poll and so on) using its Report button. Most reports go to the Society&apos;s admins.
+              Reports of possibly illegal content, and reports about a whole Society or a person, go only to the
+              new.vote team, who review them first; the Society&apos;s admins and the author aren&apos;t told. Whoever
+              reviews a report isn&apos;t told who made it, except our own team. You can make up to 5 reports a day without
+              an account, or 30 with one. Please report honestly: making false or malicious reports, or using reports to
+              harass someone, breaks these terms. If someone is in immediate danger, call 999.
             </p>
           </Section>
 
@@ -127,7 +136,7 @@ export default function TermsPage() {
             <p>You agree not to:</p>
             <ul className="list-disc pl-5 space-y-1">
               <li>Submit false, fabricated, or deliberately misleading content.</li>
-              <li>Harass, threaten, or abuse other users or moderators.</li>
+              <li>Harass, threaten, or abuse other users or Society Admins.</li>
               <li>Attempt to manipulate voting or engagement metrics.</li>
               <li>Use the Platform for commercial advertising without prior consent.</li>
               <li>Attempt to access systems or data beyond your authorised scope.</li>

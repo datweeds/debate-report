@@ -17,7 +17,7 @@ type P = { id: string; title?: unknown; body?: unknown; grounding?: unknown; sec
 async function handlePOST(req: NextRequest, { params }: Params) {
   const a = await societyContentAccess(req, (await params).id);
   if (!a?.session) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!a.canModerate || !a.isMember) return NextResponse.json({ error: 'Only the Society’s moderators can do this' }, { status: 403 });
+  if (!a.canModerate || !a.isMember) return NextResponse.json({ error: 'Only the Society’s admins can do this' }, { status: 403 });
   const b = await req.json().catch(() => ({}));
   const ps: P[] = Array.isArray(b.principles) ? b.principles : [];
   const vs: { id: string; changeNote?: unknown }[] = Array.isArray(b.versions) ? b.versions : [];

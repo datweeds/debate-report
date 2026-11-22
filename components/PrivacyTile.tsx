@@ -15,8 +15,8 @@ const SEALED = {
   text: 'A Society can let members seal what matters most. A sealed item is encrypted in members’ own browsers, so only they can read it: not new.vote, and not anyone who gets hold of our servers. Discussions, projects, document folders (files included), polls, the calendar, principles and a private Society’s debates can all be sealed.',
 };
 const POINTS = [
-  { icon: '🛡️', title: 'No routine admin access', text: 'Our admins can only look inside a private Society in an emergency, with a reason. Every access is logged and shown to the Society.' },
-  { icon: '🗳️', title: 'Secret ballots', text: 'Every poll ballot is stored encrypted, in any Society. In a secret poll, who voted is kept apart from what they voted, and each voter gets a receipt to check their vote is counted.' },
+  { icon: '🛡️', title: 'No routine admin access', text: 'Our admins can only look inside a private Society in an emergency, with a reason, and every access is logged and shown to the Society. Even then, sealed content stays out of reach: Society Admins can turn on sealed items, which are encrypted on members’ own devices and can only ever be read by the Society’s members.' },
+  { icon: '🗳️', title: 'Ballots you can trust', text: 'Every ballot is encrypted. In a secret poll your vote is never stored with your name, so Society Admins can’t see how you voted, and your receipt lets you check it was counted. Formal ballots end in a certified result, independently timestamped so anyone can check it hasn’t been changed.' },
   { icon: '📞', title: 'Private calls', text: 'Calls are encrypted in transit and never recorded. End-to-end encrypted rooms use a passphrase only members know.' },
   { icon: '🤖', title: 'Your AI, your choice', text: 'Each Society uses new.vote’s AI, its own AI provider, or none at all, and can set limits to AI expenditure and track spending.' },
 ];

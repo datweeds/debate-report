@@ -48,7 +48,7 @@ export default function EventResponses({ url, initial, onChanged }: { url: strin
           <span className="font-semibold text-emerald-300">{r.going}</span> planning to attend · <span className="font-semibold text-rose-300">{r.notGoing}</span> not coming
         </p>
       ) : (
-        <p className="text-xs text-slate-500">Only the event’s author and moderators can see the responses.</p>
+        <p className="text-xs text-slate-500">Only the event’s author and Society Admins can see the responses.</p>
       )}
       {r.names && (r.names.going.length > 0 || r.names.notGoing.length > 0) && (
         <div className="space-y-1 text-xs">
@@ -58,7 +58,7 @@ export default function EventResponses({ url, initial, onChanged }: { url: strin
       )}
       {r.names && r.visibility !== 'all' && (
         <p className="text-[11px] text-slate-500">
-          {r.visibility === 'counts' ? 'Members see only the numbers. You see names as the event’s author or a moderator.' : 'Only the event’s author and moderators see these responses.'}
+          {r.visibility === 'counts' ? 'Members see only the numbers. You see names as the event’s author or a Society Admin.' : 'Only the event’s author and Society Admins see these responses.'}
         </p>
       )}
       {error && <p className="text-xs text-rose-400">{error}</p>}

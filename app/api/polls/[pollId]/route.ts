@@ -1,3 +1,4 @@
+import { clientIp } from '@/lib/clientIp';
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { pollSociety, voterPayload } from '@/lib/polls/access';
@@ -5,7 +6,7 @@ import { auditLog, codeAttemptAllowed, codeAttemptFailed, codeVoter, findCode, h
 import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ pollId: string }> };
-const ip = (req: NextRequest) => req.headers.get('x-real-ip') ?? req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+const ip = (req: NextRequest) => clientIp(req.headers);
 
 // POST { code } — someone with an access code opens the poll.
 async function handlePOST(req: NextRequest, { params }: Params) {

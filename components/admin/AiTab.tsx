@@ -27,6 +27,23 @@ export default function AiTab() {
   const [cap, setCap] = useState('');
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [monthCap, setMonthCap] = useState('');
+  const [month, setMonth] = useState<{ month: number; monthlyCap: number | null } | null>(null);
+  const [monthMsg, setMonthMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const loadMonth = useCallback(async () => {
+    const r = await fetch('/api/admin/ai/spend');
+    if (!r.ok) return;
+    const s = await r.json();
+    setMonth(s); setMonthCap(s.monthlyCap != null ? String(s.monthlyCap) : '');
+  }, []);
+  useEffect(() => { void loadMonth(); }, [loadMonth]);
+  async function saveMonth() {
+    setMonthMsg(null);
+    const r = await fetch('/api/admin/ai/spend', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ monthly_cap_usd: monthCap === '' ? null : Number(monthCap) }) });
+    const res = await r.json().catch(() => ({}));
+    setMonthMsg(r.ok ? { ok: true, text: 'Saved.' } : { ok: false, text: res.error ?? 'Could not save.' });
+    if (r.ok) await loadMonth();
+  }
 
   const load = useCallback(async () => {
     const r = await fetch('/api/admin/ai');
@@ -97,6 +114,17 @@ export default function AiTab() {
           </button>
           {msg && <span className={`text-xs ${msg.ok ? 'text-emerald-400' : 'text-rose-300'}`}>{msg.text}</span>}
         </div>
+        <div className="flex flex-wrap items-end gap-3 border-t border-slate-800 pt-4">
+          <div>
+            <label className="mb-1 block text-xs text-slate-400">Monthly cap (US$, all platform AI; empty = none)</label>
+            <input type="number" min={0} step="1" value={monthCap} onChange={e => setMonthCap(e.target.value)}
+              className="w-36 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100" />
+          </div>
+          <button onClick={saveMonth} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500">Save</button>
+          {month && <span className="text-xs text-slate-400">This month so far: ${month.month.toFixed(2)}{month.monthlyCap != null ? ` of $${month.monthlyCap.toFixed(2)}` : ''}</span>}
+          {monthMsg && <span className={`text-xs ${monthMsg.ok ? 'text-emerald-400' : 'text-rose-300'}`}>{monthMsg.text}</span>}
+        </div>
+        <p className="text-xs text-slate-500">You’re emailed when spend reaches 95% of the daily or monthly cap. The monthly cap pauses platform AI until the 1st.</p>
         <p className="text-xs text-slate-500">When the cap is reached, platform AI pauses until midnight UTC; features use their non-AI versions. Model choice and prices for the platform’s own AI are in the News service’s llm.yaml.</p>
       </div>
 

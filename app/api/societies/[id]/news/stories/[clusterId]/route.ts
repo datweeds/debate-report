@@ -42,7 +42,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
       return NextResponse.json({ ok: true });
     }
     if (action !== 'hide' && action !== 'headline') return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
-    if (!a.canModerate) return NextResponse.json({ error: 'Moderators only' }, { status: 403 });
+    if (!a.canModerate) return NextResponse.json({ error: 'Society Admins only' }, { status: 403 });
     await newsFetch(`/v1/subscriptions/${settings.subscription_id}/overrides`, {
       method: 'POST', body: { cluster_id: clusterId, action },
     });

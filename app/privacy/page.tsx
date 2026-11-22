@@ -32,7 +32,7 @@ export default async function PrivacyPage() {
             <span className="text-slate-300">Privacy Policy</span>
           </div>
           <h1 className="text-4xl font-bold text-slate-100">Privacy Policy</h1>
-          <p className="mt-2 text-slate-500 text-sm">Last updated: 18 November 2026</p>
+          <p className="mt-2 text-slate-500 text-sm">Last updated: 21 November 2026</p>
         </div>
 
         <div className="space-y-6">
@@ -64,7 +64,7 @@ export default async function PrivacyPage() {
             </p>
             <p>
               <span className="text-slate-200 font-medium">Private Societies are closed to our administrators.</span>{' '}
-              Private Societies are visible only to their members and moderators. Our administrators have no routine
+              Private Societies are visible only to their members and Society Admins. Our administrators have no routine
               access to them; emergency access is time-limited, needs a reason, and is logged and shown to the Society.
               This is encryption at rest, not end-to-end encryption: our server decrypts a private Society&apos;s content
               to show it to its members, and to send it to the AI the Society has chosen, if any. Only Meet rooms marked
@@ -101,7 +101,7 @@ export default async function PrivacyPage() {
               or use our <Link href="/contact" className="text-blue-400 hover:underline">Contact page</Link>.
             </p>
             <p>
-              Each Society&apos;s moderators decide who may join it and what its members can see. Where a Society uses its
+              Each Society&apos;s admins decide who may join it and what its members can see. Where a Society uses its
               own AI provider, that choice, and the Society&apos;s agreement with that provider, are the Society&apos;s.
             </p>
           </Section>
@@ -125,6 +125,14 @@ export default async function PrivacyPage() {
                 <span className="font-semibold text-slate-200">Usage data:</span> The web server&apos;s record of each
                 request (IP address, page, time and browser), kept for security; and a record of each AI request a
                 Society makes (the task, model, size and cost, but not the content).
+              </li>
+              <li>
+                <span className="font-semibold text-slate-200">Reports:</span> If you report an item (an event, a
+                reply, a document and so on), we keep the item, your reason and any note you add. If you&apos;re signed
+                in, we record your account so we can stop repeated or abusive reports; the Society&apos;s admins
+                and the person you report are never told who you are. If you report without an account, we keep only a
+                scrambled code made from your IP address, which changes every day, to limit you to 5 reports a day.
+                It can&apos;t be turned back into your address or linked across days, and is deleted after two days.
               </li>
               <li>
                 <span className="font-semibold text-slate-200">Contact data:</span> Name, email, subject and
@@ -161,6 +169,7 @@ export default async function PrivacyPage() {
             <ul className="list-disc pl-5 space-y-1">
               <li><span className="text-slate-200 font-medium">Contract:</span> To provide the services you have signed up for.</li>
               <li><span className="text-slate-200 font-medium">Legitimate interests:</span> To operate, secure and improve the Platform.</li>
+              <li><span className="text-slate-200 font-medium">Legal obligation:</span> To handle reports of illegal and harmful content under the Online Safety Act 2023.</li>
               <li><span className="text-slate-200 font-medium">Consent:</span> Where you have given explicit consent, such as for optional communications.</li>
             </ul>
           </Section>
@@ -177,6 +186,10 @@ export default async function PrivacyPage() {
                 accounting while the Society exists.</li>
               <li><span className="text-slate-200 font-medium">Newsletter:</span> until you unsubscribe. After that we keep your
                 address marked as unsubscribed, so we never email you again; ask us and we&apos;ll delete it entirely.</li>
+              <li><span className="text-slate-200 font-medium">Reports</span> and moderation decisions: kept with the
+                Society&apos;s moderation record while the Society exists. A Society with an unreviewed report of possibly
+                illegal content can&apos;t be deleted until we have reviewed it, and such reports may be kept longer, or
+                passed to the police, where the law requires.</li>
               <li><span className="text-slate-200 font-medium">Contact form messages:</span> up to 12 months.</li>
               <li><span className="text-slate-200 font-medium">Payment records:</span> as long as UK tax law requires
                 (currently six years).</li>
@@ -237,7 +250,7 @@ export default async function PrivacyPage() {
               public or private. In a secret poll, the record of who has voted is kept separate from the ballots, and a ballot
               carries no time and no name: only a token derived from a key we keep off the database, so a copy of our database
               can&apos;t connect a ballot to a voter. Each voter receives a receipt; a scrambled form of it is listed in the poll&apos;s
-              audit log so they can check their ballot was counted. In a named poll, the Society&apos;s moderators can see who chose what.
+              audit log so they can check their ballot was counted. In a named poll, the Society&apos;s admins can see who chose what.
               People without an account can be given a one-use access code; we keep only a scrambled form of the code.
             </p>
             <p className="mt-3">
@@ -258,7 +271,7 @@ export default async function PrivacyPage() {
             <p className="mt-3">
               Our system administrators have no routine access to a private Society&apos;s content. In an emergency, such as
               a serious report or a legal requirement, an administrator may open time-limited access, giving a reason. Every
-              such access is logged, shown to the Society&apos;s moderators and emailed to the Society&apos;s contact address.
+              such access is logged, shown to the Society&apos;s admins and emailed to the Society&apos;s contact address.
             </p>
             <p className="mt-3">
               <strong>Calls.</strong> Audio and video calls are encrypted in transit and are never recorded. In rooms a

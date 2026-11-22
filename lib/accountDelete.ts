@@ -10,7 +10,7 @@
 
 import crypto from 'crypto';
 import pool from './db';
-import stripe from './stripe';
+import { cancelAllFor } from './billing';
 
 export const ACCOUNT_SENTENCE = 'I CONFIRM TO DELETE MY ACCOUNT UNDERSTANDING IT CANNOT BE UNDONE';
 export const accountSentenceMatches = (v: unknown) =>
@@ -56,17 +56,14 @@ export async function accountBlockers(userId: string): Promise<Blocker[]> {
 /** Delete the account as described above. Call accountBlockers first. */
 export async function deleteAccount(userId: string): Promise<{ handle: string }> {
   const { rows: [u] } = await pool.query(
-    'SELECT user_handle, email, stripe_sub_id, stripe_sub_status FROM users WHERE id = $1', [userId]);
+    'SELECT user_handle, email FROM users WHERE id = $1', [userId]);
   if (!u) throw new Error('Not found');
 
   // A paid plan stops first, so nothing is charged after the account has gone
-  if (u.stripe_sub_id && !['canceled', 'incomplete_expired'].includes(u.stripe_sub_status ?? '')) {
-    try {
-      await stripe.subscriptions.cancel(u.stripe_sub_id);
-    } catch (e) {
-      const code = (e as { code?: string }).code;
-      if (code !== 'resource_missing') throw new Error('Couldn’t cancel your subscription. Please try again, or contact us.');
-    }
+  try {
+    await cancelAllFor({ kind: 'user', id: userId });
+  } catch {
+    throw new Error('Couldn’t cancel your subscription. Please try again, or contact us.');
   }
 
   const client = await pool.connect();

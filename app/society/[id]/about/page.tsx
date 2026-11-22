@@ -1,4 +1,6 @@
 import pool from '@/lib/db';
+import StartSocietyCard from '@/components/StartSocietyCard';
+import ReportButton from '@/components/ReportButton';
 import { loadSocietyPage } from '@/lib/societyPage';
 import SocietyContactForm from '@/components/societies/SocietyContactForm';
 import SocietyMetrics from '@/components/societies/SocietyMetrics';
@@ -27,7 +29,7 @@ export default async function SocietyAboutPage({ params }: { params: Promise<{ i
         <dl className="grid gap-3 sm:grid-cols-3 text-sm">
           <div className="rounded-xl border border-slate-800 bg-dr-card px-4 py-3"><dt className="text-[11px] uppercase tracking-wider text-slate-500">Who can see it</dt><dd className="mt-1 text-slate-200">{visibility}</dd></div>
           <div className="rounded-xl border border-slate-800 bg-dr-card px-4 py-3"><dt className="text-[11px] uppercase tracking-wider text-slate-500">Members</dt><dd className="mt-1 text-slate-200">{count.n}</dd></div>
-          <div className="rounded-xl border border-slate-800 bg-dr-card px-4 py-3"><dt className="text-[11px] uppercase tracking-wider text-slate-500">Moderators</dt>
+          <div className="rounded-xl border border-slate-800 bg-dr-card px-4 py-3"><dt className="text-[11px] uppercase tracking-wider text-slate-500">Society Admins</dt>
             <dd className="mt-1 text-slate-200">{moderators.map(m => m.user_full_name ? `${m.user_full_name} (@${m.user_handle})` : `@${m.user_handle}`).join(', ') || '—'}</dd></div>
         </dl>
         <SocietyMetrics societyId={society.id} disabled={access.disabled} />
@@ -38,11 +40,13 @@ export default async function SocietyAboutPage({ params }: { params: Promise<{ i
           <img src={society.hero_image} alt={society.name} className="w-full max-h-[26rem] rounded-2xl border border-slate-800 object-cover" />
         )}
         <div className="rounded-2xl border border-slate-800 bg-dr-card p-5">
-          <h2 className="text-sm font-semibold text-slate-200">Contact the moderators</h2>
+          <h2 className="text-sm font-semibold text-slate-200">Contact the Society Admins</h2>
           {extra?.can_contact
             ? <SocietyContactForm societyId={society.id} loggedIn={!!session} />
             : <p className="mt-2 text-xs text-slate-500">This Society hasn&apos;t set up a contact address yet. You can reach its members in Discussions.</p>}
         </div>
+        <StartSocietyCard where="about" />
+        <div className="px-1"><ReportButton kind="society" id={String(society.id)} what="this Society" label="Report this Society" /></div>
       </aside>
     </div>
   );

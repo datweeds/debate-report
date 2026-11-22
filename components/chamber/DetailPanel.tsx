@@ -820,7 +820,7 @@ export default function DetailPanel({
               </div>
             </div>
           ) : userId ? (
-            <p className="text-xs text-slate-600 text-center">Voter, Debater, or Moderator tier required to chat</p>
+            <p className="text-xs text-slate-600 text-center">Voter, Debater, or Society Admin tier required to chat</p>
           ) : (
             <p className="text-xs text-slate-600 text-center">Log in to join the chat</p>
           )}

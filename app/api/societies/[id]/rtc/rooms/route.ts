@@ -26,7 +26,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const a = await societyContentAccess(req, (await params).id);
   if (!a) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!a.canModerate) return NextResponse.json({ error: 'Only moderators can add rooms' }, { status: 403 });
+  if (!a.canModerate) return NextResponse.json({ error: 'Only Society Admins can add rooms' }, { status: 403 });
   const b = await req.json().catch(() => ({}));
   const name = String(b.name ?? '').trim().slice(0, 80);
   if (!name) return NextResponse.json({ error: 'Give the room a name' }, { status: 400 });

@@ -1,5 +1,6 @@
 'use client';
 
+import ReportButton from '@/components/ReportButton';
 import { Fragment, useEffect, useState } from 'react';
 import RichText from '@/components/discussions/RichText';
 import { Badge, fmtDate, inputCls, openFor, send, Sheet, TASK_STATUS, todayKey, type Member } from './shared';
@@ -448,6 +449,10 @@ function TaskSheet({ base, task, tasks, groups, me, canManage, onClose, onChange
 
   return (
     <Sheet title={task.name} onClose={onClose}>
+      <div className="mb-2 flex justify-end">
+        <ReportButton kind="project_task" id={task.id} what="this project task"
+          shown={() => [task.name, task.description].filter(Boolean).join('\n')} />
+      </div>
       {error && <p className="mb-3 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{error}</p>}
       {mode === 'edit' ? (
         <TaskForm base={base} tasks={tasks} groups={groups} task={task} onDone={() => { setMode('view'); onChanged(); }} />

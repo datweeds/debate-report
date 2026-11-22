@@ -18,7 +18,7 @@ async function handlePOST(req: NextRequest, { params }: Params) {
   const { id, folderId } = await params;
   const a = await societyContentAccess(req, id);
   if (!a?.session || !/^[0-9a-f-]{36}$/i.test(folderId)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!a.canModerate || !a.isMember) return NextResponse.json({ error: 'Only the Society’s moderators can do this' }, { status: 403 });
+  if (!a.canModerate || !a.isMember) return NextResponse.json({ error: 'Only the Society’s admins can do this' }, { status: 403 });
   const { rows: [f] } = await pool.query('SELECT protection FROM document_folders WHERE id = $1 AND customer_id = $2', [folderId, a.societyId]);
   if (!f) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const b = await req.json().catch(() => ({}));

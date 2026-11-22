@@ -105,7 +105,7 @@ function AppealSection({ alert, onAppealed }: { alert: MyAlert; onAppealed: (id:
 
   if (alert.appeal_status === 'unmasked') return (
     <div className="rounded-lg border border-emerald-700/40 bg-emerald-900/10 px-3 py-2.5 text-sm text-emerald-300">
-      Appeal successful — your content has been restored by a moderator.
+      Appeal successful — your content has been restored by a Society Admin.
     </div>
   );
 
@@ -127,7 +127,7 @@ function AppealSection({ alert, onAppealed }: { alert: MyAlert; onAppealed: (id:
   if (alert.appeal_status === 'sent') return (
     <div className="space-y-2">
       <div className="rounded-lg border border-amber-700/40 bg-amber-900/10 px-3 py-2.5 text-sm text-amber-300">
-        Appeal submitted {timeAgo(alert.appeal_at!)} — awaiting moderator review.
+        Appeal submitted {timeAgo(alert.appeal_at!)} — awaiting Society Admin review.
       </div>
       <p className="text-xs text-slate-500">
         If you need to escalate, contact the platform admin team via{' '}
@@ -143,7 +143,7 @@ function AppealSection({ alert, onAppealed }: { alert: MyAlert; onAppealed: (id:
   return (
     <div className="space-y-2">
       <p className="text-xs text-slate-400">
-        Your content was masked by automated scanning. If you believe this was an error, you can send a one-time appeal to the moderator.
+        Your content was masked by automated scanning. If you believe this was an error, you can send a one-time appeal to the Society Admin.
       </p>
       <textarea
         value={body}
@@ -351,8 +351,8 @@ export default function AlertsPage() {
             {filterStatus === 'pending'
               ? 'Content you submit is automatically scanned. Any alerts will appear here.'
               : filterStatus === 'passed'
-              ? 'Alerts that a moderator has reviewed and cleared.'
-              : 'Content masked by a moderator will appear here. You can appeal the decision.'}
+              ? 'Alerts that a Society Admin has reviewed and cleared.'
+              : 'Content masked by a Society Admin will appear here. You can appeal the decision.'}
           </p>
           {filterStatus === 'masked' && (
             <p className="text-xs text-slate-600 mt-2">

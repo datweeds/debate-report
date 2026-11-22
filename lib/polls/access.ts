@@ -1,5 +1,6 @@
 // Who may do what with a Society's poll. Server-only.
 
+import { isScrutineer } from './formal';
 import type { NextRequest } from 'next/server';
 import pool from '../db';
 import { societyContentAccess, type SocietyContentAccess } from '../societies';
@@ -12,6 +13,7 @@ export type PollContext = {
   manager: boolean;      // the Society's moderators: create, run, track
   voterKey: string | null;
   canVote: boolean;
+  scrutineer: boolean;   // a formal ballot's scrutineer: oversees, can't change anything
 };
 
 export async function pollContext(req: NextRequest, rawSocietyId: string, pollId: string): Promise<PollContext | null> {
@@ -22,7 +24,8 @@ export async function pollContext(req: NextRequest, rawSocietyId: string, pollId
   const manager = a.canModerate;
   if (poll.status === 'draft' && !manager) return null;
   const voterKey = a.session && a.isMember ? memberVoter(a.session.sub) : null;
-  return { a, poll, manager, voterKey, canVote: !!voterKey && poll.members_may_vote && poll.status === 'open' };
+  const scrutineer = !manager && poll.formal && await isScrutineer(poll.id, a.session?.sub);
+  return { a, poll, manager, voterKey, canVote: !!voterKey && poll.members_may_vote && poll.status === 'open', scrutineer };
 }
 
 /** The questions as a voter may see them: quiz answers stay hidden until the poll closes. */
@@ -56,7 +59,13 @@ export function readSettings(b: Record<string, unknown>) {
   pick('question_order', ['all_at_once', 'sequential'] as const);
   pick('result_visibility', ['live', 'after_close', 'never'] as const);
   pick('ballot_mode', ['secret', 'named'] as const);
-  for (const k of ['allow_revote', 'is_quiz', 'allow_codes', 'members_may_vote']) if (typeof b[k] === 'boolean') out[k] = b[k];
+  for (const k of ['allow_revote', 'is_quiz', 'allow_codes', 'members_may_vote', 'formal']) if (typeof b[k] === 'boolean') out[k] = b[k];
+  pick('majority', ['simple', 'two_thirds', 'three_quarters'] as const);
+  if ('quorum_pct' in b) {
+    const q = b.quorum_pct === null || b.quorum_pct === '' ? null : Number(b.quorum_pct);
+    if (q !== null && !(Number.isInteger(q) && q >= 1 && q <= 100)) return { error: 'The quorum must be a whole percentage from 1 to 100' } as const;
+    out.quorum_pct = q;
+  }
   if ('closes_at' in b) {
     const t = b.closes_at ? new Date(String(b.closes_at)) : null;
     if (t && isNaN(t.getTime())) return { error: 'The closing time is not valid' } as const;

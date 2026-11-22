@@ -18,7 +18,7 @@ type Row = { id: string; title?: unknown; description?: unknown; location?: unkn
 async function handlePOST(req: NextRequest, { params }: Params) {
   const a = await societyContentAccess(req, (await params).id);
   if (!a?.session) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!a.canModerate || !a.isMember) return NextResponse.json({ error: 'Only the Society’s moderators can do this' }, { status: 403 });
+  if (!a.canModerate || !a.isMember) return NextResponse.json({ error: 'Only the Society’s admins can do this' }, { status: 403 });
   const b = await req.json().catch(() => ({}));
   const rows: Row[] = Array.isArray(b.events) ? b.events : [];
   const sealed = await sealedSection(a.societyId, 'calendar');

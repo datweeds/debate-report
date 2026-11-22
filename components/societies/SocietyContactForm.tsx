@@ -15,7 +15,7 @@ export default function SocietyContactForm({ societyId }: { societyId: number; l
     if (r.ok) { setState('sent'); return; }
     setState('idle'); setError((await r.json().catch(() => ({}))).error ?? 'Could not send');
   }
-  if (state === 'sent') return <p className="mt-3 text-sm text-emerald-300">Sent. The moderators will reply by email.</p>;
+  if (state === 'sent') return <p className="mt-3 text-sm text-emerald-300">Sent. The Society Admins will reply by email.</p>;
   return (
     <form onSubmit={send} className="mt-3 space-y-2">
       <input value={f.name} onChange={e => setF(v => ({ ...v, name: e.target.value }))} required maxLength={100} placeholder="Your name" className={inputCls} />

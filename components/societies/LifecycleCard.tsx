@@ -61,7 +61,7 @@ export default function LifecycleCard({ id, name, status, blocked, onChanged }: 
           <div className="flex flex-wrap items-start justify-between gap-3">
             <p className="max-w-xl text-xs text-slate-400">
               {closed
-                ? <><span className="font-semibold text-amber-300">Closed.</span> The Society is hidden from every menu and list, and only its moderators can open it. Reopen it to bring it back exactly as it was.</>
+                ? <><span className="font-semibold text-amber-300">Closed.</span> The Society is hidden from every menu and list, and only its Society Admins can open it. Reopen it to bring it back exactly as it was.</>
                 : <><span className="font-semibold text-slate-200">Close</span> hides the Society from every menu and list, and stops members opening it. Nothing is deleted: you can reopen it here at any time.</>}
             </p>
             <button onClick={() => setOpen(closed)} disabled={busy}

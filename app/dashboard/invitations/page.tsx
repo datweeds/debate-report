@@ -99,11 +99,11 @@ export default function InvitationsPage() {
   const resolvedReceived = received.filter(r => r.status !== 'pending');
 
   return (
-    <div className="px-6 py-8 max-w-3xl space-y-10">
+    <div className="mx-auto px-6 py-8 max-w-3xl space-y-10">
       <div>
         <h1 className="text-2xl font-bold text-slate-100">Invitations</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Invitations you&apos;ve been sent, and the ones you&apos;ve sent as a Moderator: Society invite links and invitations to Invite-only debates.
+          Invitations you&apos;ve been sent, and the ones you&apos;ve sent as a Society Admin: Society invite links and invitations to Invite-only debates.
         </p>
       </div>
 

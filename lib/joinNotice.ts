@@ -18,7 +18,7 @@ export async function notifyJoinDecision(userId: string, customerId: number | nu
       subject: approved ? `You've been accepted into ${where}` : `Your request to join ${where}`,
       text: approved
         ? `Hello ${r.user_handle ?? ''},\n\nGood news: your request to join ${where} has been approved. You can take part now:\n${link}`
-        : `Hello ${r.user_handle ?? ''},\n\nYour request to join ${where} was not approved this time. If you think this is a mistake, you can contact the Society's moderators from its About page:\n${link}${kind === 'society' ? '/about' : ''}`,
+        : `Hello ${r.user_handle ?? ''},\n\nYour request to join ${where} was not approved this time. If you think this is a mistake, you can contact the Society's admins from its About page:\n${link}${kind === 'society' ? '/about' : ''}`,
     });
   } catch (err) {
     console.error('[join notice]', err);

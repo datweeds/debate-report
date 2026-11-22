@@ -18,7 +18,7 @@ export interface Stats {
   activeSocieties: { areas: { label: string; color: string }[]; contact: boolean; windows: Record<string, ActiveSociety[]> } | null;
   popularDebates: { id: string; stat_title: string; child_count: number; votes: number }[];
   staleDebates: { id: string; stat_title: string; idle_days: number }[];
-  server?: { uptimeSeconds: number; memoryMB: number; backup?: { ok: boolean; at: string; message: string; bytes: number; warnings: string[] } | null };
+  server?: { uptimeSeconds: number; memoryMB: number; backup?: { ok: boolean; at: string; message: string; bytes: number; warnings: string[] } | null; incremental?: { ok: boolean; at: string; message: string; bytes: number; warnings: string[] } | null };
 }
 
 function fmtUptime(s: number) {
@@ -129,7 +129,7 @@ function ActiveSocieties({ data }: { data: NonNullable<Stats['activeSocieties']>
                 {data.contact && (s.emails.length ? (
                   <a href={`mailto:${s.emails.join(',')}?subject=${encodeURIComponent(`new.vote: ${s.named ? s.name : 'your Society'}`)}`}
                     title={`Email: ${s.emails.join(', ')}`} className="text-blue-400 hover:text-blue-300">✉ Admins</a>
-                ) : <span className="text-slate-600" title="No moderator email on record">no email</span>)}
+                ) : <span className="text-slate-600" title="No Society Admin email on record">no email</span>)}
               </span>
             </li>
           ))}
@@ -144,13 +144,13 @@ function ActiveSocieties({ data }: { data: NonNullable<Stats['activeSocieties']>
 }
 
 // Last nightly backup: red when it failed or is more than 36 hours old
-function BackupStatus({ b }: { b: NonNullable<Stats['server']>['backup'] | null }) {
-  if (!b) return <div><p className="text-slate-500">Last backup</p><p className="mt-0.5 font-medium text-rose-400">● None recorded</p></div>;
+function BackupStatus({ b, label = 'Last backup' }: { b: NonNullable<Stats['server']>['backup'] | null; label?: string }) {
+  if (!b) return <div><p className="text-slate-500">{label}</p><p className="mt-0.5 font-medium text-rose-400">● None recorded</p></div>;
   const stale = Date.now() - new Date(b.at).getTime() > 36 * 3600e3;
   const good = b.ok && !stale;
   return (
     <div className="col-span-2 sm:col-span-3">
-      <p className="text-slate-500">Last backup</p>
+      <p className="text-slate-500">{label}</p>
       <p className={`mt-0.5 font-medium ${good ? (b.warnings.length ? 'text-amber-300' : 'text-emerald-400') : 'text-rose-400'}`}>
         ● {new Date(b.at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })} · {b.ok ? `${Math.round(b.bytes / 1048576)} MB, ${b.message}` : `FAILED: ${b.message}`}{stale ? ' · overdue' : ''}
       </p>
@@ -278,7 +278,8 @@ export default function AnalyticsView({ stats }: { stats: Stats }) {
             <div><p className="text-slate-500">Database</p><p className="mt-0.5 font-medium text-emerald-400">● Connected</p></div>
             <div><p className="text-slate-500">Server uptime</p><p className="mt-0.5 font-medium text-slate-300">{fmtUptime(stats.server.uptimeSeconds)}</p></div>
             <div><p className="text-slate-500">Memory (RSS)</p><p className="mt-0.5 font-medium text-slate-300">{stats.server.memoryMB} MB</p></div>
-            <BackupStatus b={stats.server.backup ?? null} />
+            <BackupStatus b={stats.server.backup ?? null} label="Last full backup" />
+            {stats.server.incremental !== undefined && <BackupStatus b={stats.server.incremental ?? null} label="Last incremental backup (MB added)" />}
           </div>
         </div>
       )}

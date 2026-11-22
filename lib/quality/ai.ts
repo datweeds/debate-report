@@ -60,7 +60,7 @@ const OUTPUT = `Reply with a single JSON object and nothing else:
    "category": "${AI_CATEGORIES.join(' | ')}",
    "fallacy": "exact fallacy name from the list when category is fallacy, otherwise null",
    "observation": "what is wrong, specifically",
-   "recommendation": "what the moderator should change"
+   "recommendation": "what the Society Admin should change"
  }]}`;
 
 // The debate as indented text, in tree order, with references and parents.
@@ -105,7 +105,7 @@ export async function aiReview(debate: QDebate, dismissed: string[], previous: P
   const prompt = [
     `<fallacies>\n${fallacyList}\n</fallacies>`,
     dismissed.length
-      ? `<dismissed>\nThe moderator has already reviewed and dismissed these observations. Do not raise them again:\n${dismissed.map(d => `- ${d}`).join('\n')}\n</dismissed>`
+      ? `<dismissed>\nThe Society Admin has already reviewed and dismissed these observations. Do not raise them again:\n${dismissed.map(d => `- ${d}`).join('\n')}\n</dismissed>`
       : '',
     previous.length
       ? `<previous_findings>\nOpen findings from the last review of this debate. For each one, check the current debate: if the issue is still present, report it again with previous_key set to its key (you may improve the wording); if it has been fixed, leave it out. Then add any further issues. Be consistent with the previous review: don't re-judge unchanged statements differently without reason.\n${previous.map(p => `- key=${p.key} · ${p.ref ?? 'whole debate'} · ${p.observation}`).join('\n')}\n</previous_findings>`

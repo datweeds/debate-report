@@ -1,5 +1,7 @@
 'use client';
 
+import { describe, occurrences, type Freq, type Rule } from '@/lib/recurrence';
+import ReportButton from '@/components/ReportButton';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import RefButton, { insertAtCursor } from '@/components/refs/RefButton';
@@ -16,9 +18,10 @@ type Ev = {
   id: string; title: string; description: string | null; location: string | null;
   starts_at: string; ends_at: string | null; all_day: boolean; created_by_handle: string | null;
   response_visibility: ResponseVisibility; responses: Responses | null;
+  series_id: string | null; series_rule: Rule | null;
 };
 // A project task on its due date ('YYYY-MM-DD', a calendar date with no time zone).
-type Task = { id: string; kind?: 'project' | 'task'; title: string; project: string; due_at: string; status: string; href: string };
+type Task = { id: string; kind?: 'project' | 'task'; title: string; project: string; due_at: string; status: string; done?: boolean; href: string };
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const inputCls = 'w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:border-blue-500 focus:outline-none';
@@ -72,6 +75,7 @@ export default function SocietyCalendar({ societyId }: { societyId: number }) {
   const [showEvents, setShowEvents] = useState(true);
   const [showTasks, setShowTasks] = useState(true);            // your own (and shared) tasks
   const [showProjectTasks, setShowProjectTasks] = useState(true);
+  const [showCompleted, setShowCompleted] = useState(false);   // completed tasks stay out unless asked for
   const [data, setData] = useState<{ events: Ev[]; tasks: Task[]; canModerate: boolean; sealed: { id: string; epoch: number } | null; canSeal: boolean } | null>(null);
   // A sealed calendar: its text is opened and sealed here, with this person's keys
   const societyBase = `/api/societies/${societyId}`;
@@ -85,6 +89,7 @@ export default function SocietyCalendar({ societyId }: { societyId: number }) {
   const [taskOpen, setTaskOpen] = useState<Task | null>(null);   // a task's preview
   const [editing, setEditing] = useState<Partial<FormState> | null>(null);
   const [error, setError] = useState('');
+  const [askDelete, setAskDelete] = useState(false);   // a series: which events to delete
 
   const grid = useMemo(() => monthGrid(cursor.y, cursor.m), [cursor]);
 
@@ -133,7 +138,7 @@ export default function SocietyCalendar({ societyId }: { societyId: number }) {
   }, [opened]);
 
   const events = showEvents ? opened : [];
-  const tasks = (data?.tasks ?? []).filter(t => (t.kind === 'task' ? showTasks : showProjectTasks));
+  const tasks = (data?.tasks ?? []).filter(t => (t.kind === 'task' ? showTasks : showProjectTasks) && (showCompleted || !t.done));
   const dayItems = (key: string) => ({
     ev: events.filter(e => onDay(e, key)),
     tk: tasks.filter(t => t.due_at === key),
@@ -143,10 +148,10 @@ export default function SocietyCalendar({ societyId }: { societyId: number }) {
     setCursor(c => { const d = new Date(c.y, c.m + delta, 1); return { y: d.getFullYear(), m: d.getMonth() }; });
   }
 
-  async function remove(e: Ev) {
-    if (!confirm(`Delete "${e.title}"?`)) return;
-    await fetch(`${base}/${e.id}`, { method: 'DELETE' });
-    setOpen(null); load();
+  async function remove(e: Ev, scope?: 'one' | 'following' | 'all') {
+    if (!scope && !confirm(`Delete "${e.title}"?`)) return;
+    await fetch(`${base}/${e.id}${scope && scope !== 'one' ? `?scope=${scope}` : ''}`, { method: 'DELETE' });
+    setOpen(null); setAskDelete(false); load();
   }
 
   // Seal (or unseal) the whole calendar: this browser re-encrypts every event
@@ -240,6 +245,9 @@ export default function SocietyCalendar({ societyId }: { societyId: number }) {
         <label className="flex items-center gap-1.5 text-xs text-slate-400" title="Project tasks on their due dates">
           <input type="checkbox" checked={showProjectTasks} onChange={e => setShowProjectTasks(e.target.checked)} className="accent-amber-500" /> Project tasks
         </label>
+        <label className={`flex items-center gap-1.5 text-xs ${showTasks || showProjectTasks ? 'text-slate-400' : 'text-slate-600'}`} title="Include tasks and project tasks that are already complete">
+          <input type="checkbox" checked={showCompleted} disabled={!showTasks && !showProjectTasks} onChange={e => setShowCompleted(e.target.checked)} className="accent-emerald-500" /> Completed
+        </label>
         <div className="flex overflow-hidden rounded-lg border border-slate-700 text-xs">
           {(['month', 'list'] as const).map(v => (
             <button key={v} onClick={() => setView(v)} className={`px-3 py-1.5 ${view === v ? 'bg-slate-700 text-slate-100' : 'text-slate-400 hover:text-slate-200'}`}>
@@ -296,7 +304,7 @@ export default function SocietyCalendar({ societyId }: { societyId: number }) {
                       ))}
                       {tk.slice(0, Math.max(0, 3 - ev.length)).map(t => (
                         <a key={t.id} href={t.href} onClick={e2 => { e2.stopPropagation(); if (plainClick(e2)) { e2.preventDefault(); setTaskOpen(t); } }}
-                          className={`block truncate rounded px-1.5 py-0.5 text-[11px] ${t.kind === 'task' ? 'bg-violet-500/15 text-violet-100 hover:bg-violet-500/25' : 'bg-amber-500/15 text-amber-100 hover:bg-amber-500/25'}`}>
+                          className={`block truncate rounded px-1.5 py-0.5 text-[11px] ${t.kind === 'task' ? 'bg-violet-500/15 text-violet-100 hover:bg-violet-500/25' : 'bg-amber-500/15 text-amber-100 hover:bg-amber-500/25'}${t.done ? ' line-through opacity-60' : ''}`}>
                           {t.kind === 'task' ? '☑' : '◆'} {t.title}
                         </a>
                       ))}
@@ -320,9 +328,10 @@ export default function SocietyCalendar({ societyId }: { societyId: number }) {
       )}
 
       {open && (
-        <Modal onClose={() => setOpen(null)}>
+        <Modal onClose={() => { setOpen(null); setAskDelete(false); }}>
           <h3 className="text-lg font-semibold text-slate-100">{open.title}</h3>
           <p className="mt-1 text-sm text-blue-300">{rangeLabel(open)}</p>
+          {open.series_rule && <p className="mt-1 text-xs text-slate-400">↻ {describe(open.series_rule, new Date(open.starts_at), open.all_day)}</p>}
           {open.location && <div className="mt-3 flex gap-2 text-sm text-slate-300"><span aria-hidden>📍</span><RichText text={open.location} /></div>}
           {open.description && <div className="mt-3"><RichText text={open.description} /></div>}
           {open.responses && <EventResponses key={open.id} url={`${base}/${open.id}/response`} initial={open.responses} onChanged={() => void load()} />}
@@ -333,9 +342,19 @@ export default function SocietyCalendar({ societyId }: { societyId: number }) {
             {data.canModerate && canWrite && (
               <>
                 <button onClick={() => { setEditing(toForm(open)); setOpen(null); }} className="text-slate-400 hover:text-slate-200">Edit</button>
-                <button onClick={() => remove(open)} className="text-rose-400 hover:text-rose-300">Delete</button>
+                {open.series_id && askDelete ? (
+                  <span className="flex flex-wrap items-center gap-2 text-xs text-slate-400">Delete:
+                    <button onClick={() => remove(open, 'one')} className="rounded border border-rose-500/40 px-2 py-1 text-rose-300 hover:bg-rose-500/10">this event</button>
+                    <button onClick={() => remove(open, 'following')} className="rounded border border-rose-500/40 px-2 py-1 text-rose-300 hover:bg-rose-500/10">this and following</button>
+                    <button onClick={() => remove(open, 'all')} className="rounded border border-rose-500/40 px-2 py-1 text-rose-300 hover:bg-rose-500/10">the whole series</button>
+                  </span>
+                ) : (
+                  <button onClick={() => (open.series_id ? setAskDelete(true) : remove(open))} className="text-rose-400 hover:text-rose-300">Delete</button>
+                )}
               </>
             )}
+            <ReportButton kind="event" id={open.id} what="this event" sealed={!!sealedId}
+              shown={() => [open.title, open.description, open.location].filter(Boolean).join('\n')} />
             <span className="flex-1" />
             {open.created_by_handle && <span className="text-xs text-slate-500">Added by @{open.created_by_handle}</span>}
           </div>
@@ -376,7 +395,7 @@ function DayList({ title, events, tasks, onOpen, onTask, empty }: { title: strin
             <li key={t.id}>
               <a href={t.href} onClick={e => { if (plainClick(e)) { e.preventDefault(); onTask(t); } }} className="flex items-start gap-3">
                 <span className={`w-14 flex-shrink-0 text-xs ${t.kind === 'task' ? 'text-violet-300' : 'text-amber-300'}`}>{t.kind === 'task' ? '☑ Due' : '◆ Due'}</span>
-                <span className="min-w-0 text-sm text-slate-100">{t.title}<span className="block truncate text-xs text-slate-500">{t.project} · {t.status}</span></span>
+                <span className={`min-w-0 text-sm ${t.done ? 'text-slate-400' : 'text-slate-100'}`}><span className={t.done ? 'line-through' : ''}>{t.title}</span><span className="block truncate text-xs text-slate-500">{t.project} · {t.status}</span></span>
               </a>
             </li>
           ))}
@@ -423,16 +442,20 @@ function Modal({ children, onClose, keepOpen = false }: { children: React.ReactN
 
 // ── Create / edit form ───────────────────────────────────────────────────────
 
+type Repeat = '' | 'daily' | 'weekly' | 'fortnightly' | 'monthly_date' | 'monthly_weekday';
 type FormState = {
   id?: string; title: string; date: string; startTime: string; endDate: string; endTime: string;
   allDay: boolean; location: string; description: string; responseVisibility: ResponseVisibility;
+  seriesId?: string | null; scope: 'one' | 'following' | 'all'; repeat: Repeat; until: string;
 };
+const plusMonths = (key: string, n: number) => { const d = new Date(`${key}T12:00:00`); d.setMonth(d.getMonth() + n); return localKey(d); };
 
 function toForm(e: Ev): Partial<FormState> {
   const s = new Date(e.starts_at), en = e.ends_at ? new Date(e.ends_at) : null;
   const hm = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
   return {
     id: e.id, title: e.title, allDay: e.all_day, location: e.location ?? '', description: e.description ?? '', responseVisibility: e.response_visibility,
+    seriesId: e.series_id, scope: 'one',
     date: e.all_day ? utcKey(s) : localKey(s), startTime: e.all_day ? '' : hm(s),
     endDate: en ? (e.all_day ? utcKey(en) : localKey(en)) : '', endTime: en && !e.all_day ? hm(en) : '',
   };
@@ -445,8 +468,25 @@ function EventForm({ society, initial, base, seal, onClose, onSaved }: {
   const out = (v: string) => (seal ? seal(v.trim()) : v);
   const [f, setF] = useState<FormState>({
     title: '', date: initial.date ?? localKey(new Date()), startTime: '19:00', endDate: '', endTime: '20:00',
-    allDay: false, location: '', description: '', responseVisibility: 'counts', ...initial,
+    allDay: false, location: '', description: '', responseVisibility: 'counts', scope: 'one', repeat: '',
+    until: plusMonths(initial.date ?? localKey(new Date()), 3), ...initial,
   });
+  const startDate = useRef(initial.date);
+  // A repeating event's dates, worked out here in this browser's time zone
+  const times = () => {
+    const startsAt = f.allDay ? `${f.date}T00:00:00.000Z` : new Date(`${f.date}T${f.startTime || '00:00'}`).toISOString();
+    const endDate = f.endDate || f.date;
+    const endsAt = f.allDay
+      ? (f.endDate ? `${f.endDate}T00:00:00.000Z` : null)
+      : (f.endTime ? new Date(`${endDate}T${f.endTime}`).toISOString() : null);
+    return { startsAt, endsAt };
+  };
+  const rule: Rule | null = f.repeat ? { freq: (f.repeat === 'fortnightly' ? 'weekly' : f.repeat) as Freq, interval: f.repeat === 'fortnightly' ? 2 : 1, until: f.until } : null;
+  const series = useMemo(() => {
+    if (!rule || !f.date) return [];
+    try { const t = times(); return occurrences(new Date(t.startsAt), t.endsAt ? new Date(t.endsAt) : null, f.allDay, rule); } catch { return []; }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [f.repeat, f.until, f.date, f.startTime, f.endDate, f.endTime, f.allDay]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const set = (k: keyof FormState, v: string | boolean) => setF(p => ({ ...p, [k]: v }));
@@ -455,15 +495,18 @@ function EventForm({ society, initial, base, seal, onClose, onSaved }: {
   async function save(e: React.FormEvent) {
     e.preventDefault();
     // All-day: midnight UTC on the chosen dates. Timed: the viewer's local time.
-    const startsAt = f.allDay ? `${f.date}T00:00:00.000Z` : new Date(`${f.date}T${f.startTime || '00:00'}`).toISOString();
-    const endDate = f.endDate || f.date;
-    const endsAt = f.allDay
-      ? (f.endDate ? `${f.endDate}T00:00:00.000Z` : null)
-      : (f.endTime ? new Date(`${endDate}T${f.endTime}`).toISOString() : null);
+    const { startsAt, endsAt } = times();
+    if (f.id && f.seriesId && f.scope !== 'one' && f.date !== startDate.current) {
+      setError('Several events can change their time of day, but not their date. Choose “This event” to move it to another day.'); return;
+    }
+    if (rule && series.length < 2) { setError('Choose an end date for the repeats after the first event.'); return; }
     setSaving(true); setError('');
     const r = await fetch(f.id ? `${base}/${f.id}` : base, {
       method: f.id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: out(f.title), startsAt, endsAt, allDay: f.allDay, location: out(f.location), description: out(f.description), responseVisibility: f.responseVisibility }),
+      body: JSON.stringify({
+        title: out(f.title), startsAt, endsAt, allDay: f.allDay, location: out(f.location), description: out(f.description), responseVisibility: f.responseVisibility,
+        ...(f.id ? { scope: f.scope } : rule ? { repeat: rule, occurrences: series } : {}),
+      }),
     });
     setSaving(false);
     if (!r.ok) { setError((await r.json()).error ?? 'Could not save'); return; }
@@ -496,6 +539,43 @@ function EventForm({ society, initial, base, seal, onClose, onSaved }: {
             </label>
           )}
         </div>
+        {!f.id && (
+          <div className="grid grid-cols-2 gap-2">
+            <label className="text-xs text-slate-400">Repeats
+              <select value={f.repeat} onChange={e => set('repeat', e.target.value)} className={`${inputCls} mt-1`}>
+                <option value="">Doesn’t repeat</option>
+                <option value="daily">Every day</option>
+                <option value="weekly">Every week</option>
+                <option value="fortnightly">Every 2 weeks</option>
+                <option value="monthly_date">Every month, same date</option>
+                <option value="monthly_weekday">Every month, same weekday</option>
+              </select>
+            </label>
+            {f.repeat && (
+              <label className="text-xs text-slate-400">until
+                <input type="date" value={f.until} min={f.date} onChange={e => set('until', e.target.value)} required className={`${inputCls} mt-1`} />
+              </label>
+            )}
+            {rule && f.date && (
+              <p className="col-span-2 text-xs text-slate-500">
+                {series.length > 1
+                  ? <>↻ {describe(rule, new Date(times().startsAt), f.allDay)}: {series.length} events{series.length >= 104 ? ' (the most a series can have)' : ''}.</>
+                  : 'Choose an end date after the first event.'}
+              </p>
+            )}
+          </div>
+        )}
+        {f.id && f.seriesId && (
+          <fieldset className="rounded-lg border border-slate-700 p-2 text-xs text-slate-300">
+            <legend className="px-1 text-slate-400">This event repeats. Save changes to</legend>
+            <div className="flex flex-wrap gap-3">
+              {([['one', 'This event'], ['following', 'This and following'], ['all', 'All events in the series']] as const).map(([v, l]) => (
+                <label key={v} className="flex items-center gap-1.5"><input type="radio" name="scope" checked={f.scope === v} onChange={() => set('scope', v)} className="accent-blue-500" />{l}</label>
+              ))}
+            </div>
+            {f.scope !== 'one' && <p className="mt-1 text-slate-500">Text, time of day and length change for each event; their dates stay the same.</p>}
+          </fieldset>
+        )}
         <input value={f.location} onChange={e => set('location', e.target.value)} maxLength={500} placeholder="Location, or a meeting link (optional)" className={inputCls} />
         <div>
           <textarea ref={details} value={f.description} onChange={e => set('description', e.target.value)} rows={4} maxLength={5000} placeholder="Details (optional)" className={inputCls} />
@@ -508,7 +588,7 @@ function EventForm({ society, initial, base, seal, onClose, onSaved }: {
           <select value={f.responseVisibility} onChange={e => set('responseVisibility', e.target.value)} className={`${inputCls} mt-1`}>
             <option value="all">Everyone can see who’s responded</option>
             <option value="counts">Members see just the numbers</option>
-            <option value="author">Only the event’s author and moderators see responses</option>
+            <option value="author">Only the event’s author and Society Admins see responses</option>
             <option value="off">Don’t ask for responses</option>
           </select></label>
         {error && <p className="text-xs text-rose-400">{error}</p>}

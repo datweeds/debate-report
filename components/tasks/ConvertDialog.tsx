@@ -36,7 +36,7 @@ export default function ConvertDialog({ society, task, targets, onDone, onClose 
         </div>
         <p className="text-sm text-slate-300"><span className="font-mono text-slate-500">{taskNo(task.number)}</span> {task.name}</p>
         {!targets.length ? (
-          <p className="text-sm text-slate-400">There’s no project you can add tasks to yet. You can add tasks to projects you manage (or any project, as a moderator), but not to sealed or completed ones. <a href={`/society/${society}/projects`} className="font-semibold text-blue-300 hover:underline">Go to Projects</a> to start one, then come back to convert this task.</p>
+          <p className="text-sm text-slate-400">There’s no project you can add tasks to yet. You can add tasks to projects you manage (or any project, as a Society Admin), but not to sealed or completed ones. <a href={`/society/${society}/projects`} className="font-semibold text-blue-300 hover:underline">Go to Projects</a> to start one, then come back to convert this task.</p>
         ) : (
           <>
             <label className="block text-xs text-slate-400">Project

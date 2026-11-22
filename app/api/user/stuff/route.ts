@@ -18,7 +18,8 @@ const IN_SOCIETY = `(c.id IS NULL OR (c.status IS DISTINCT FROM 'closed' AND (c.
   OR EXISTS (SELECT 1 FROM customer_roles cr WHERE cr.tenant_id = c.id AND cr.user_id = $1::text))))`;
 const LIMIT = 1000;   // per query, newest first
 
-type Row = { id: string; role: string; title: string | null; pre?: string | null; sub: string | null; cid: number | null; society: string | null; slug: string | null; l1: string | null; l2: string | null; at: string };
+type Cat = { name: string; color: string };
+type Row = { cats?: Cat[] | null; pstatus?: string | null; id: string; role: string; title: string | null; pre?: string | null; sub: string | null; cid: number | null; society: string | null; slug: string | null; l1: string | null; l2: string | null; at: string };
 type Q = { type: string; sql: string; href: (r: Row, soc: string) => string };
 
 const day = (col: string) => `to_char(${col} AT TIME ZONE 'Europe/London', 'DD Mon YYYY')`;
@@ -89,12 +90,12 @@ const QUERIES: Q[] = [
   // ── Project tasks: created, or allocated to you
   { type: 'project_tasks', href: (r, s) => `${s}/projects/${r.l1}?task=${r.l2}`,
     sql: `SELECT k.id::text AS id, 'Created' AS role, k.name AS title, pr.name AS sub, c.id AS cid, c.name AS society, c.subdomain AS slug,
-                 pr.id::text AS l1, k.id::text AS l2, k.created_at AS at
+                 pr.id::text AS l1, k.id::text AS l2, k.created_at AS at, (SELECT json_agg(json_build_object('name', tc.name, 'color', tc.color) ORDER BY tc.sort_order, tc.name) FROM task_category_links l JOIN task_categories tc ON tc.id = l.category_id WHERE l.project_task_id = k.id AND tc.owner_id = $1) AS cats, k.status AS pstatus
           FROM project_tasks k JOIN projects pr ON pr.id = k.project_id AND pr.deleted_at IS NULL JOIN customers c ON c.id = pr.customer_id
           WHERE k.created_by = $1 AND ${IN_SOCIETY}` },
   { type: 'project_tasks', href: (r, s) => `${s}/projects/${r.l1}?task=${r.l2}`,
     sql: `SELECT k.id::text || ':a' AS id, 'Allocated' AS role, k.name AS title, pr.name AS sub, c.id AS cid, c.name AS society, c.subdomain AS slug,
-                 pr.id::text AS l1, k.id::text AS l2, a.assigned_at AS at
+                 pr.id::text AS l1, k.id::text AS l2, a.assigned_at AS at, (SELECT json_agg(json_build_object('name', tc.name, 'color', tc.color) ORDER BY tc.sort_order, tc.name) FROM task_category_links l JOIN task_categories tc ON tc.id = l.category_id WHERE l.project_task_id = k.id AND tc.owner_id = $1) AS cats, k.status AS pstatus
           FROM project_task_assignees a JOIN project_tasks k ON k.id = a.task_id JOIN projects pr ON pr.id = k.project_id AND pr.deleted_at IS NULL
           JOIN customers c ON c.id = pr.customer_id
           WHERE a.user_id = $1 AND ${IN_SOCIETY}` },
@@ -114,7 +115,7 @@ const QUERIES: Q[] = [
   // ── Status reports on project tasks, and risks / issues logged in projects
   { type: 'project_tasks', href: (r, s) => `${s}/projects/${r.l1}?task=${r.l2}`,
     sql: `SELECT sr.id::text AS id, 'Reported' AS role, k.name AS title, sr.body AS sub, c.id AS cid, c.name AS society, c.subdomain AS slug,
-                 pr.id::text AS l1, k.id::text AS l2, sr.created_at AS at
+                 pr.id::text AS l1, k.id::text AS l2, sr.created_at AS at, (SELECT json_agg(json_build_object('name', tc.name, 'color', tc.color) ORDER BY tc.sort_order, tc.name) FROM task_category_links l JOIN task_categories tc ON tc.id = l.category_id WHERE l.project_task_id = k.id AND tc.owner_id = $1) AS cats, k.status AS pstatus
           FROM project_status_reports sr JOIN project_tasks k ON k.id = sr.task_id JOIN projects pr ON pr.id = k.project_id AND pr.deleted_at IS NULL
           JOIN customers c ON c.id = pr.customer_id
           WHERE sr.user_id = $1 AND ${IN_SOCIETY}` },
@@ -142,7 +143,7 @@ const QUERIES: Q[] = [
           FROM debate_join_requests j JOIN statements r ON r.id = j.resolution_id LEFT JOIN customers c ON c.id = r.customer_id
           WHERE j.user_id = $1::text AND c.status IS DISTINCT FROM 'closed'` },
   { type: 'requests', href: r => r.l1 === 'pending' ? '/dashboard/invitations' : `/chamber?resolution=${r.l2}`,
-    sql: `SELECT i.id::text AS id, ${DECISION('i.status')} AS role, r.stat_title AS title, 'Invitation from @' || COALESCE(u.user_handle, 'a moderator') AS sub,
+    sql: `SELECT i.id::text AS id, ${DECISION('i.status')} AS role, r.stat_title AS title, 'Invitation from @' || COALESCE(u.user_handle, 'a Society Admin') AS sub,
                  c.id AS cid, c.name AS society, c.subdomain AS slug, i.status AS l1, r.id::text AS l2,
                  CASE WHEN i.status = 'pending' THEN i.created_at ELSE i.updated_at END AS at
           FROM debate_invitations i JOIN statements r ON r.id = i.resolution_id LEFT JOIN customers c ON c.id = r.customer_id
@@ -153,7 +154,7 @@ const QUERIES: Q[] = [
   { type: 'tasks', href: (r, s) => `${s}/tasks?task=${r.l1}`,
     sql: `SELECT t.id::text AS id, CASE t.status WHEN 'new' THEN 'New' WHEN 'in_progress' THEN 'In progress' WHEN 'paused' THEN 'Paused' ELSE 'Complete' END AS role,
                  t.name AS title, 'T-' || lpad(t.number::text, 4, '0') || COALESCE(' · due ' || ${day('t.due_date::timestamp')}, '') AS sub,
-                 c.id AS cid, c.name AS society, c.subdomain AS slug, t.id::text AS l1, NULL AS l2, COALESCE(t.updated_at, t.created_at) AS at
+                 c.id AS cid, c.name AS society, c.subdomain AS slug, t.id::text AS l1, NULL AS l2, COALESCE(t.updated_at, t.created_at) AS at, (SELECT json_agg(json_build_object('name', tc.name, 'color', tc.color) ORDER BY tc.sort_order, tc.name) FROM task_category_links l JOIN task_categories tc ON tc.id = l.category_id WHERE l.task_id = t.id AND tc.owner_id = $1) AS cats
           FROM society_tasks t JOIN customers c ON c.id = t.customer_id
           WHERE t.owner_id = $1 AND t.deleted_at IS NULL AND ${IN_SOCIETY}` },
 ];
@@ -181,6 +182,8 @@ export async function GET(req: NextRequest) {
           title: plain(title, 300) || 'Untitled', sub: plain([r.pre, r.sub].filter(Boolean).join(' · '), 300),
           society: r.cid ? { id: r.cid, name: r.society ?? 'Society' } : null,
           href: q.href(r, soc), at: r.at,
+          ...(r.cats !== undefined ? { cats: (r.cats ?? []).filter(c => c && typeof c.name === 'string') } : {}),
+          ...(r.pstatus ? { status: r.pstatus } : {}),
         };
       });
     } catch (err) {

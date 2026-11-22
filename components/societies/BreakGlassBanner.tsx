@@ -10,7 +10,7 @@ export default function BreakGlassBanner({ societyId, until }: { societyId: numb
     <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
       <span>
         <strong>Emergency Sys Admin access</strong> to this private Society, until{' '}
-        {new Date(until).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}. It is logged and shown to its moderators.
+        {new Date(until).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}. It is logged and shown to its Society Admins.
       </span>
       <button onClick={end} className="rounded-md border border-amber-400/50 px-2 py-0.5 hover:bg-amber-500/20">End access now</button>
     </div>

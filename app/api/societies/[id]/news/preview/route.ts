@@ -10,7 +10,7 @@ import { checkSettings } from '@/lib/newsSettings';
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const a = await societyContentAccess(req, (await params).id);
   if (!a) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!a.canModerate) return NextResponse.json({ error: 'Moderators only' }, { status: 403 });
+  if (!a.canModerate) return NextResponse.json({ error: 'Society Admins only' }, { status: 403 });
   const checked = checkSettings(await req.json().catch(() => null));
   if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: 400 });
   if (!checked.value.sections.length) return NextResponse.json({ error: 'Add a section with some search phrases first' }, { status: 400 });

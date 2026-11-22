@@ -17,7 +17,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 async function handlePOST(req: NextRequest, { params }: Params) {
   const r = await taskAccess(req, (await params).id);
   if ('error' in r) return NextResponse.json({ error: r.error }, { status: r.status });
-  if (!r.a.canModerate) return NextResponse.json({ error: 'Only moderators can change the priorities' }, { status: 403 });
+  if (!r.a.canModerate) return NextResponse.json({ error: 'Only Society Admins can change the priorities' }, { status: 403 });
   const b = await req.json().catch(() => ({}));
   const name = readName(b.name, 40);
   if (!name) return NextResponse.json({ error: 'Give the priority a name' }, { status: 400 });

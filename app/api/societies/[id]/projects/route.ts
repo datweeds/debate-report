@@ -37,7 +37,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 async function handlePOST(req: NextRequest, { params }: Params) {
   const a = await societyContentAccess(req, (await params).id);
   if (!a) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!a.canModerate) return NextResponse.json({ error: 'Only moderators can create projects' }, { status: 403 });
+  if (!a.canModerate) return NextResponse.json({ error: 'Only Society Admins can create projects' }, { status: 403 });
   const b = await req.json().catch(() => ({}));
   // Sealed: { protection: 'sealed', id, name, description (sealed in the browser), locks }
   const sealed = b.protection === 'sealed';

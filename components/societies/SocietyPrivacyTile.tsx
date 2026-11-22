@@ -19,7 +19,7 @@ export default async function SocietyPrivacyTile({ societyId }: { societyId: num
           : 'Private: debates, polls, discussions, documents, events, projects and principles are stored encrypted with this Society’s own key.' }
       : r.is_demo
         ? { icon: '🌐', text: 'Demo: everything here is public so you can see how new.vote works. Real Societies can be private, with their content encrypted.' }
-        : { icon: '🌐', text: 'Public: anyone can read this Society. Its Apply and Invite debates are stored encrypted; moderators can make the whole Society private to encrypt everything.' },
+        : { icon: '🌐', text: 'Public: anyone can read this Society. Its Apply and Invite debates are stored encrypted; Society Admins can make the whole Society private to encrypt everything.' },
     priv
       ? { icon: '🛡️', text: r.emergency ? `Emergency admin access: ${r.emergency} in the last 90 days, each logged with a reason.` : 'No emergency admin access in the last 90 days.' }
       : { icon: '🛡️', text: 'Admins act only as a takedown backstop for public content.' },

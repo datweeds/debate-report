@@ -1,5 +1,7 @@
 'use client';
 
+import PlansTab from '@/components/admin/PlansTab';
+import AiSpendCard from '@/components/admin/AiSpendCard';
 import ApiParties from '@/components/admin/ApiParties';
 import AiTab from '@/components/admin/AiTab';
 import PrivacyTab from '@/components/admin/PrivacyTab';
@@ -636,25 +638,27 @@ function AccessKeysTab() {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-type AdminTab = 'analytics' | 'customers' | 'keys' | 'moderators' | 'library' | 'scanning' | 'ai' | 'privacy' | 'apiparties';
+type AdminTab = 'analytics' | 'customers' | 'keys' | 'moderators' | 'library' | 'scanning' | 'ai' | 'plans' | 'privacy' | 'apiparties';
 
 // A reminder, at the top of each section, of what the Sys Admin is responsible
 // for there and how to carry it out
 const TAB_HELP: Record<AdminTab, string> = {
   analytics:
-    'Keep an eye on the platform’s health and growth. Look in weekly: click a tile to see its last 12 months. A rise in Alerts & flags means moderators may need support, so check the Review queue. Use Stale debates to nudge owners or close debates that have run their course. If System health shows memory climbing or uptime resetting unexpectedly, the server needs attention.',
+    'Keep an eye on the platform’s health and growth. Look in weekly: click a tile to see its last 12 months. A rise in Alerts & flags means Society Admins may need support, so check the Review queue. Use Stale debates to nudge owners or close debates that have run their course. If System health shows memory climbing or uptime resetting unexpectedly, the server needs attention.',
   customers:
-    'You decide which Societies exist and who runs them. Create a Society here and you become its admin and first member; appoint or remove its admins, set its visibility, and choose the Demo Society. A Society with many open alerts/flags may need its moderators prompting. Day-to-day settings belong to each Society’s own moderators, under Manage Societies.',
+    'You decide which Societies exist and who runs them. Create a Society here and you become its admin and first member; appoint or remove its admins, set its visibility, and choose the Demo Society. A Society with many open alerts/flags may need its Society Admins prompting. Day-to-day settings belong to each Society’s own Society Admins, under Manage Societies.',
   keys:
     'Access keys let named guests, such as reviewers or journalists, read chosen private debates without an account. Create one key per person, pick the debates, and send the link at once: it is shown only once. Revoke a key as soon as the review is over, and use “last used” to spot keys no longer needed.',
   moderators:
-    'Moderators can create and run Societies, so approving a request is a trust decision. Check the person’s handle, message and activity before approving; approval takes effect at once. If unsure, decline, and contact them to explain or ask for more.',
+    'Anyone can now start a Society without approval, so this list only holds requests made before that. Approve or decline what is left. To support a new Society Admin, look at their Society under Societies.',
   library:
-    'These principles are starting templates that moderators copy into their Societies. Keep them clear, neutral and grounded, with a “why” for each. Editing here doesn’t change copies Societies already hold, so tell moderators about important improvements.',
+    'These principles are starting templates that Society Admins copy into their Societies. Keep them clear, neutral and grounded, with a “why” for each. Editing here doesn’t change copies Societies already hold, so tell Society Admins about important improvements.',
   scanning:
-    'The abuse scanner checks all text automatically; your job is to keep it running and fair. Check that it is configured and that pending alerts aren’t piling up. After the scanner’s rules change, use “Rescan everything”. Alerts about profiles come to you; everything else goes to each Society’s moderators.',
+    'The abuse scanner checks all text automatically; your job is to keep it running and fair. Check that it is configured and that pending alerts aren’t piling up. After the scanner’s rules change, use “Rescan everything”. Alerts about profiles come to you; everything else goes to each Society’s admins.',
   ai:
-    'You control what the platform’s AI costs. Set the daily cap to what you’re willing to pay: when it’s reached, platform AI pauses until midnight UTC and features use their non-AI versions. Review failed calls and each Society’s usage here; Societies with their own AI provider pay for their own use.',
+    'You control what the platform’s AI costs. Set a monthly cap as well as the daily one; you’re emailed when spend reaches 95% of either. Set the daily cap to what you’re willing to pay: when it’s reached, platform AI pauses until midnight UTC and features use their non-AI versions. Review failed calls and each Society’s usage here; Societies with their own AI provider pay for their own use.',
+  plans:
+    'You decide what each Society may use. Leave “Enforce plan limits” off until prices and the Free-Society policy are settled; before turning it on, grant a plan to any existing Society that needs more than Free. Use grants for charity, student, lifetime or pay-what-you-can deals, with a reason and, where it applies, an end date.',
   privacy:
     'You can reach private Societies’ content, but should never do so routinely. Keep the master key offline when you can. Open emergency access only for a serious report or a legal request, with a clear reason: it is time-limited, logged, and the Society is told straight away. Review the access log regularly.',
   apiparties:
@@ -693,7 +697,7 @@ function ScanningTab() {
     <div className="space-y-5">
       <p className="text-sm text-slate-400">
         All text people write (debates, chat, discussions, documents, events, principles, projects, Society pages and profiles) is checked by the abuse scanner in the background:
-        new and changed text every 15 minutes, with a daily safety-net pass at 03:00. Nobody waits for it. Use “Rescan everything” after the scanner’s rules change. Flagged content goes to the Alert Review queue of the Society&apos;s moderators (profiles to SysAdmin).
+        new and changed text every 15 minutes, with a daily safety-net pass at 03:00. Nobody waits for it. Use “Rescan everything” after the scanner’s rules change. Flagged content goes to the Alert Review queue of the Society&apos;s admins (profiles to SysAdmin).
       </p>
       {!data.configured && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300">The scanner service isn&apos;t configured on this server.</p>}
       <div className="grid grid-cols-3 gap-3">
@@ -760,7 +764,7 @@ function PrinciplesLibraryTab() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-slate-400">Starting sets Moderators can copy into their Societies, in libraries and sections. Societies keep their own copies, so changes here don&apos;t alter principles already copied.</p>
+        <p className="text-sm text-slate-400">Starting sets Society Admins can copy into their Societies, in libraries and sections. Societies keep their own copies, so changes here don&apos;t alter principles already copied.</p>
         <button onClick={() => setAdding(true)} className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-500">+ Add principle</button>
       </div>
       {adding && <PrincipleForm saveLabel="Add to library" libraries={libraries} sections={sections} onCancel={() => setAdding(false)}
@@ -831,7 +835,7 @@ function ModeratorRequestsTab() {
   const when = (d: string) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   return (
     <div className="space-y-6">
-      <p className="text-sm text-slate-400">People asking to become Moderators. Approving gives them Moderator tools at once (billing isn&apos;t live yet).</p>
+      <p className="text-sm text-slate-400">Requests from before anyone could start a Society without approval. Approve or decline any that are left; new ones no longer arrive.</p>
       {pending.length === 0 ? (
         <p className="rounded-xl border border-slate-800 bg-dr-card p-6 text-center text-sm text-slate-500">No pending requests.</p>
       ) : (
@@ -874,7 +878,7 @@ export default function AdminPage() {
   // ?tab=customers (e.g. "Edit society" on a society dashboard) opens that tab.
   useEffect(() => {
     const t = new URLSearchParams(window.location.search).get('tab');
-    if (t === 'analytics' || t === 'customers' || t === 'keys' || t === 'moderators' || t === 'library' || t === 'scanning' || t === 'ai' || t === 'privacy' || t === 'apiparties') setTab(t);
+    if (t === 'analytics' || t === 'customers' || t === 'keys' || t === 'moderators' || t === 'library' || t === 'scanning' || t === 'ai' || t === 'plans' || t === 'privacy' || t === 'apiparties') setTab(t);
   }, []);
 
   useEffect(() => {
@@ -900,10 +904,11 @@ export default function AdminPage() {
             { id: 'analytics', label: 'Analytics' },
             { id: 'customers', label: 'Societies' },
             { id: 'keys',      label: 'Access Keys' },
-            { id: 'moderators', label: 'Moderators' },
+            { id: 'moderators', label: 'Society Admins' },
             { id: 'library',    label: 'Principles library' },
             { id: 'scanning',   label: 'Scanning' },
             { id: 'ai',         label: 'AI' },
+            { id: 'plans',      label: 'Plans' },
             { id: 'privacy',    label: 'Privacy' },
             { id: 'apiparties', label: 'API Parties' },
           ] as { id: AdminTab; label: string }[]).map(t => (
@@ -936,7 +941,10 @@ export default function AdminPage() {
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
             </div>
           ) : (
-            <AnalyticsView stats={stats} />
+            <div className="space-y-6">
+              <AiSpendCard onSettings={() => setTab('ai')} />
+              <AnalyticsView stats={stats} />
+            </div>
           )
         )}
 
@@ -946,6 +954,7 @@ export default function AdminPage() {
         {tab === 'moderators' && <ModeratorRequestsTab />}
         {tab === 'library'    && <PrinciplesLibraryTab />}
         {tab === 'scanning'   && <ScanningTab />}
+        {tab === 'plans' && <PlansTab />}
         {tab === 'ai'         && <AiTab />}
         {tab === 'privacy'    && <PrivacyTab />}
         {tab === 'apiparties' && <ApiParties embedded />}

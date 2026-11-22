@@ -1,5 +1,6 @@
 'use client';
 
+import ReportButton from '@/components/ReportButton';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -577,7 +578,7 @@ export default function DocumentsBrowser({ societyId }: { societyId: number }) {
           <input value={form.title} onChange={e => setForm(v => ({ ...v, title: e.target.value }))} maxLength={200} placeholder="Title" className={inputCls} />
           <textarea value={form.description} onChange={e => setForm(v => ({ ...v, description: e.target.value }))} rows={2} maxLength={2000} placeholder="Description (optional)" className={inputCls} />
           <p className="text-[11px] text-slate-500">
-            Up to {data.maxLabel}. {hereRoot ? 'This folder is sealed: the file is encrypted in your browser before it’s uploaded.' : 'For sensitive documents, a moderator can seal the folder: files are then encrypted in members’ browsers.'}
+            Up to {data.maxLabel}. {hereRoot ? 'This folder is sealed: the file is encrypted in your browser before it’s uploaded.' : 'For sensitive documents, a Society Admin can seal the folder: files are then encrypted in members’ browsers.'}
           </p>
           {progress != null && (
             <div className="h-1.5 overflow-hidden rounded-full bg-slate-800"><div className="h-full bg-blue-500 transition-all" style={{ width: `${progress}%` }} /></div>
@@ -718,6 +719,10 @@ export default function DocumentsBrowser({ societyId }: { societyId: number }) {
                       {canSend && !hereRoot && i.protection !== 'sealed' && <button onClick={() => startSend({ type: 'doc', id: i.id, name: i.title })} className="text-violet-300 hover:text-violet-200">Move / copy</button>}
                       {canEdit(i) && canWriteHere && <button onClick={() => (i.kind === 'note' ? void editNote(i.id) : startEdit(i))} className="text-slate-400 hover:text-slate-200">Edit</button>}
                       {canDelete(i) && <button onClick={() => remove(i)} className="text-rose-400 hover:text-rose-300">Delete</button>}
+                      {i.uploaded_by !== data.me && (
+                        <ReportButton kind="document" id={i.id} what={i.kind === 'note' ? 'this note' : 'this document'} sealed={i.protection === 'sealed'}
+                          shown={() => [i.title, i.description, i.kind === 'file' ? i.file_name : i.url].filter(Boolean).join('\n')} />
+                      )}
                     </span>
                   </div>
                 )}

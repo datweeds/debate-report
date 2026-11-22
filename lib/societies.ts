@@ -20,12 +20,13 @@ export type SocietyAccess = {
   disabled: string[];        // features the Society has switched off (lib/features.ts)
   isDemo: boolean;           // the demo Society: everything readable, even without an account
   closed: boolean;           // closed by its moderators: only they can open it (to reopen it)
+  held: boolean;             // read-only: its paid plan ended and it isn't one of its owner's 3 free Societies (lib/holds.ts)
 };
 
 export async function getSocietyAccess(session: SessionPayload | null, customerId: number): Promise<SocietyAccess | null> {
   const uid = session?.sub ?? null;
   const { rows: [row] } = await pool.query(
-    `SELECT c.visibility, c.disabled_sections, c.is_demo, c.status,
+    `SELECT c.visibility, c.disabled_sections, c.is_demo, c.status, c.held_at,
             EXISTS (SELECT 1 FROM customer_members m WHERE m.customer_id = c.id AND m.user_id = $2) AS is_member,
             EXISTS (SELECT 1 FROM customer_roles r WHERE r.tenant_id = c.id AND r.user_id = $2 AND r.role = 'customer_admin') AS is_moderator,
             EXISTS (SELECT 1 FROM society_join_requests j WHERE j.customer_id = c.id AND j.user_id = $2 AND j.status = 'pending') AS pending,
@@ -52,6 +53,7 @@ export async function getSocietyAccess(session: SessionPayload | null, customerI
     disabled: row.disabled_sections ?? [],
     isDemo: !!row.is_demo,
     closed: row.status === 'closed',
+    held: !!row.held_at,
   };
 }
 

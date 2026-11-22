@@ -63,7 +63,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 async function handlePOST(req: NextRequest, { params }: Params) {
   const a = await societyContentAccess(req, (await params).id);
   if (!a) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  if (!a.canModerate) return NextResponse.json({ error: 'Only moderators can change the principles' }, { status: 403 });
+  if (!a.canModerate) return NextResponse.json({ error: 'Only Society Admins can change the principles' }, { status: 403 });
   const p = readPrinciple(await req.json().catch(() => ({})), await principlesSealedCheck(a.societyId));
   if (!p.ok) return NextResponse.json({ error: p.error }, { status: 400 });
   const v = await ensureCurrentVersion(a.societyId, a.session!.sub);

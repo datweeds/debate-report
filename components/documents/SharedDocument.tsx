@@ -1,5 +1,6 @@
 'use client';
 
+import ReportButton from '@/components/ReportButton';
 import { useCallback, useEffect, useState } from 'react';
 import { openShareCopy, type SharedDetails } from '@/lib/sealed/shareLink';
 
@@ -63,6 +64,7 @@ export default function SharedDocument({ token }: { token: string }) {
             {meta.expiresAt && <> · link expires {when(meta.expiresAt)}</>}
           </p>
         )}
+        {meta && <div><ReportButton kind="document" id="" share={token} what="this document" /></div>}
 
         {meta?.mode === 'public' && (
           <>
