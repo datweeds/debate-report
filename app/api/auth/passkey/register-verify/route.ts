@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isAgeBand } from '@/lib/ageBands';
 import { verifyRegistrationResponse } from '@simplewebauthn/server';
 import pool from '@/lib/db';
 import {
@@ -51,8 +52,8 @@ export async function POST(req: NextRequest) {
     await client.query('BEGIN');
 
     const userRes = await client.query(
-      `INSERT INTO users (id, user_handle, email, user_tier, user_plan, access_code, user_full_name, user_bio)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO users (id, user_handle, email, user_tier, user_plan, access_code, user_full_name, user_bio, terms_agreed, date_activated, age_band)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true, NOW(), $9)
        RETURNING id, user_handle, is_sys_admin, user_tier, user_plan`,
       [
         chal.userId,
@@ -63,6 +64,7 @@ export async function POST(req: NextRequest) {
         hashedCode,
         chal.displayName || null,
         chal.bio || null,
+        isAgeBand(chal.ageBand) ? chal.ageBand : null,
       ]
     );
     const user = userRes.rows[0];

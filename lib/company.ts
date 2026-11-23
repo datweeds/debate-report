@@ -7,5 +7,5 @@ export const COMPANY = {
   contactEmail: 'contact@new.vote',
   // As at Companies House; shown once filled in
   registeredOffice: 'Summit House, 4–5 Mitchell Street, Edinburgh, EH6 7BD' as string | null,
-  icoNumber: null as string | null,
+  icoNumber: 'ZC128698' as string | null,
 };

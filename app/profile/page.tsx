@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import AgeBandCard from '@/components/AgeBandCard';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { startRegistration, browserSupportsWebAuthn } from '@simplewebauthn/browser';
@@ -433,6 +434,11 @@ export default function ProfilePage() {
               <SaveButton loading={accountSaving} saved={accountSaved} />
             </div>
           </form>
+        </Section>
+
+        {/* ── Age group ────────────────────────────────── */}
+        <Section title="Age group">
+          <AgeBandCard />
         </Section>
 
         {/* ── Plan ─────────────────────────────────────── */}

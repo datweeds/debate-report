@@ -24,6 +24,7 @@ type MyAlert = {
   appeal_body: string | null;
   appeal_at: string | null;
   appeal_status: 'none' | 'sent' | 'closed' | 'unmasked';
+  decision_reason?: string | null;
   statement_title: string | null;
   resolution_title: string | null;
 };
@@ -143,7 +144,8 @@ function AppealSection({ alert, onAppealed }: { alert: MyAlert; onAppealed: (id:
   return (
     <div className="space-y-2">
       <p className="text-xs text-slate-400">
-        Your content was masked by automated scanning. If you believe this was an error, you can send a one-time appeal to the Society Admin.
+        A Society Admin hid this content{alert.decision_reason ? <> because: <span className="text-slate-200">{alert.decision_reason}</span></> : ''}. If you
+        think that&apos;s wrong, you can send one appeal. A Society Admin will look at it within 7 days.
       </p>
       <textarea
         value={body}
@@ -219,6 +221,11 @@ function MyAlertCard({ alert, onAppealed }: { alert: MyAlert; onAppealed: (id: s
         )}
       </div>
 
+      {alert.status === 'masked' && alert.decision_reason && (
+        <p className="rounded-lg border border-amber-700/40 bg-amber-950/10 px-3 py-2 text-xs text-slate-300">
+          <span className="font-semibold text-amber-300">Why it was hidden:</span> {alert.decision_reason}
+        </p>
+      )}
       {alert.status === 'masked' && (
         <div>
           <button

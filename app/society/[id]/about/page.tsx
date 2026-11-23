@@ -14,7 +14,8 @@ export default async function SocietyAboutPage({ params }: { params: Promise<{ i
     pool.query('SELECT description, contact_email IS NOT NULL AND contact_email <> \'\' AS can_contact, created_at FROM customers WHERE id = $1', [society.id]),
     pool.query(
       `SELECT u.user_handle, u.user_full_name FROM customer_roles r JOIN users u ON u.id::text = r.user_id
-       WHERE r.tenant_id = $1 AND r.role = 'customer_admin' ORDER BY u.user_handle`, [society.id]),
+       WHERE r.tenant_id = $1 AND r.role = 'customer_admin' AND u.age_band IS DISTINCT FROM '13-15' AND u.age_band IS DISTINCT FROM '16-17'
+       ORDER BY u.user_handle`, [society.id]),
     pool.query('SELECT COUNT(*)::int AS n FROM customer_members WHERE customer_id = $1', [society.id]),
   ]);
   const visibility = society.visibility === 'public' ? 'Public: anyone can see it'

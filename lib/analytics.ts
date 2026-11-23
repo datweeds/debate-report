@@ -275,6 +275,6 @@ export async function buildAnalytics({ scope, me, sysAdmin }: { scope: Scope; me
     activeSocieties: active,
     popularDebates: popularDebates.rows.map(({ id, stat_title, child_count, votes }) => ({ id, stat_title, child_count, votes })),
     staleDebates: staleDebates.rows.map(({ id, stat_title, idle_days }) => ({ id, stat_title, idle_days })),
-    ...(scope ? {} : { server: { uptimeSeconds: Math.floor(process.uptime()), memoryMB: Math.round(process.memoryUsage().rss / 1024 / 1024), backup: backupStatus(), incremental: backupStatus('restic-status.json') } }),
+    ...(scope ? {} : { server: { uptimeSeconds: Math.floor(process.uptime()), memoryMB: Math.round(process.memoryUsage().rss / 1024 / 1024), backup: backupStatus(), incremental: backupStatus('restic-status.json'), dependencies: backupStatus('deps-status.json') } }),
   };
 }

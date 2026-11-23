@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, Suspense } from 'react';
+import { AGE_BANDS, AGE_LABELS, type AgeBand } from '@/lib/ageBands';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { startRegistration, browserSupportsWebAuthn } from '@simplewebauthn/browser';
@@ -100,6 +101,8 @@ function RegisterForm() {
   const [error,       setError]       = useState('');
   const [loading,     setLoading]     = useState(false);
   const [accessCode,  setAccessCode]  = useState<string | null>(null);
+  const [agreed,      setAgreed]      = useState(false);
+  const [ageBand,     setAgeBand]     = useState<AgeBand | null>(null);
 
   if (accessCode) {
     return (
@@ -125,6 +128,14 @@ function RegisterForm() {
       setError(`Bio must be ${BIO_MAX} characters or fewer`);
       return;
     }
+    if (!ageBand) {
+      setError('Please tell us your age group');
+      return;
+    }
+    if (!agreed) {
+      setError('Please agree to the Terms to continue');
+      return;
+    }
     if (!browserSupportsWebAuthn()) {
       setError('Your browser does not support passkeys. Please use a modern browser.');
       return;
@@ -143,6 +154,8 @@ function RegisterForm() {
           displayName: displayName.trim() || undefined,
           bio:         bio.trim() || undefined,
           inviteToken,
+          agreed,
+          ageBand,
         }),
       });
       const optData = await optRes.json();
@@ -312,6 +325,36 @@ function RegisterForm() {
               Easier and safer — no password to remember, and no passwords stored on the server. A recovery code is shown once after signup.
             </p>
           </div>
+
+          {/* Age group: only the band is kept, to keep younger members safe */}
+          <div>
+            <p className="block text-xs font-medium text-slate-400 mb-1">How old are you?</p>
+            <div className="flex flex-wrap gap-2">
+              {AGE_BANDS.map(b => (
+                <button key={b} type="button" onClick={() => setAgeBand(b)}
+                  className={`rounded-lg border px-3 py-1.5 text-sm ${ageBand === b ? 'border-blue-500 bg-blue-500/15 text-blue-200' : 'border-slate-700 text-slate-300 hover:border-slate-500'}`}>
+                  {AGE_LABELS[b]}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-[11px] text-slate-500">You must be 13 or over. We keep only your age group, to give younger members extra protection.
+              Under 18? <Link href="/young-people" target="_blank" className="text-blue-400 hover:text-blue-300">Read this first</Link>.</p>
+          </div>
+
+          {/* Terms */}
+          <label className="flex items-start gap-2.5 text-xs text-slate-400">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={e => setAgreed(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-600 accent-blue-600"
+            />
+            <span>
+              I agree to the{' '}
+              <Link href="/terms" target="_blank" className="text-blue-400 hover:text-blue-300">Terms</Link>. I&apos;ve read the{' '}
+              <Link href="/privacy" target="_blank" className="text-blue-400 hover:text-blue-300">Privacy Policy</Link>.
+            </span>
+          </label>
 
           {error && (
             <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">

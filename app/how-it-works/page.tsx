@@ -74,7 +74,7 @@ export default function HowItWorksPage() {
               {[
                 'Arguments are judged on logic and evidence, impact and credibility.',
                 'Support For and Against a resolution is determined by voting on individual statements.',
-                'All contributions are automatically scanned to protect against unwarranted profanity, hate and personal data exposure.',
+                'All contributions are automatically scanned to protect against unwarranted profanity, hate and personal data exposure, and every uploaded image is checked for explicit content before it’s saved.',
                 'Both sides of every debate are represented and weighted fairly.',
                 'Grounding arguments in evidence and data is actively encouraged.',
                 'Frank and honest debate on any topic is encouraged.',

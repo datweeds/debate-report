@@ -23,7 +23,8 @@ export async function GET(req: NextRequest) {
      ORDER BY c.name`,
     [session.sub],
   );
-  return NextResponse.json({ societies: rows, canCreate: true });
+  const { rows: [me] } = await pool.query('SELECT admin_procedure_agreed_at IS NOT NULL AS agreed FROM users WHERE id::text = $1', [session.sub]);
+  return NextResponse.json({ societies: rows, canCreate: true, procedureAgreed: !!me?.agreed });
 }
 
 // POST { name, visibility, hero_text?, description? } — create a Society; the creator moderates it.
@@ -41,7 +42,12 @@ export async function POST(req: NextRequest) {
       return planRefusal(`You run ${n.n} Societies, the most ${PLANS[plan].name} covers.${up ? ` Move to ${PLANS[up].name} to run up to ${PLANS[up].limits.societies}` : ' Close one'}, or close one you no longer need.`);
     }
   }
-  const { name, visibility, hero_text, description, slug: chosen } = await req.json().catch(() => ({}));
+  const { name, visibility, hero_text, description, slug: chosen, agreeProcedure } = await req.json().catch(() => ({}));
+  // Starting a first Society means agreeing to the Society Admin procedure (/guides/society-admin-procedure)
+  const { rows: [me] } = await pool.query('SELECT admin_procedure_agreed_at FROM users WHERE id::text = $1', [session.sub]);
+  if (!me?.admin_procedure_agreed_at && agreeProcedure !== true) {
+    return NextResponse.json({ error: 'Please agree to the Society Admin procedure to start a Society', needsAgreement: true }, { status: 400 });
+  }
   if (typeof name !== 'string' || name.trim().length < 3) {
     return NextResponse.json({ error: 'Name must be at least 3 characters' }, { status: 400 });
   }
@@ -77,6 +83,9 @@ export async function POST(req: NextRequest) {
     );
     await client.query(`INSERT INTO customer_roles (tenant_id, user_id, role) VALUES ($1, $2, 'customer_admin')`, [society.id, session.sub]);
     await client.query(`INSERT INTO customer_members (customer_id, user_id) VALUES ($1, $2)`, [society.id, session.sub]);
+    if (!me?.admin_procedure_agreed_at) {
+      await client.query('UPDATE users SET admin_procedure_agreed_at = now() WHERE id::text = $1', [session.sub]);
+    }
     await client.query('COMMIT');
     // The creator is now a Society Admin: their session gets the tools at once
     await pool.query(`UPDATE users SET user_tier = 'moderator' WHERE id = $1 AND user_tier IS DISTINCT FROM 'moderator'`, [session.sub]);

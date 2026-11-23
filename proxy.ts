@@ -16,6 +16,12 @@ function parseSubdomain(host: string): string | null {
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  // www.new.vote is not a Society: send it to the bare domain, keeping the path
+  const rawHost = (req.headers.get('host') ?? '').split(':')[0].toLowerCase();
+  if (rawHost.startsWith('www.') && PLATFORM_DOMAINS.includes(rawHost.slice(4))) {
+    return NextResponse.redirect(`https://${rawHost.slice(4)}${pathname}${req.nextUrl.search}`, 301);
+  }
   const token = req.cookies.get('dr_session')?.value;
 
   // ── Auth guards ──────────────────────────────────────────────────────────────

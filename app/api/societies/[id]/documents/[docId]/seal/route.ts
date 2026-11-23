@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { screenImageUpload } from '@/lib/imageScan';
 import pool from '@/lib/db';
 import { sealText } from '@/lib/societyCrypto';
 import { societyContentAccess } from '@/lib/societies';
@@ -64,6 +65,12 @@ async function handlePOST(req: NextRequest, { params }: Params) {
   if (!(file instanceof File) || !ok(fileName, true)) return NextResponse.json({ error: 'That wasn’t understood' }, { status: 400 });
   const bytes = Buffer.from(await file.arrayBuffer());
   if (sealing !== isBrowserSealed(bytes)) return NextResponse.json({ error: 'That file wasn’t understood' }, { status: 400 });
+  if (!sealing) {
+    // Unsealed again: an image is checked like any new upload
+    const screen = await screenImageUpload({ bytes: Buffer.from(await file.arrayBuffer()), mime: file.type, fileName: file.name,
+      userId: a.session!.sub, societyId: a.societyId, where: 'Society document (unsealed)' });
+    if (!screen.ok) return NextResponse.json({ error: screen.error }, { status: 422 });
+  }
   const { storedName } = sealing ? await saveSealedBytes(a.societyId, bytes) : await saveFile(a.societyId, file);
   await pool.query(
     `UPDATE documents SET title = $1, description = $2, file_name = $3, stored_name = $4, size_bytes = $5, protection = $6, updated_at = now() WHERE id = $7`,

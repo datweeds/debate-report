@@ -20,6 +20,11 @@ const SECTIONS: GuideSection[] = [
       safety tools; your Society decides how it works.
     </P>
     <Note>A Society can have several Society Admins. In its debates, they are the moderators.</Note>
+    <P>
+      Every Society Admin follows the <a href="/guides/society-admin-procedure" className="text-blue-400 hover:underline">Society Admin
+      procedure</a>: a short list of what to check each week, month and year. Running a Society for young people? Read{' '}
+      <a href="/guides/youth-groups" className="text-blue-400 hover:underline">Running a youth group</a> too.
+    </P>
   </> },
 
   { id: 'start', title: 'Getting started', short: 'Start', body: <>
@@ -126,10 +131,12 @@ const SECTIONS: GuideSection[] = [
     <P>New contributions are checked automatically for abuse, and members can report anything that worries them. Flagged items arrive in <strong className="text-slate-100">Alert Review</strong>:</P>
     <List items={[
       <Item name="Pass:">it’s fine; it stays as written.</Item>,
-      <Item name="Mask:">the content is hidden from view (the original is kept for appeal).</Item>,
+      <Item name="Mask:">the content is hidden from view (the original is kept for appeal). Give a reason: the author is told, sees it, and can appeal.</Item>,
       <Item name="Appeals:">authors can appeal a mask; review appeals promptly and fairly.</Item>,
     ]} />
     <P>The new.vote platform team sees the same alerts as a backstop, and can see when you’ve acted. In a private Society they see only that an alert exists, never its content.</P>
+    <P>Every uploaded image is checked before it’s saved. A sexually explicit image is refused straight away and held, encrypted, for the new.vote team to review; there’s nothing for you to review.</P>
+    <P><strong className="text-slate-100">Younger members.</strong> Members aged under 18 are marked <em>Under 18</em> in your member list and join requests, and aren’t named on your public About page. Reports involving them go to the top of the queue. Members aged 13 to 15 can join video calls only if you run your Society as a youth group (Manage Societies, <em>Young members</em>): turn that on only if a responsible adult supervises its calls.</P>
   </> },
 
   { id: 'privacy', title: 'Privacy and security', short: 'Privacy', body: <>

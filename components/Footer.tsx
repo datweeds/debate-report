@@ -69,7 +69,10 @@ export default function Footer() {
 
             <FooterColumn title="Help">
               <li><FooterLink href="/guides">Guides</FooterLink></li>
+              <li><FooterLink href="/young-people">For young people</FooterLink></li>
               <li><FooterLink href="https://debate.support" external>Help centre</FooterLink></li>
+              <li><FooterLink href="/status">Status</FooterLink></li>
+              <li><FooterLink href="/service">Service description</FooterLink></li>
               <li><FooterLink href="/contact">Contact</FooterLink></li>
               <li><Link href="/about" className="text-sm text-slate-400 underline-offset-4 decoration-blue-400/50 transition-colors duration-200 hover:text-blue-300 hover:underline">About</Link></li>
             </FooterColumn>

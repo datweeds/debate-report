@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isAgeBand } from '@/lib/ageBands';
 import { generateRegistrationOptions } from '@simplewebauthn/server';
 import pool from '@/lib/db';
 import { signChallengeToken, challengeCookie } from '@/lib/auth';
@@ -7,7 +8,15 @@ const RP_NAME = process.env.WEBAUTHN_RP_NAME || 'new.vote';
 const RP_ID   = process.env.WEBAUTHN_RP_ID   || 'new.vote';
 
 export async function POST(req: NextRequest) {
-  const { userHandle, email, tier, plan, displayName, bio, inviteToken } = await req.json();
+  const { userHandle, email, tier, plan, displayName, bio, inviteToken, agreed, ageBand } = await req.json();
+
+  // Everyone gives an age group (13 or over) and agrees to the Terms (Online Safety Act, UK GDPR)
+  if (!isAgeBand(ageBand)) {
+    return NextResponse.json({ error: 'Please tell us your age group' }, { status: 400 });
+  }
+  if (agreed !== true) {
+    return NextResponse.json({ error: 'Please agree to the Terms to continue' }, { status: 400 });
+  }
 
   if (!userHandle?.trim() || userHandle.trim().length < 3) {
     return NextResponse.json({ error: 'Username must be at least 3 characters' }, { status: 400 });
@@ -54,6 +63,7 @@ export async function POST(req: NextRequest) {
     displayName: displayName?.trim() || undefined,
     bio:         bio?.trim() || undefined,
     inviteToken: inviteToken || undefined,
+    ageBand,
   });
 
   const res = NextResponse.json(options);

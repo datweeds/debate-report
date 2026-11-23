@@ -15,15 +15,15 @@ export async function GET(req: NextRequest, { params }: Params) {
   if (!ctx) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const [{ rows: [society] }, { rows: members }, { rows: requests }, { rows: invites }] = await Promise.all([
     pool.query(
-      `SELECT id, name, visibility, hero_text, hero_image, description, contact_email, subdomain, is_default, disabled_sections, allow_sealed, status, is_demo
+      `SELECT id, name, visibility, hero_text, hero_image, description, contact_email, subdomain, is_default, disabled_sections, allow_sealed, status, is_demo, youth_group
        FROM customers WHERE id = $1`, [ctx.id]),
     pool.query(
-      `SELECT m.user_id, m.joined_at, u.user_handle, u.user_full_name,
+      `SELECT m.user_id, m.joined_at, u.user_handle, u.user_full_name, u.age_band IN ('13-15', '16-17') AS under18,
               EXISTS (SELECT 1 FROM customer_roles r WHERE r.tenant_id = m.customer_id AND r.user_id = m.user_id AND r.role = 'customer_admin') AS is_moderator
        FROM customer_members m LEFT JOIN users u ON u.id::text = m.user_id
        WHERE m.customer_id = $1 ORDER BY is_moderator DESC, u.user_handle`, [ctx.id]),
     pool.query(
-      `SELECT j.id, j.user_id, j.message, j.created_at, u.user_handle, u.user_full_name
+      `SELECT j.id, j.user_id, j.message, j.created_at, u.user_handle, u.user_full_name, u.age_band IN ('13-15', '16-17') AS under18
        FROM society_join_requests j LEFT JOIN users u ON u.id::text = j.user_id
        WHERE j.customer_id = $1 AND j.status = 'pending' ORDER BY j.created_at`, [ctx.id]),
     pool.query(
@@ -62,6 +62,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (Array.isArray(body.disabled_sections)) set('disabled_sections', cleanFeatures(body.disabled_sections));
   // Members may create Sealed (end-to-end encrypted) items
   if (typeof body.allow_sealed === 'boolean') set('allow_sealed', body.allow_sealed);
+  // Run as a youth group: members aged 13 to 15 may join its calls
+  if (typeof body.youth_group === 'boolean') set('youth_group', body.youth_group);
   if (typeof body.slug === 'string') {
     const slug = body.slug.trim().toLowerCase();
     const problem = slugProblem(slug);

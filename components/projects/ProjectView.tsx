@@ -8,7 +8,7 @@ import RichText from '@/components/discussions/RichText';
 import TaskTree, { type Task, type TaskGroup } from './TaskTree';
 import Gantt from './Gantt';
 import { RaidList, StatusReport, type Raid } from './Report';
-import { Badge, fmtDate, inputCls, PROJECT_STATUS, registerSealer, send, Sheet, type Member } from './shared';
+import { Badge, FilterBar, fmtDate, inputCls, isFiltering, matchesFilter, PROJECT_STATUS, registerSealer, send, Sheet, TASK_STATUS, useFilter, type Filter, type Member } from './shared';
 import SecureAccessDialog from '@/components/sealed/SecureAccessDialog';
 import { useSecureAccess } from '@/components/sealed/useSecureAccess';
 import { keysFor, newItemKeys, openItemText, sealItemText, sealItemTextOrNull, societyMembers, type ItemKeys } from '@/components/sealed/items';
@@ -38,6 +38,7 @@ export default function ProjectView({ societyId, projectId }: { societyId: numbe
   const taskParam = params.get('task');
   useEffect(() => { if (taskParam) setOpenTask(taskParam); }, [taskParam]);
   const [settings, setSettings] = useState(false);
+  const [filter, setFilter] = useFilter(`nv-project-tasks-filter-${projectId}`);
   // A sealed project: opened here with this person's keys, and sealed on the way out (see send())
   const societyBase = `/api/societies/${societyId}`;
   const access = useSecureAccess();
@@ -174,10 +175,18 @@ export default function ProjectView({ societyId, projectId }: { societyId: numbe
         ))}
       </nav>
 
+      {(tab === 'tasks' || tab === 'gantt') && data.tasks.length > 0 && (() => {
+        const n = data.tasks.filter(t => matchesFilter(filter, t.status, t.due_date ?? t.end_date)).length;
+        return <FilterBar filter={filter} onChange={setFilter} statuses={TASK_STATUS} shown={n} total={data.tasks.length} noun="project tasks" />;
+      })()}
       {tab === 'tasks' && (
-        <TaskTree base={base} tasks={data.tasks} groups={data.groups ?? []} me={data.me} canManage={data.canManage && canWrite} onChanged={load} open={openTask} setOpen={setOpenTask} />
+        <TaskTree base={base} tasks={data.tasks} groups={data.groups ?? []} me={data.me} canManage={data.canManage && canWrite} onChanged={load} open={openTask} setOpen={setOpenTask}
+          shownIds={isFiltering(filter) ? filteredIds(data.tasks, filter) : null} />
       )}
-      {tab === 'gantt' && <Gantt tasks={data.tasks} groups={data.groups ?? []} projectStart={p.start_date} projectEnd={p.end_date} onOpen={openFromElsewhere} />}
+      {tab === 'gantt' && (() => {
+        const ids = isFiltering(filter) ? filteredIds(data.tasks, filter) : null;
+        return <Gantt tasks={ids ? data.tasks.filter(t => ids.has(t.id)) : data.tasks} groups={data.groups ?? []} projectStart={p.start_date} projectEnd={p.end_date} onOpen={openFromElsewhere} />;
+      })()}
       {tab === 'report' && (
         <div className="space-y-8">
           <StatusReport base={base} tasks={data.tasks} onOpen={openFromElsewhere} />
@@ -260,4 +269,16 @@ function ProjectSettings({ societyId, base, project, canModerate, sealing, unsea
       </form>
     </Sheet>
   );
+}
+
+// The project tasks that match the filter (due date, or end date if none),
+// plus the parents of any matching sub-task so it still shows in its place.
+function filteredIds(tasks: Task[], f: Filter): Set<string> {
+  const byId = new Map(tasks.map(t => [t.id, t]));
+  const ids = new Set<string>();
+  for (const t of tasks) {
+    if (!matchesFilter(f, t.status, t.due_date ?? t.end_date)) continue;
+    for (let c: Task | undefined = t; c && !ids.has(c.id); c = c.parent_id ? byId.get(c.parent_id) : undefined) ids.add(c.id);
+  }
+  return ids;
 }

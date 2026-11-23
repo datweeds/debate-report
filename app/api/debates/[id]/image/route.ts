@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { screenImageUpload } from '@/lib/imageScan';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import pool from '@/lib/db';
@@ -49,8 +50,12 @@ export async function POST(
   const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'debates');
   const filePath   = path.join(uploadsDir, filename);
 
+  const bytes = Buffer.from(await file.arrayBuffer());
+  const screen = await screenImageUpload({ bytes, mime: file.type, fileName: file.name, userId: session.sub,
+    societyId: debate.rows[0].customer_id ?? null, where: 'debate image' });
+  if (!screen.ok) return NextResponse.json({ error: screen.error }, { status: 422 });
   await mkdir(uploadsDir, { recursive: true });
-  await writeFile(filePath, Buffer.from(await file.arrayBuffer()));
+  await writeFile(filePath, bytes);
 
   const imagePath = `/uploads/debates/${filename}`;
   await pool.query(

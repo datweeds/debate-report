@@ -32,7 +32,7 @@ export default async function PrivacyPage() {
             <span className="text-slate-300">Privacy Policy</span>
           </div>
           <h1 className="text-4xl font-bold text-slate-100">Privacy Policy</h1>
-          <p className="mt-2 text-slate-500 text-sm">Last updated: 21 November 2026</p>
+          <p className="mt-2 text-slate-500 text-sm">Last updated: 23 November 2026</p>
         </div>
 
         <div className="space-y-6">
@@ -71,6 +71,15 @@ export default async function PrivacyPage() {
               end-to-end encrypted are beyond our reach. In public Societies, administrators can remove content to stop abuse.
             </p>
             <p>
+              <span className="text-slate-200 font-medium">AI companies.</span>{' '}
+              We tell AI companies not to collect members&apos; content to train their models: our robots.txt file and our
+              network provider (Cloudflare) block known AI training crawlers from debates, Societies, polls, profiles and
+              uploaded files. They may read our own pages, such as Features, Pricing, the Guides and these policies.
+              Search engines can still index public Societies, and AI assistants can still open a public page when someone
+              asks them to, as a browser would. Not every crawler obeys these rules, so treat anything you post in a public
+              Society as public.
+            </p>
+            <p>
               <span className="text-slate-200 font-medium">What our servers record.</span>{' '}
               Our web server logs visitors&apos; IP addresses and the pages requested, for security, and our application
               logs errors. Both are deleted after 14 days.
@@ -78,8 +87,10 @@ export default async function PrivacyPage() {
             <p>
               <span className="text-slate-200 font-medium">Who else handles data.</span>{' '}
               AI features (quality reports, news summaries, the argument assistant) send the relevant text to the AI the
-              Society has chosen: new.vote&apos;s own (Anthropic), the Society&apos;s own provider, or none. Emails are
-              delivered by Postmark, and payments are handled by Stripe. Automatic abuse scanning runs on our own server.
+              Society has chosen: new.vote&apos;s own (Anthropic), the Society&apos;s own provider, or none. All traffic
+              passes through Cloudflare, which protects the site from attacks. Emails are delivered by Postmark, and
+              payments are handled by Stripe. Automatic abuse scanning, of text and of uploaded images, runs on our own
+              server, so nothing is sent elsewhere to be checked.
               See <a href="#processors" className="text-blue-400 hover:underline">who handles your data</a>, below.
             </p>
           </Section>
@@ -111,11 +122,17 @@ export default async function PrivacyPage() {
             <ul className="list-disc pl-5 space-y-2">
               <li>
                 <span className="font-semibold text-slate-200">Account data:</span> Your username (handle), email
-                address (if provided), account tier, and the Societies you belong to.
+                address (if provided), account tier, the Societies you belong to and your role in each, your age
+                group (13 to 15, 16 or 17, or 18 or over: never your date of birth), and your agreement to our Terms.
+                Your age group is used only for safety: the Society Admins of Societies you belong to, or ask to join,
+                see whether you are under 18, but not your age group.
               </li>
               <li>
-                <span className="font-semibold text-slate-200">Content data:</span> Claims, warrants, evidence,
-                rebuttals, comments and votes you submit to the Platform.
+                <span className="font-semibold text-slate-200">Content data:</span> What you add to the Platform:
+                debate arguments and votes, discussion posts, comments, documents and files, events and whether
+                you&apos;re attending, tasks, projects and poll ballots. For a formal ballot we also keep the roll of who
+                was eligible to vote, and its certificate names who certified it and its scrutineers; it shows totals,
+                never how anyone voted.
               </li>
               <li>
                 <span className="font-semibold text-slate-200">Authentication data:</span> Passkey credentials
@@ -143,8 +160,12 @@ export default async function PrivacyPage() {
                 given), if you subscribe.
               </li>
               <li>
-                <span className="font-semibold text-slate-200">Payment data:</span> If you take a paid plan, Stripe
-                collects your card details; we receive only the plan, its status and a Stripe customer reference.
+                <span className="font-semibold text-slate-200">Plan and payment data:</span> Your plan, the
+                Societies you own, and how much of your plan&apos;s storage, AI and call time they use, so we can apply its
+                limits and warn you near them. If you take a paid plan, Stripe collects your card and billing details;
+                we give Stripe your username and, if you&apos;ve given one, your email address, and receive back only the
+                plan, its status and a Stripe customer reference. We send ourselves a short notice when a plan starts or
+                changes.
               </li>
             </ul>
           </Section>
@@ -155,7 +176,13 @@ export default async function PrivacyPage() {
               <li>Provide and operate the Platform.</li>
               <li>Authenticate you and maintain session security.</li>
               <li>Associate your contributions with your account.</li>
-              <li>Respond to enquiries and contact form submissions.</li>
+              <li>Apply your plan&apos;s limits, take payments, and tell you about your plan and its limits.</li>
+              <li>Respond to enquiries, contact form submissions and complaints.</li>
+              <li>Keep users safe, and meet our legal duties, including under the Online Safety Act 2023. This
+                includes checking text and uploaded images automatically, on our own server. If an image is refused as
+                sexually explicit, we hold it encrypted, readable only by our team, for up to 30 days so we can check it,
+                then delete it, with a record of the refusal (who, when, where and the file name). If it is child sexual
+                abuse material, the law requires us to report it to the National Crime Agency and keep it for a year.</li>
               <li>Prevent abuse, fraud and policy violations.</li>
               <li>Improve the Platform based on usage patterns.</li>
             </ul>
@@ -169,7 +196,8 @@ export default async function PrivacyPage() {
             <ul className="list-disc pl-5 space-y-1">
               <li><span className="text-slate-200 font-medium">Contract:</span> To provide the services you have signed up for.</li>
               <li><span className="text-slate-200 font-medium">Legitimate interests:</span> To operate, secure and improve the Platform.</li>
-              <li><span className="text-slate-200 font-medium">Legal obligation:</span> To handle reports of illegal and harmful content under the Online Safety Act 2023.</li>
+              <li><span className="text-slate-200 font-medium">Legal obligation:</span> To handle reports of illegal and harmful content under the Online Safety Act 2023, to keep
+                tax and payment records, and to respond to lawful requests from the police or courts.</li>
               <li><span className="text-slate-200 font-medium">Consent:</span> Where you have given explicit consent, such as for optional communications.</li>
             </ul>
           </Section>
@@ -191,6 +219,11 @@ export default async function PrivacyPage() {
                 illegal content can&apos;t be deleted until we have reviewed it, and such reports may be kept longer, or
                 passed to the police, where the law requires.</li>
               <li><span className="text-slate-200 font-medium">Contact form messages:</span> up to 12 months.</li>
+              <li><span className="text-slate-200 font-medium">Plans:</span> if a paid plan ends, your Societies are
+                kept (some read-only) rather than deleted, until you or their Society Admins close them.</li>
+              <li><span className="text-slate-200 font-medium">Backups:</span> we keep encrypted nightly backups for
+                up to 90 days, so something deleted from the live site can remain in a backup until that backup
+                expires. Backups are used only to restore the service.</li>
               <li><span className="text-slate-200 font-medium">Payment records:</span> as long as UK tax law requires
                 (currently six years).</li>
             </ul>
@@ -215,8 +248,14 @@ export default async function PrivacyPage() {
               <li>Correct inaccurate personal data.</li>
               <li>Request deletion of your personal data.</li>
               <li>Object to or restrict processing of your personal data.</li>
-              <li>Data portability (where applicable).</li>
+              <li>Data portability: receive your data in a reusable format.</li>
             </ul>
+            <p>
+              You can do much of this yourself on the <Link href="/my-data" className="text-blue-400 hover:underline">Your
+              data</Link> page: download everything you&apos;ve added, as readable files, and delete your account. Deleting
+              your account erases your personal details; what you posted in Societies stays as part of their record,
+              under an anonymous name. Society Admins can also download their Society&apos;s data.
+            </p>
             <p>
               To exercise any of these rights, email{' '}
               <a href={`mailto:${COMPANY.contactEmail}`} className="text-blue-400 hover:underline">{COMPANY.contactEmail}</a>{' '}
@@ -235,7 +274,9 @@ export default async function PrivacyPage() {
             <p>
               We implement appropriate technical and organisational measures to protect your personal data,
               including encrypted session tokens, passkey-based authentication, and access controls.
-              No method of data transmission is 100% secure; we cannot guarantee absolute security.
+              No method of data transmission is 100% secure; we cannot guarantee absolute security. Our{' '}
+              <Link href="/security" className="text-blue-400 hover:underline">Security page</Link> explains how to report a
+              vulnerability.
             </p>
             <p className="mt-3">
               <strong>Private Societies.</strong> The debates (every argument, chat message, closing statement and
@@ -300,34 +341,65 @@ export default async function PrivacyPage() {
           </Section>
 
           <Section title="10. Who Handles Your Data">
-            <p id="processors">These organisations process personal data for us, under data processing terms:</p>
+            <p id="processors" className="scroll-mt-20">These organisations process personal data for us, under data processing terms:</p>
             <ul className="list-disc pl-5 space-y-1">
-              <li><span className="text-slate-200 font-medium">Contabo GmbH</span> (EU): hosts our servers, including calls,
-                abuse scanning and the news service.</li>
-              <li><span className="text-slate-200 font-medium">Postmark</span> (ActiveCampaign, USA): delivers emails.</li>
-              <li><span className="text-slate-200 font-medium">Anthropic</span> (USA): runs AI features for Societies that
-                use new.vote&apos;s AI.</li>
-              <li><span className="text-slate-200 font-medium">Stripe</span>: takes payments for paid plans.</li>
+              <li><span className="text-slate-200 font-medium">Contabo GmbH</span> (servers in France): hosts our
+                servers, including calls, abuse scanning and the news service, and stores our encrypted backups.</li>
+              <li><span className="text-slate-200 font-medium">Cloudflare</span> (USA, worldwide network): all traffic to
+                new.vote passes through it, for encryption and protection from attacks.</li>
+              <li><span className="text-slate-200 font-medium">Postmark</span> (AC PM LLC, part of ActiveCampaign, USA):
+                delivers emails.</li>
+              <li><span className="text-slate-200 font-medium">Anthropic</span> (Anthropic Ireland; processing in the
+                USA): runs AI features for Societies that use new.vote&apos;s AI.</li>
+              <li><span className="text-slate-200 font-medium">Stripe</span> (UK, EU and USA): takes payments for paid
+                plans. For card and billing details, Stripe is also a controller in its own right, under its own
+                privacy policy.</li>
+              <li><span className="text-slate-200 font-medium">Purelymail</span> (USA): hosts our email inboxes, so it
+                holds messages you send to us.</li>
+              <li><span className="text-slate-200 font-medium">Browser push services</span> (Google, Mozilla, Apple):
+                deliver notifications to your device, if you turn them on. The notifications are encrypted so these
+                services can&apos;t read them.</li>
             </ul>
             <p>
-              Postmark and Anthropic are in the United States, so using them transfers data outside the UK. These
-              transfers are protected by the providers&apos; data processing terms, which include the safeguards UK
-              law requires (the UK International Data Transfer Addendum or equivalent).
+              Some of these are in the United States, so using them transfers data outside the UK. These transfers rely
+              on the UK Extension to the EU–US Data Privacy Framework, where the provider is certified (Cloudflare,
+              Postmark and Stripe are), or on the safeguards in the provider&apos;s data processing terms (the EU Standard
+              Contractual Clauses with the UK Addendum).
+            </p>
+            <p>
+              When a formal ballot is certified, we send a fingerprint (a hash) of its certificate to FreeTSA, a
+              timestamping service in Germany, so anyone can check later that the result hasn&apos;t changed. The
+              fingerprint contains no personal data.
             </p>
           </Section>
 
           <Section title="11. Children">
             <p>
-              new.vote is not intended for children under 13, and we don&apos;t knowingly collect their personal data.
-              If you believe a child under 13 has an account, contact us and we will delete it.
+              If you are 13 to 17, <Link href="/young-people" className="text-blue-400 hover:underline">new.vote for young
+              people</Link> explains this policy in plain words. You must be 13 or over to use new.vote, and you tell us your
+              age group when you register. If you believe
+              a child under 13 has an account, contact us and we will delete it.
+            </p>
+            <p>
+              If you are under 18, we use your age group to protect you: Society Admins see an &quot;Under 18&quot;
+              marker (not your exact age group), you aren&apos;t named on a Society&apos;s public pages, reports
+              involving you are reviewed first, and if you are 13 to 15 you can join video calls only in Societies run
+              as youth groups.
+            </p>
+            <p>
+              Teenagers may use new.vote, so we design it to be safe for them by default, following the ICO&apos;s
+              Children&apos;s Code: we show no adverts, don&apos;t track you across other sites, don&apos;t profile you for
+              marketing, don&apos;t collect your location, and don&apos;t require your real name or an email address. You
+              choose which Societies to join. What you post in a public Society can be seen by anyone (though we ask AI companies not to
+              train on it), so we show usernames, not real names; in a private Society, only its members see it. We don&apos;t sell or share
+              anyone&apos;s data for marketing. Paid plans are for people aged 18 or over.
             </p>
           </Section>
 
           <Section title="12. Changes to This Policy">
             <p>
-              We may update this Privacy Policy from time to time. When we make material changes, we will
-              update the date at the top of this page. Continued use of the Platform after changes are posted
-              constitutes acceptance of the revised policy.
+              We may update this Privacy Policy from time to time. We will change the date at the top of this page
+              and, for significant changes, tell account holders on the Platform before they take effect.
             </p>
           </Section>
 

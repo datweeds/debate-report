@@ -60,7 +60,7 @@ const SELF: Record<string, string> = {
 const ADDONS = [
   ['AI', 'Quality checks, Debate Quality Reports and the AI helper on new.vote’s AI, for servers without an AI account of their own. Pay for what you use, with a cap you set.'],
   ['News', 'Your Societies’ News, gathered from many sources and summarised, delivered to your server: no news pipeline to run.'],
-  ['Safety scanning', 'Abuse and illegal-content scanning of new posts, with reports to your Society Admins: help with your Online Safety Act duties.'],
+  ['Safety scanning', 'The same image and text scanning as new.vote, for new posts and uploads, with alerts to your Society Admins: help with your Online Safety Act duties.'],
   ['Encrypted backups', 'Nightly, encrypted, off-site copies of your server, kept for up to 90 days. Only you hold the key.'],
   ['Support', 'Help with installing, upgrading and running your server, for organisations that need an agreed response time.'],
 ];
@@ -76,6 +76,7 @@ const EVERY_PLAN = [
   'Principles your members can discuss and amend',
   'News for your Society’s topics',
   'Analytics, and a full export of everything, any time',
+  'Safety built in: image and text scanning, reporting, and protections for younger members',
 ];
 
 const TRUST = [
@@ -90,7 +91,9 @@ const TRUST = [
 const FAQ = [
   ['What is a Society?', 'A Society is your group on new.vote: its members, debates, polls, documents, events and calls. Your plan covers every Society you run, with storage and AI shared across them. You never pay per member, so adding people is always free.'],
   ['Why charge at all?', 'Storage, AI and video calls cost us money each month, so that is what the plans cover. Privacy and encryption are on every plan, never a paid extra, and we never show ads or sell data.'],
+  ['When does billing start?', 'The day you choose a paid plan. You pay in advance, monthly or yearly, through Stripe, and the plan renews until you downgrade. If prices change, we tell you at least 30 days before your next payment. Taking a plan as a consumer? Cancel within 14 days of your first payment for a full refund. Details are in the Terms, section 9.'],
   ['What happens if we stop paying?', 'Your plan carries on for 30 days, then moves to Huddle. If you run more than 3 Societies, you choose which stay active; the rest become read-only. Nothing is deleted: everything stays readable and exportable, and you can pick up a paid plan again at any time.'],
+  ['What if I lose access to my account?', 'Sign in with your recovery code, or a passkey on another device. If you signed up with only a username and lose both your passkey and your recovery code, we can’t restore the account, so keep the code somewhere safe. Society Admins: add a second admin, so a Society never depends on one account.'],
   ['Can we use our own AI?', 'Yes, on every plan. Connect your own AI provider in your Society’s settings and you pay it directly, with no limit from us.'],
   ['Discounts?', 'Pay yearly and get two months free. Charities, community groups and student societies: contact us for a discount.'],
   ['Can we run it ourselves?', 'From 2027, yes: on your own server, free, connected to new.vote. Your identity is yours, so no server can lock you out. Add AI, News, safety scanning or backups from us if you want them. See “Run new.vote on your own server” below.'],

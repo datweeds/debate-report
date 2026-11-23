@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { Badge, fmtDate, inputCls, PROJECT_STATUS, ProgressBar, type Member } from './shared';
+import { Badge, FilterBar, fmtDate, inputCls, matchesFilter, PROJECT_STATUS, ProgressBar, useFilter, type Member } from './shared';
 import SecureAccessDialog from '@/components/sealed/SecureAccessDialog';
 import { useSecureAccess } from '@/components/sealed/useSecureAccess';
 import { listKeys, newItemKeys, openItemText, sealItemText, sealItemTextOrNull, societyMembers, type ItemKeys } from '@/components/sealed/items';
@@ -26,6 +26,7 @@ export default function ProjectList({ societyId }: { societyId: number }) {
   const [f, setF] = useState({ name: '', description: '', managerId: '', startDate: '', endDate: '' });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [filter, setFilter] = useFilter(`nv-projects-filter-${societyId}`);
 
   const load = useCallback(async () => {
     const r = await fetch(base);
@@ -66,6 +67,8 @@ export default function ProjectList({ societyId }: { societyId: number }) {
   }
 
   if (!data) return error ? <p className="text-sm text-rose-400">{error}</p> : <div className="h-40 rounded-2xl bg-slate-800/40 animate-pulse" />;
+  // A project is due on its end date
+  const visible = data.projects.filter(p => matchesFilter(filter, p.status, p.end_date));
 
   return (
     <div className="space-y-4">
@@ -116,11 +119,16 @@ export default function ProjectList({ societyId }: { societyId: number }) {
         </form>
       )}
 
+      {data.projects.length > 0 && (
+        <FilterBar filter={filter} onChange={setFilter} statuses={PROJECT_STATUS} shown={visible.length} total={data.projects.length} noun="projects" />
+      )}
       {data.projects.length === 0 ? (
         <div className="rounded-2xl border border-slate-800 bg-dr-card p-10 text-center text-sm text-slate-500">No projects yet.</div>
+      ) : visible.length === 0 ? (
+        <div className="rounded-2xl border border-slate-800 bg-dr-card p-10 text-center text-sm text-slate-500">No projects match these filters.</div>
       ) : (
         <ul className="grid gap-3 md:grid-cols-2">
-          {data.projects.map(shown).map(p => (
+          {visible.map(shown).map(p => (
             <li key={p.id}>
               <Link href={`/society/${societyId}/projects/${p.id}`} className="block h-full rounded-2xl border border-slate-800 bg-dr-card p-4 hover:border-slate-600 transition-colors">
                 <div className="flex items-start justify-between gap-2">

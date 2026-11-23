@@ -67,7 +67,8 @@ export async function GET(req: NextRequest) {
       [session.sub]
     ),
     // The viewer's own content awaiting a moderator's decision
-    pool.query(`SELECT COUNT(*)::int AS n FROM content_alerts WHERE author_id = $1 AND status = 'pending' AND report_route IS DISTINCT FROM 'platform'`, [session.sub]),
+    pool.query(`SELECT COUNT(*)::int AS n FROM content_alerts WHERE author_id = $1 AND report_route IS DISTINCT FROM 'platform'
+                AND (status = 'pending' OR (status = 'masked' AND author_notified_at IS NOT NULL AND author_seen_at IS NULL))`, [session.sub]),
     pool.query(
       `SELECT COUNT(id)::int AS n FROM debate_invitations
        WHERE created_by = $1::uuid AND status <> 'pending' AND updated_at > $2`,

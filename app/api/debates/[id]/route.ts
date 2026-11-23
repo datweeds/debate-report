@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { screenImageUpload } from '@/lib/imageScan';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import pool from '@/lib/db';
@@ -76,10 +77,14 @@ async function handlePATCH(req: NextRequest, { params }: Params) {
     if (!ext) return NextResponse.json({ error: 'JPEG, PNG or WebP only' }, { status: 400 });
     if (file.size > 5 * 1024 * 1024) return NextResponse.json({ error: 'Max 5 MB' }, { status: 400 });
 
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const screen = await screenImageUpload({ bytes, mime: file.type, fileName: file.name, userId: session.sub,
+      societyId: (debate.customer_id as number | null) ?? null, where: 'debate image' });
+    if (!screen.ok) return NextResponse.json({ error: screen.error }, { status: 422 });
     const filename   = `${id}.${ext}`;
     const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'debates');
     await mkdir(uploadsDir, { recursive: true });
-    await writeFile(path.join(uploadsDir, filename), Buffer.from(await file.arrayBuffer()));
+    await writeFile(path.join(uploadsDir, filename), bytes);
 
     const imagePath = `/uploads/debates/${filename}`;
     await pool.query('UPDATE statements SET image_path = $1 WHERE id = $2', [imagePath, id]);

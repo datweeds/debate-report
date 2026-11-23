@@ -138,6 +138,7 @@ export interface ChallengePayload {
   displayName?: string;
   bio?: string;
   inviteToken?: string;
+  ageBand?: string;
   purpose?: 'add' | 'recovery';  // add: logged-in user adds a passkey; recovery: confirming before a new recovery code
 }
 

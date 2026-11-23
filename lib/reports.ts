@@ -6,6 +6,7 @@
 // Reports land in content_alerts, the scanner's review queue. Server-only.
 
 import crypto from 'crypto';
+import { ageBandOf, isUnder18 } from './age';
 import pool from './db';
 import type { SessionPayload } from './auth';
 import { getSocietyAccess } from './societies';
@@ -246,6 +247,8 @@ export async function submitReport(input: ReportInput, session: SessionPayload |
   }
 
   const urgent = input.reason === 'illegal';
+  // The author or the reporter is under 18: reviewed first
+  const minor = isUnder18(await ageBandOf(row.author as string | null)) || isUnder18(await ageBandOf(session?.sub));
   const route: 'society' | 'platform' = urgent || kind.platform || row.sid == null ? 'platform' : 'society';
   const text = await reportedText(kind, row, input.shown ?? '');
   const note = typeof input.note === 'string' ? input.note.trim().slice(0, 1000) : '';
@@ -254,11 +257,11 @@ export async function submitReport(input: ReportInput, session: SessionPayload |
 
   await pool.query(
     `INSERT INTO content_alerts (content_type, content_id, content_key, customer_id, resolution_id, content_href, flagged_text, flags,
-                                 author_id, status, text_hash, reported_by, report_reason, urgent, report_route, reporter_hash, item_kind)
-     VALUES ($1, $2::uuid, $3, $4, $5::uuid, $6, $7, ARRAY['reported', $8::text], $9, 'pending', $10, $11, $12, $13, $14, $15, $16)`,
+                                 author_id, status, text_hash, reported_by, report_reason, urgent, report_route, reporter_hash, item_kind, involves_minor)
+     VALUES ($1, $2::uuid, $3, $4, $5::uuid, $6, $7, ARRAY['reported', $8::text], $9, 'pending', $10, $11, $12, $13, $14, $15, $16, $17)`,
     [kind.type, uuid, input.id, row.sid, (row.resolution_id as string | undefined) ?? null, row.href, await seal(text), input.reason,
      row.author, crypto.createHash('md5').update(`report:${session?.sub ?? anonHash}:${input.kind}:${input.id}`).digest('hex'),
-     session?.sub ?? null, note ? await seal(note) : null, urgent, route, anonHash, input.kind]);
+     session?.sub ?? null, note ? await seal(note) : null, urgent, route, anonHash, input.kind, minor]);
 
   // Tell people. No content in emails: they leave our servers
   let society = '', contact: string | null = null;
@@ -267,13 +270,13 @@ export async function submitReport(input: ReportInput, session: SessionPayload |
     society = c?.name ?? ''; contact = c?.contact_email ?? null;
   }
   const where = society ? ` in ${society}` : '';
-  const what = `${kind.label}${where}: ${REPORT_REASONS[input.reason]}`;
+  const what = `${kind.label}${where}: ${REPORT_REASONS[input.reason]}${minor ? ' (someone under 18 is involved: please review it first)' : ''}`;
   const send = (to: string | undefined, subject: string, message: string) => sendContactNotification({
     name: 'new.vote', email: 'contact@new.vote', subject, message, context: 'new.vote moderation notices', ...(to ? { to } : {}),
   }).catch(err => console.error('[report] notify', err));
   const queue = `Review it in the alert queue: ${PRODUCT_URL}/dashboard/scanner`;
   if (route === 'platform') {
-    void send(undefined, `${urgent ? 'URGENT: ' : ''}Report for the new.vote team (${kind.label})`,
+    void send(undefined, `${urgent ? 'URGENT: ' : ''}${minor ? 'Under 18: ' : ''}Report for the new.vote team (${kind.label})`,
       `A ${session ? 'member' : 'visitor without an account'} reported: ${what}.\n\n${queue}`);
   } else {
     const msg = `Someone reported content${where}.\n\n${what}\n\n${queue}`;

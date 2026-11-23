@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { screenImageUpload } from '@/lib/imageScan';
 import { storageAllows } from '@/lib/holds';
 import { entitlementsFor, planRefusal, storageUsed } from '@/lib/plans';
 import { hideEndToEnd } from '@/lib/societyCrypto';
@@ -151,6 +152,10 @@ async function handlePOST(req: NextRequest, { params }: Params) {
     }
     const title = String(form.get('title') ?? '').trim() || file.name;
     const description = String(form.get('description') ?? '').trim() || null;
+    // Images are checked for explicit content before they are stored, on every plan
+    const screen = await screenImageUpload({ bytes: Buffer.from(await file.arrayBuffer()), mime: file.type, fileName: file.name,
+      userId: a.session!.sub, societyId: a.societyId, where: 'Society document' });
+    if (!screen.ok) return NextResponse.json({ error: screen.error }, { status: 422 });
     const { storedName } = await saveFile(a.societyId, file);
     const { rows: [d] } = await pool.query(
       `INSERT INTO documents (customer_id, folder_id, kind, title, description, file_name, stored_name, mime_type, size_bytes, uploaded_by)

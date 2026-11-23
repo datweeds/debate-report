@@ -16,7 +16,7 @@ async function moderatedId(req: NextRequest, params: Params['params']): Promise<
 export async function POST(req: NextRequest, { params }: Params) {
   const id = await moderatedId(req, params);
   if (id == null) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  const result = await saveSocietyImage(id, (await req.formData()).get('image') as File | null);
+  const result = await saveSocietyImage(id, (await req.formData()).get('image') as File | null, (await getSessionFromRequest(req))?.sub ?? null);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
   return NextResponse.json({ imagePath: result.imagePath });
 }

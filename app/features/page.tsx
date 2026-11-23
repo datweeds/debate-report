@@ -83,11 +83,13 @@ const GROUPS: Group[] = [
     { title: 'No ads or tracking', text: 'Only the cookies the site needs to work.' },
     { title: 'Deleted means gone', text: 'Delete a Society and its key goes too, so its encrypted content can no longer be read.' },
   ] },
-  { id: 'moderation', eyebrow: 'Safety and moderation', title: 'Healthy debate by design', items: [
-    { title: 'Content scanning', text: 'New content is checked automatically for abuse and flagged for Society Admins to review.' },
+  { id: 'moderation', eyebrow: 'Safety and moderation', title: 'Safe by design, on every plan', items: [
+    { title: 'Image scanning', text: 'Every image uploaded is checked on our own server before it’s saved, on every plan, Huddle included. Sexually explicit images are stopped before anyone sees them, and your images never leave new.vote to be checked.' },
+    { title: 'Text scanning', text: 'New posts are checked automatically for hate, threats, abuse and exposed personal details, and flagged for a person to review.' },
+    { title: 'Safer for younger members', text: 'Members choose their age group when they join. Under-16s join video calls only in Societies run as youth groups; under-18s are marked for Society Admins, kept off public pages, and reports involving them are reviewed first.' },
     { title: 'One review queue', text: 'Society Admins and the platform team see the same alerts, so action taken is visible to both.' },
     { title: 'Appeals', text: 'Authors can appeal a moderation decision.' },
-    { title: 'Members report', text: 'Anyone can flag a statement or message, with a reason.' },
+    { title: 'Anyone can report', text: 'A Report button on everything, for members and visitors alike. Possibly illegal content goes straight to the new.vote team.' },
   ] },
   { id: 'running', eyebrow: 'Running a Society', title: 'Make it yours', items: [
     { title: 'Feature switches', text: 'Switch any tool off, or back on, for your Society.' },

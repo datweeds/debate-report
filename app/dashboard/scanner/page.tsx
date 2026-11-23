@@ -20,7 +20,8 @@ type ContentAlert = {
   content_hidden?: boolean;      // private Society, no break-glass: Sys Admin sees only that it exists
   reporter_handle?: string | null;
   report_reason?: string | null;
-  urgent?: boolean; report_route?: string | null; item_label?: string | null; maskable?: boolean;
+  urgent?: boolean; report_route?: string | null; item_label?: string | null; maskable?: boolean; involves_minor?: boolean;
+  quarantined?: boolean; quarantine_until?: string | null; nca_reference?: string | null;
   created_at: string;
   reviewed_at: string | null;
   appeal_body: string | null;
@@ -211,7 +212,7 @@ const REASON_LABELS: Record<string, string> = {
 };
 
 // Labels for every kind of scanned content (debates, discussions, documents, …)
-const CONTENT_LABELS: Record<string, string> = SCAN_LABELS;
+const CONTENT_LABELS: Record<string, string> = { ...SCAN_LABELS, image_upload: 'Image upload (blocked)' };
 
 function timeAgo(d: string) {
   const mins = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
@@ -302,9 +303,62 @@ function AppealBanner({ alert, onHandled }: { alert: ContentAlert; onHandled: (i
 
 // ── Scanner alert card ────────────────────────────────────────────────────────
 
+// A quarantined image (blocked at upload): the Sys Admin can look, delete it, or
+// record an NCA report, which keeps it a year. Nothing is shown until asked.
+function QuarantinePanel({ alert }: { alert: ContentAlert }) {
+  const [shown, setShown] = useState(false);
+  const [state, setState] = useState<{ until: string | null; ref: string | null; gone: boolean }>({
+    until: alert.quarantine_until ?? null, ref: alert.nca_reference ?? null, gone: false });
+  const [ref, setRef] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  if (!alert.quarantined && !state.gone) return <p className="text-xs text-slate-500">The image wasn’t held for review.</p>;
+  if (state.gone) return <p className="text-xs text-slate-400">The image has been deleted.</p>;
+  async function act(body: Record<string, string>) {
+    setBusy(true); setErr('');
+    const r = await fetch(`/api/admin/quarantine/${alert.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const d = await r.json().catch(() => ({}));
+    setBusy(false);
+    if (!r.ok) { setErr(d.error ?? 'Couldn’t save'); return; }
+    if (body.action === 'discard') setState(s => ({ ...s, gone: true }));
+    else setState({ until: new Date(Date.now() + 365 * 86400_000).toISOString(), ref: body.reference, gone: false });
+  }
+  const until = state.until ? new Date(state.until).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+  return (
+    <div className="space-y-2 rounded-lg border border-red-900/50 bg-red-950/20 p-3">
+      <p className="text-xs text-slate-300">
+        Held in encrypted quarantine{until ? `, deleted automatically on ${until}` : ''}.
+        {state.ref ? ` Reported to the NCA (reference ${state.ref}): kept a year, as the reporting rules require.` : ' Follow the CSAM procedure: look only as much as you need to judge it, and never download or share it.'}
+      </p>
+      {shown ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={`/api/admin/quarantine/${alert.id}`} alt="Quarantined upload" className="max-h-80 rounded border border-slate-800" draggable={false} onContextMenu={e => e.preventDefault()} />
+      ) : (
+        <button type="button" onClick={() => { if (confirm('Show this image? It was blocked as sexually explicit. Each view is recorded.')) setShown(true); }}
+          className="rounded border border-slate-700 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-800">Show image</button>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" disabled={busy} onClick={() => { if (confirm('Delete this image now? Do this only if it is not child sexual abuse material.')) act({ action: 'discard' }); }}
+          className="rounded border border-slate-700 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50">Not CSAM: delete now</button>
+        {!state.ref && (
+          <>
+            <input value={ref} onChange={e => setRef(e.target.value)} placeholder="NCA reference" className="w-40 rounded border border-slate-700 bg-dr-surface px-2 py-1 text-xs text-slate-200" />
+            <button type="button" disabled={busy || !ref.trim()} onClick={() => act({ action: 'reported', reference: ref.trim() })}
+              className="rounded border border-red-700/60 px-2.5 py-1 text-xs font-semibold text-red-300 hover:bg-red-950/40 disabled:opacity-50">Reported to NCA: keep a year</button>
+          </>
+        )}
+      </div>
+      {err && <p className="text-xs text-rose-400">{err}</p>}
+    </div>
+  );
+}
+
 function ScannerCard({ alert, onAction }: { alert: ContentAlert; onAction: (id: string, status: string) => void }) {
   const [saving,     setSaving]     = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [reason, setReason] = useState('');
+  const [tell, setTell] = useState(true);
+  const [actErr, setActErr] = useState('');
 
   const emailTargets: EmailTarget[] = [];
   if (alert.owner_email)  emailTargets.push({ label: 'Debate owner',     email: alert.owner_email,  handle: alert.owner_handle });
@@ -317,14 +371,16 @@ function ScannerCard({ alert, onAction }: { alert: ContentAlert; onAction: (id: 
 
   async function act(status: string) {
     if (status === 'masked' && !confirming) { setConfirming(true); return; }
-    setSaving(true);
-    setConfirming(false);
+    if (status === 'masked' && reason.trim().length < 3) { setActErr('Give a reason: the author will see it'); return; }
+    setSaving(true); setActErr('');
     try {
-      await fetch(`/api/alerts/${alert.id}`, {
+      const r = await fetch(`/api/alerts/${alert.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(status === 'masked' ? { status, reason: reason.trim(), notifyAuthor: tell } : { status }),
       });
+      if (!r.ok) { setActErr((await r.json().catch(() => ({}))).error ?? 'Couldn’t save'); return; }
+      setConfirming(false);
       onAction(alert.id, status);
     } finally {
       setSaving(false);
@@ -333,8 +389,10 @@ function ScannerCard({ alert, onAction }: { alert: ContentAlert; onAction: (id: 
 
   return (
     <div className={`rounded-xl border ${alert.urgent ? 'border-red-600/60' : 'border-slate-800'} bg-dr-card p-4 space-y-3`}>
-      {alert.urgent && <p className="text-xs font-bold uppercase tracking-wide text-red-400">Urgent: reported as possibly illegal</p>}
+      {alert.urgent && <p className="text-xs font-bold uppercase tracking-wide text-red-400">{alert.content_type === 'image_upload' ? 'Urgent: sexually explicit image blocked at upload' : 'Urgent: reported as possibly illegal'}</p>}
+      {alert.involves_minor && <p className="text-xs font-bold uppercase tracking-wide text-amber-400">Someone under 18 is involved: review first</p>}
       {alert.report_route === 'platform' && <p className="text-xs font-semibold text-violet-300">For the new.vote team only: the Society’s admins and the author can’t see this report</p>}
+      {alert.content_type === 'image_upload' && <QuarantinePanel alert={alert} />}
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-wrap items-center gap-1.5 min-w-0">
           <span className="rounded-full border bg-slate-700/50 text-slate-400 border-slate-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
@@ -401,8 +459,19 @@ function ScannerCard({ alert, onAction }: { alert: ContentAlert; onAction: (id: 
         </button>
 
         {alert.maskable === false ? null : confirming ? (
-          <>
-            <span className="text-xs text-amber-400">Replace content with mask text?</span>
+          <div className="flex w-full flex-col gap-2 rounded-lg border border-amber-700/40 bg-amber-950/10 p-3">
+            <label className="text-xs text-amber-300">Why are you masking it? <span className="text-slate-500">The author sees this, with how to appeal.</span></label>
+            <textarea value={reason} onChange={e => setReason(e.target.value)} rows={2} maxLength={1000}
+              placeholder="e.g. Personal attack on another member (Society principle 2)"
+              className="w-full rounded border border-slate-700 bg-dr-surface px-2 py-1.5 text-xs text-slate-200" />
+            {alert.report_route !== 'platform' && (
+              <label className="flex items-center gap-2 text-xs text-slate-400">
+                <input type="checkbox" checked={tell} onChange={e => setTell(e.target.checked)} className="accent-amber-500" />
+                Tell the author (untick only if telling them could put someone at risk or alert them to a police matter)
+              </label>
+            )}
+            {actErr && <p className="text-xs text-rose-400">{actErr}</p>}
+            <div className="flex items-center gap-2">
             <button
               onClick={() => act('masked')}
               disabled={saving}
@@ -410,10 +479,11 @@ function ScannerCard({ alert, onAction }: { alert: ContentAlert; onAction: (id: 
             >
               {saving ? 'Masking…' : 'Confirm Mask'}
             </button>
-            <button onClick={() => setConfirming(false)} className="text-xs text-slate-600 hover:text-slate-400 transition-colors">
+            <button onClick={() => { setConfirming(false); setActErr(''); }} className="text-xs text-slate-600 hover:text-slate-400 transition-colors">
               Cancel
             </button>
-          </>
+            </div>
+          </div>
         ) : (
           <button
             onClick={() => act('masked')}

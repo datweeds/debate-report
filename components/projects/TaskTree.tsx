@@ -104,15 +104,17 @@ export const isOverdue = (t: Task) => t.status !== 'complete' && !!t.due_date &&
 
 // ── The tree ─────────────────────────────────────────────────────────────────
 
-export default function TaskTree({ base, tasks, groups, me, canManage, onChanged, open, setOpen }: {
+export default function TaskTree({ base, tasks, groups, me, canManage, onChanged, open, setOpen, shownIds }: {
   base: string; tasks: Task[]; groups: TaskGroup[]; me: string | null; canManage: boolean; onChanged: () => void;
   open: string | null; setOpen: (id: string | null) => void;   // the task whose sheet is showing
+  shownIds?: Set<string> | null;   // filtered: only these (null: all)
 }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [creating, setCreating] = useState<{ parentId: string | null; groupId?: string | null } | null>(null);
   const [error, setError] = useState('');
   const [viewing, setViewing] = useState<Task | null>(null);   // a task's document, open in the viewer
-  const secs = sections(tasks, groups);
+  const secs = sections(shownIds ? tasks.filter(t => shownIds.has(t.id)) : tasks, groups)
+    .filter(sec => !shownIds || sec.roots.length > 0);   // filtered: hide groups with nothing to show
   const byId = new Map(tasks.map(t => [t.id, t]));
   const openTask = tasks.find(t => t.id === open) ?? null;
 
@@ -173,6 +175,8 @@ export default function TaskTree({ base, tasks, groups, me, canManage, onChanged
 
       {tasks.length === 0 && groups.length === 0 ? (
         <div className="rounded-2xl border border-slate-800 bg-dr-card p-10 text-center text-sm text-slate-500">No project tasks yet.</div>
+      ) : shownIds && shownIds.size === 0 ? (
+        <div className="rounded-2xl border border-slate-800 bg-dr-card p-10 text-center text-sm text-slate-500">No project tasks match these filters.</div>
       ) : (
         <ul className="divide-y divide-slate-800/60 overflow-hidden rounded-2xl border border-slate-800 bg-dr-card">
           {secs.map(sec => {

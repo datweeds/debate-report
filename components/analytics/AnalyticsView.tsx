@@ -18,7 +18,7 @@ export interface Stats {
   activeSocieties: { areas: { label: string; color: string }[]; contact: boolean; windows: Record<string, ActiveSociety[]> } | null;
   popularDebates: { id: string; stat_title: string; child_count: number; votes: number }[];
   staleDebates: { id: string; stat_title: string; idle_days: number }[];
-  server?: { uptimeSeconds: number; memoryMB: number; backup?: { ok: boolean; at: string; message: string; bytes: number; warnings: string[] } | null; incremental?: { ok: boolean; at: string; message: string; bytes: number; warnings: string[] } | null };
+  server?: { uptimeSeconds: number; memoryMB: number; backup?: { ok: boolean; at: string; message: string; bytes: number; warnings: string[] } | null; incremental?: { ok: boolean; at: string; message: string; bytes: number; warnings: string[] } | null; dependencies?: { ok: boolean; at: string; message: string; bytes: number; warnings: string[] } | null };
 }
 
 function fmtUptime(s: number) {
@@ -159,6 +159,22 @@ function BackupStatus({ b, label = 'Last backup' }: { b: NonNullable<Stats['serv
   );
 }
 
+// The weekly dependency check (scripts/deps-check.mjs): red if it found something or is overdue
+function DepsStatus({ d }: { d: NonNullable<Stats['server']>['dependencies'] | null }) {
+  if (!d) return <div className="col-span-2 sm:col-span-3"><p className="text-slate-500">Dependency check</p><p className="mt-0.5 font-medium text-rose-400">● None recorded</p></div>;
+  const stale = Date.now() - new Date(d.at).getTime() > 8 * 86400e3;
+  return (
+    <div className="col-span-2 sm:col-span-3">
+      <p className="text-slate-500">Dependency check (weekly)</p>
+      <p className={`mt-0.5 font-medium ${d.ok && !stale ? 'text-emerald-400' : 'text-rose-400'}`}>
+        ● {new Date(d.at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })} · {d.message}{stale ? ' · overdue' : ''}
+      </p>
+      {d.warnings.slice(0, 8).map(w => <p key={w} className="text-[11px] text-amber-300/80">{w}</p>)}
+      {d.warnings.length > 8 && <p className="text-[11px] text-amber-300/80">and {d.warnings.length - 8} more</p>}
+    </div>
+  );
+}
+
 // ── The page ─────────────────────────────────────────────────────────────────
 export default function AnalyticsView({ stats }: { stats: Stats }) {
   const [staleDays, setStaleDays] = useState(60);
@@ -280,6 +296,7 @@ export default function AnalyticsView({ stats }: { stats: Stats }) {
             <div><p className="text-slate-500">Memory (RSS)</p><p className="mt-0.5 font-medium text-slate-300">{stats.server.memoryMB} MB</p></div>
             <BackupStatus b={stats.server.backup ?? null} label="Last full backup" />
             {stats.server.incremental !== undefined && <BackupStatus b={stats.server.incremental ?? null} label="Last incremental backup (MB added)" />}
+            {stats.server.dependencies !== undefined && <DepsStatus d={stats.server.dependencies ?? null} />}
           </div>
         </div>
       )}

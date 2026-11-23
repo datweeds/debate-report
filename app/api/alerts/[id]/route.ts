@@ -4,6 +4,8 @@ import { getSession } from '@/lib/auth';
 import { isSocietyAdmin } from '@/lib/roles';
 import { currentText, setText, MASK } from '@/lib/scanner';
 import { maskItem, unmaskItem } from '@/lib/reports';
+import { sealText } from '@/lib/societyCrypto';
+import { pushToUser } from '@/lib/push';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -13,19 +15,25 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
 
   const { id }     = await params;
-  const { status } = await req.json() as { status: string };
+  const { status, reason: rawReason, notifyAuthor } = await req.json() as { status: string; reason?: unknown; notifyAuthor?: unknown };
+  const reason = typeof rawReason === 'string' ? rawReason.trim().slice(0, 1000) : '';
 
   const validStatuses = ['passed', 'masked', 'unmasked'];
   if (!validStatuses.includes(status)) {
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
   }
+  // Every mask needs a reason: it's recorded, and shown to the author with how to appeal
+  if (status === 'masked' && reason.length < 3) {
+    return NextResponse.json({ error: 'Give a reason for masking it: the author will see it' }, { status: 400 });
+  }
+  let tellAuthor: string | null = null;
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
     const { rows: [alert] } = await client.query(
-      `SELECT ca.content_type, COALESCE(ca.content_key, ca.content_id::text) AS content_key, ca.original_content, COALESCE(ca.customer_id, r.customer_id) AS customer_id, ca.report_route, ca.item_kind
+      `SELECT ca.content_type, COALESCE(ca.content_key, ca.content_id::text) AS content_key, ca.original_content, COALESCE(ca.customer_id, r.customer_id) AS customer_id, ca.report_route, ca.item_kind, ca.author_id::text AS author_id
        FROM content_alerts ca
        LEFT JOIN statements r ON r.id = ca.resolution_id
        WHERE ca.id = $1`,
@@ -69,13 +77,29 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       );
     } else {
       await client.query(
-        `UPDATE content_alerts SET status = $2, reviewed_by = $3, reviewed_at = now() WHERE id = $1`,
-        [id, status, session.sub],
+        `UPDATE content_alerts SET status = $2, reviewed_by = $3, reviewed_at = now(),
+                decision_reason = COALESCE($4, decision_reason) WHERE id = $1`,
+        [id, status, session.sub, reason ? await sealText(alert.customer_id, reason) : null],
       );
+    }
+    // Tell the author, unless the reviewer chose not to (e.g. it could alert someone to an
+    // investigation). Never for reports to the new.vote team: the author can't see those.
+    if (status === 'masked' && alert.author_id && alert.author_id !== session.sub
+        && alert.report_route !== 'platform' && notifyAuthor !== false) {
+      await client.query('UPDATE content_alerts SET author_notified_at = now(), author_seen_at = NULL WHERE id = $1', [id]);
+      tellAuthor = alert.author_id;
     }
 
     await client.query('COMMIT');
-    return NextResponse.json({ ok: true });
+    if (tellAuthor) {
+      // No content or reason in the notification itself: it may show on a locked screen
+      void pushToUser(tellAuthor, {
+        title: 'Something you posted was hidden',
+        body: 'A Society Admin hid it for breaking the rules. See why, and appeal if you think it’s wrong.',
+        url: '/dashboard/alerts', tag: `masked-${id}`,
+      }).catch(err => console.error('[alerts] notify author', err));
+    }
+    return NextResponse.json({ ok: true, authorNotified: !!tellAuthor });
 
   } catch (err) {
     await client.query('ROLLBACK');

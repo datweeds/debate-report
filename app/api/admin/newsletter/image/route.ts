@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { screenImageUpload } from '@/lib/imageScan';
 import { writeFile, mkdir } from 'fs/promises';
 import crypto from 'crypto';
 import path from 'path';
@@ -17,7 +18,10 @@ export async function POST(req: NextRequest) {
   if (!ext) return NextResponse.json({ error: 'Image must be JPEG, PNG, WebP or GIF' }, { status: 400 });
   if (file.size > 5 * 1024 * 1024) return NextResponse.json({ error: 'Image must be 5 MB or smaller' }, { status: 400 });
   const name = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}.${ext}`;
+  const bytes = Buffer.from(await file.arrayBuffer());
+  const screen = await screenImageUpload({ bytes, mime: file.type, fileName: file.name, userId: session.sub, societyId: null, where: 'newsletter image' });
+  if (!screen.ok) return NextResponse.json({ error: screen.error }, { status: 422 });
   await mkdir(dir, { recursive: true });
-  await writeFile(path.join(dir, name), Buffer.from(await file.arrayBuffer()));
+  await writeFile(path.join(dir, name), bytes);
   return NextResponse.json({ imagePath: `/uploads/newsletter/${name}` });
 }

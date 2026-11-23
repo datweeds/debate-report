@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
          ca.id, ca.content_type, ca.content_id, ca.resolution_id, ca.content_href,
          soc.name        AS society_name, soc.id AS society_id, soc.visibility AS society_visibility,
          ca.flagged_text, ca.flags, ca.status, ca.created_at, ca.reviewed_at,
-         ca.appeal_body, ca.appeal_at, ca.appeal_status,
+         ca.appeal_body, ca.appeal_at, ca.appeal_status, ca.decision_reason, ca.author_notified_at,
          u.user_handle   AS author_handle,
          u.email         AS author_email,
          rv.user_handle  AS reviewed_by_handle,
@@ -54,7 +54,8 @@ export async function GET(req: NextRequest) {
          owner.user_handle AS owner_handle,
          owner.email       AS owner_email,
          rep.user_handle   AS reporter_handle,
-         ca.report_reason, ca.urgent, ca.report_route, ca.item_kind
+         ca.report_reason, ca.urgent, ca.report_route, ca.item_kind, ca.involves_minor,
+         (qi.id IS NOT NULL) AS quarantined, qi.delete_after AS quarantine_until, qi.nca_reference, qi.views AS quarantine_views
        FROM content_alerts ca
        LEFT JOIN users      u     ON u.id     = ca.author_id
        LEFT JOIN users      rv    ON rv.id    = ca.reviewed_by
@@ -62,9 +63,10 @@ export async function GET(req: NextRequest) {
        LEFT JOIN statements r     ON r.id     = ca.resolution_id
        LEFT JOIN users      owner ON owner.id = r.created_by
        LEFT JOIN users      rep   ON rep.id   = ca.reported_by
+       LEFT JOIN quarantined_images qi ON qi.alert_id = ca.id
        LEFT JOIN customers  soc   ON soc.id   = COALESCE(ca.customer_id, r.customer_id)
        WHERE ${filterClause}
-       ORDER BY ca.urgent DESC, ca.created_at DESC
+       ORDER BY ca.urgent DESC, ca.involves_minor DESC, ca.created_at DESC
        LIMIT $${filterParams.length + 1} OFFSET $${filterParams.length + 2}`,
       [...filterParams, limit, offset],
     ),
@@ -100,9 +102,16 @@ export async function GET(req: NextRequest) {
       al.flagged_text = await openText(sid, al.flagged_text);
       al.appeal_body = await openText(sid, al.appeal_body);
       al.report_reason = await openText(sid, al.report_reason);
+      al.decision_reason = await openText(sid, al.decision_reason);
     }
+    if (hidden) al.decision_reason = null;
   }
   await openDeep(alerts);
   await hideEndToEnd(alerts);  // sealed debates: only members' browsers can open them  // the rest: debate titles in the queue
+  // The author has now seen their hidden content and why
+  if (mine) {
+    await pool.query(`UPDATE content_alerts SET author_seen_at = now()
+                      WHERE author_id = $1 AND author_notified_at IS NOT NULL AND author_seen_at IS NULL`, [session.sub]);
+  }
   return NextResponse.json({ alerts, total, page, limit });
 }

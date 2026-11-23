@@ -1,6 +1,7 @@
 'use client';
 
 import PlanCard from '@/components/PlanCard';
+import YouthGroupCard from '@/components/societies/YouthGroupCard';
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -21,9 +22,9 @@ type SocietyRow = {
 };
 
 type Detail = {
-  society: { id: number; name: string; visibility: Visibility; hero_text: string | null; hero_image: string | null; description: string | null; contact_email: string | null; is_default: boolean; disabled_sections: string[]; subdomain: string | null; allow_sealed: boolean; status: string | null; is_demo: boolean };
-  members: { user_id: string; joined_at: string; user_handle: string | null; user_full_name: string | null; is_moderator: boolean }[];
-  requests: { id: string; user_id: string; message: string | null; created_at: string; user_handle: string | null; user_full_name: string | null }[];
+  society: { id: number; name: string; visibility: Visibility; hero_text: string | null; hero_image: string | null; description: string | null; contact_email: string | null; is_default: boolean; disabled_sections: string[]; subdomain: string | null; allow_sealed: boolean; status: string | null; is_demo: boolean; youth_group: boolean };
+  members: { user_id: string; joined_at: string; user_handle: string | null; user_full_name: string | null; is_moderator: boolean; under18?: boolean | null }[];
+  requests: { id: string; user_id: string; message: string | null; created_at: string; user_handle: string | null; user_full_name: string | null; under18?: boolean | null }[];
   invites: { id: string; label: string | null; created_at: string; expires_at: string | null; revoked_at: string | null; use_count: number; last_used_at: string | null }[];
   me: string;
   owner: string | null;
@@ -156,6 +157,12 @@ function VisibilityPicker({ value, onChange }: { value: Visibility; onChange: (v
 }
 
 function CreateSociety({ onCreated }: { onCreated: (id: number) => void }) {
+  // First Society: agree to the Society Admin procedure
+  const [mustAgree, setMustAgree] = useState(false);
+  const [agree, setAgree] = useState(false);
+  useEffect(() => {
+    fetch('/api/manage/societies').then(r => r.ok ? r.json() : null).then(d => setMustAgree(!!d && !d.procedureAgreed)).catch(() => {});
+  }, []);
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [slugEdited, setSlugEdited] = useState(false);
@@ -180,11 +187,11 @@ function CreateSociety({ onCreated }: { onCreated: (id: number) => void }) {
     setSaving(true); setError('');
     const r = await fetch('/api/manage/societies', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, slug, visibility, hero_text: heroText, description }),
+      body: JSON.stringify({ name, slug, visibility, hero_text: heroText, description, agreeProcedure: agree }),
     });
     const d = await r.json();
     setSaving(false);
-    if (!r.ok) { setError(d.error ?? 'Could not create the Society'); return; }
+    if (!r.ok) { if (d.needsAgreement) setMustAgree(true); setError(d.error ?? 'Could not create the Society'); return; }
     onCreated(d.id);
   }
 
@@ -211,8 +218,19 @@ function CreateSociety({ onCreated }: { onCreated: (id: number) => void }) {
             <textarea value={description} onChange={e => setDescription(e.target.value)} rows={5} className={inputCls} />
           </div>
           <p className="text-xs text-slate-500">You&apos;ll be its Society Admin. You can add an image once it&apos;s created.</p>
+          {mustAgree && (
+            <label className="flex items-start gap-2.5 rounded-xl border border-slate-800 p-3 text-xs text-slate-300">
+              <input type="checkbox" checked={agree} onChange={e => setAgree(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-blue-600" />
+              <span>
+                I agree to follow the{' '}
+                <a href="/guides/society-admin-procedure" target="_blank" rel="noopener" className="text-blue-400 hover:underline">Society Admin procedure</a>:
+                checking reports within 7 days, passing anything possibly illegal to the new.vote team, and looking after members&apos; data
+                and young members.
+              </span>
+            </label>
+          )}
           {error && <p className="text-xs text-rose-400">{error}</p>}
-          <button type="submit" disabled={saving || name.trim().length < 3 || !slugOk}
+          <button type="submit" disabled={saving || name.trim().length < 3 || !slugOk || (mustAgree && !agree)}
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50">
             {saving ? 'Creating…' : 'Create Society'}
           </button>
@@ -358,6 +376,7 @@ function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void })
       <SocietyAiCard societyId={s.id} />
 
       <AccessLogCard key={`privacy-${s.id}`} societyId={s.id} visibility={s.visibility} allowSealed={!!s.allow_sealed} />
+      <YouthGroupCard key={`youth-${s.id}`} societyId={s.id} initial={!!s.youth_group} />
 
       {(s.visibility === 'apply' || data.requests.length > 0) && (
         <Card title={`Requests to join (${data.requests.length})`}>
@@ -368,7 +387,7 @@ function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void })
               {data.requests.map(r => (
                 <li key={r.id} className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-800/60 pb-3 last:border-0 last:pb-0">
                   <div className="min-w-0">
-                    <p className="text-sm text-slate-200">{r.user_full_name || `@${r.user_handle ?? 'unknown'}`} <span className="text-xs text-slate-500">· {fmt(r.created_at)}</span></p>
+                    <p className="text-sm text-slate-200">{r.user_full_name || `@${r.user_handle ?? 'unknown'}`} {r.under18 && <span className="rounded border border-amber-500/40 bg-amber-500/10 px-1.5 text-[10px] font-semibold text-amber-300">Under 18</span>} <span className="text-xs text-slate-500">· {fmt(r.created_at)}</span></p>
                     {r.message && <p className="text-xs text-slate-400 mt-1 whitespace-pre-line">{r.message}</p>}
                   </div>
                   <div className="flex gap-2">
@@ -432,6 +451,7 @@ function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void })
             <li key={m.user_id} className="flex flex-wrap items-center gap-2 py-2">
               <span className="text-sm text-slate-200">{m.user_full_name || `@${m.user_handle ?? 'unknown'}`}</span>
               {m.is_moderator && <span className="rounded border border-blue-500/40 bg-blue-500/10 px-1.5 text-[10px] font-semibold text-blue-300">Society Admin</span>}
+              {m.under18 && <span className="rounded border border-amber-500/40 bg-amber-500/10 px-1.5 text-[10px] font-semibold text-amber-300">Under 18</span>}
               {m.user_id === data.owner && <span className="rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 text-[10px] font-semibold text-emerald-300">Owner: uses their plan</span>}
               {m.user_id === data.me && <span className="text-[10px] text-slate-500">(you)</span>}
               <span className="text-[11px] text-slate-600">joined {fmt(m.joined_at)}</span>

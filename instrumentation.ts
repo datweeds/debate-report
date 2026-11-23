@@ -32,4 +32,7 @@ export async function register() {
   // Plan limits: warnings at 80% / 100%, and holding Societies past an owner's 3 free ones (hourly)
   const { planLimitsPass } = await import('./lib/holds');
   setInterval(() => void planLimitsPass().catch(err => console.error('[plans] hourly', err)), 4 * QUARTER_HOUR).unref();
+  // Quarantined images past their time (30 days, or a year after an NCA report)
+  const { purgeQuarantine } = await import('./lib/quarantine');
+  setInterval(() => void purgeQuarantine().catch(err => console.error('[quarantine] purge', err)), 4 * QUARTER_HOUR).unref();
 }
