@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isAgeBand } from '@/lib/ageBands';
+import { isAgeBand, UNDER_16 } from '@/lib/ageBands';
 import { generateRegistrationOptions } from '@simplewebauthn/server';
 import pool from '@/lib/db';
 import { signChallengeToken, challengeCookie } from '@/lib/auth';
@@ -10,7 +10,15 @@ const RP_ID   = process.env.WEBAUTHN_RP_ID   || 'new.vote';
 export async function POST(req: NextRequest) {
   const { userHandle, email, tier, plan, displayName, bio, inviteToken, agreed, ageBand } = await req.json();
 
-  // Everyone gives an age group (13 or over) and agrees to the Terms (Online Safety Act, UK GDPR)
+  // A neutral age gate (Online Safety Act): under 16 can't join, and can't simply
+  // try again straight away with another answer (a day's block in this browser)
+  const GATE = 'nv_age_gate';
+  if (ageBand === UNDER_16 || req.cookies.get(GATE)) {
+    const res = NextResponse.json({ error: 'Sorry, you can’t create an account on new.vote.', gate: true }, { status: 403 });
+    res.cookies.set({ name: GATE, value: '1', maxAge: 24 * 3600, httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/' });
+    return res;
+  }
+  // Everyone gives an age group and agrees to the Terms (Online Safety Act, UK GDPR)
   if (!isAgeBand(ageBand)) {
     return NextResponse.json({ error: 'Please tell us your age group' }, { status: 400 });
   }

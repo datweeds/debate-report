@@ -31,7 +31,7 @@ export default function TermsPage() {
             <span className="text-slate-300">Terms &amp; Conditions</span>
           </div>
           <h1 className="text-4xl font-bold text-slate-100">Terms &amp; Conditions</h1>
-          <p className="mt-2 text-slate-500 text-sm">Last updated: 23 November 2026</p>
+          <p className="mt-2 text-slate-500 text-sm">Last updated: 24 November 2026</p>
         </div>
 
         <div className="space-y-6">
@@ -56,9 +56,10 @@ export default function TermsPage() {
 
           <Section title="2. Who can use new.vote">
             <ul className="list-disc pl-5 space-y-1">
-              <li>You must be <span className={B}>13 or over</span> to use new.vote, and you tell us your age group (13 to 15,
-                16 or 17, or 18 or over) when you join. Please be honest: it decides the protections you get. You can move up an
-                age group later, but not down. If we learn that an account belongs to someone under 13, we will delete it.</li>
+              <li>You must be <span className={B}>16 or over</span> to use new.vote, and you tell us your age group (16 or 17,
+                or 18 or over) when you join. Please be honest: it decides the protections you get. You can correct your age group
+                later; changes are recorded, and we may ask you to confirm your age. Some features may need an age check before
+                you can use them. If we learn that an account belongs to someone under 16, we will put it on hold and close it.</li>
               <li>If you are under 18, please make sure a parent or carer knows you use new.vote. Some protections for
                 younger users are described in <a href="#safety" className={A}>section 6</a>, and{' '}
                 <Link href="/young-people" className={A}>new.vote for young people</Link> explains these terms in plain words.</li>
@@ -112,7 +113,7 @@ export default function TermsPage() {
               <li>harass, threaten or abuse other people, including Society Admins;</li>
               <li>post pornography or other sexually explicit material, or content that encourages, promotes or gives
                 instructions for suicide, self-harm or eating disorders, even where it would be legal (people as young as
-                13 use new.vote);</li>
+                16 use new.vote);</li>
               <li>post content that is defamatory, or that infringes someone else&apos;s copyright or other rights;</li>
               <li>share someone else&apos;s private information without their permission;</li>
               <li>manipulate votes, polls or engagement, for example by using extra accounts;</li>
@@ -157,8 +158,7 @@ export default function TermsPage() {
               <span className={B}>Younger users.</span> We don&apos;t show adverts, track you across other sites or
               collect your location; an email address is optional; and you join a Society only by invitation or with a
               Society Admin&apos;s approval. If you are under 18, Society Admins see that you are, you aren&apos;t named on
-              a Society&apos;s public pages, and reports involving you are reviewed first. If you are 13 to 15, you can
-              join video calls only in Societies run as youth groups. If something on new.vote worries you, report it,
+              a Society&apos;s public pages, and reports involving you are reviewed first. If something on new.vote worries you, report it,
               and tell an adult you trust.
             </p>
             <p>If someone is in immediate danger, call 999.</p>
@@ -201,7 +201,7 @@ export default function TermsPage() {
           <Section title="9. Plans and payment">
             <p>
               <span className={B}>Plans belong to a person.</span> Joining, voting and debating are free. Running
-              Societies is free on the Huddle plan, up to its limits; the Team and Network plans run more Societies, with
+              Societies is free on the Pod plan, up to its limits; the Team and Network plans run more Societies, with
               more storage, AI and features, shared across every Society you own. Plans, limits and prices are on the{' '}
               <Link href="/pricing" className={A}>Pricing page</Link>.
             </p>
@@ -211,7 +211,7 @@ export default function TermsPage() {
               that changes, or if prices change, we will tell you at least 30 days before your next payment.
             </p>
             <p>
-              <span className={B}>Changing or ending a plan.</span> You can switch plans, or downgrade to Huddle, at any
+              <span className={B}>Changing or ending a plan.</span> You can switch plans, or downgrade to Pod, at any
               time on the <Link href="/dashboard/billing" className={A}>Plans &amp; billing</Link> page. A switch takes
               effect straight away, and the difference is charged or credited for the rest of the period. A downgrade
               takes effect at the end of the period you have paid for; we don&apos;t refund part-periods, except as
@@ -224,7 +224,7 @@ export default function TermsPage() {
             <p>
               <span className={B}>Limits.</span> We warn you when you are close to a limit. If you go over your storage,
               you have 14 days to make room or change plan. If a paid plan ends, it continues for 30 days&apos; grace; after
-              that you are on Huddle, three of your Societies stay active, and the others are held read-only until you
+              that you are on Pod, three of your Societies stay active, and the others are held read-only until you
               choose a plan again or swap which ones are active. Nothing is deleted because a plan ends.
             </p>
             <p>

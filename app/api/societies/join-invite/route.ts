@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSessionFromRequest } from '@/lib/auth';
 import { addMember, lookupInvite } from '@/lib/societies';
+import { areaJoinProblem } from '@/lib/ageCheck';
 
 // POST { token } — accept a Society invite link: the logged-in user becomes a member.
 export async function POST(req: NextRequest) {
@@ -10,6 +11,10 @@ export async function POST(req: NextRequest) {
   const { token } = await req.json().catch(() => ({}));
   const invite = typeof token === 'string' ? await lookupInvite(token) : null;
   if (!invite) return NextResponse.json({ error: 'This invitation is no longer valid' }, { status: 404 });
+  const areaProblem = await areaJoinProblem(session.sub, invite.customer_id);
+  if (areaProblem) return NextResponse.json(areaProblem === 'CHECK'
+    ? { error: 'This is a local Society: please confirm your age first.', ageCheck: true }
+    : { error: areaProblem }, { status: 403 });
 
   await addMember(invite.customer_id, session.sub);
   await pool.query(

@@ -22,6 +22,7 @@ const NEVER = new Set([
   'society_keys', 'sealed_item_keys', 'user_sealed_keys', 'user_sealed_passkeys', 'passkeys', 'sso_tokens',
   'push_subscriptions', 'push_prefs', 'access_keys', 'access_key_debates', 'master_key_state', 'master_key_log',
   'sysadmin_access', 'society_section_seen', 'discussion_thread_seen', 'users', 'billing_events', 'report_limits', 'site_settings', 'plan_grants', 'society_limit_alerts', 'society_storage_over',
+  'age_concerns', 'age_check_sessions',   // concerns name who raised them; sessions hold one-time keys
 ]);
 // Members' personal tools: private to each member, so not in a Society export
 const PERSONAL = new Set(['task_categories', 'task_category_links']);

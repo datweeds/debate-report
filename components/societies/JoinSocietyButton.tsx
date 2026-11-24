@@ -27,7 +27,9 @@ export default function JoinSocietyButton({ societyId, loggedIn, pending, instan
       <button disabled={state === 'sending'} onClick={async () => {
         setState('sending');
         const r = await fetch(`/api/societies/${societyId}/join`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-        if (r.ok) window.location.reload(); else setState('error');
+        if (r.ok) window.location.reload();
+        else if ((await r.clone().json().catch(() => ({}))).ageCheck) window.location.href = '/age-check';
+        else setState('error');
       }} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50">
         {state === 'sending' ? 'Joining…' : state === 'error' ? 'Could not join; try again' : 'Join this Society'}
       </button>

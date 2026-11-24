@@ -142,14 +142,14 @@ export default function TaskList({ societyId }: { societyId: number }) {
         due: t.due_date, updated: t.updated_at ?? t.created_at, categories: t.categories,
         text: `${t.name} ${plain(t.description)} ${plain(t.notes)} ${t.owner ?? ''}`.toLowerCase(),
         mine: t.mine, assignedToMe: false, projectId: null,
-        note: t.mine ? (t.shared_all ? 'Shared with everyone' : t.shares?.length ? `Shared with ${t.shares.map(s => '@' + s.handle).join(', ')}` : '') : 'Shared with you',
+        note: t.mine ? (t.shared_all ? 'Shared with everyone' : t.shares?.length ? `Shared with ${t.shares.map(s => '@' + s.handle).join(', ')}` : '') : data.readOnly ? 'Shared with everyone' : 'Shared with you',
         owner: t.mine ? 'You' : `@${t.owner ?? 'unknown'}`, shared: t.mine && (t.shared_all || !!t.shares?.length),
         q: t,
       })),
       ...projectTasks.map((p): Row => ({
         key: `p:${p.id}`, kind: 'project', id: p.id, ref: p.project, title: p.name, locked: !!p.locked,
         status: p.status, priority: null, prioRank: 999, due: p.due_date, updated: p.updated_at ?? p.created_at, categories: p.categories,
-        text: `${p.name} ${p.description ?? ''} ${p.comments ?? ''} ${p.project}`.toLowerCase(),
+        text: `${p.name} ${plain(p.description)} ${p.comments ?? ''} ${p.project}`.toLowerCase(),
         mine: false, assignedToMe: p.assigned_to_me, projectId: p.project_id,
         note: '',
         owner: p.assignees.length ? p.assignees.map(a => a.id === data.me ? 'You' : '@' + a.handle).join(', ') : 'Unassigned', shared: false,
@@ -159,7 +159,7 @@ export default function TaskList({ societyId }: { societyId: number }) {
   }, [data, projectTasks]);
 
   const shown = useMemo(() => {
-    const f = filters;
+    const f = data?.readOnly ? { ...filters, show: 'all' as Show } : filters;   // demo visitors have nothing of their own
     const words = f.q.toLowerCase().split(/\s+/).filter(Boolean);
     const today = new Date(); const tk = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     const list = rows.filter(r => {
@@ -193,7 +193,7 @@ export default function TaskList({ societyId }: { societyId: number }) {
       return a.ref.localeCompare(b.ref, 'en', { numeric: true });
     };
     return list.sort(cmp);
-  }, [rows, filters, sort]);
+  }, [rows, filters, sort, data?.readOnly]);
 
   // ?task=<id>: open it (from the Calendar, a reference or the abuse queue)
   const taskParam = params.get('task');
@@ -254,13 +254,13 @@ export default function TaskList({ societyId }: { societyId: number }) {
   return (
     <div className="space-y-4">
       {editing && (
-        <TaskEditor society={societyId} me={data.me} task={editing === 'new' ? null : editing} priorities={data.priorities} categories={data.categories}
+        <TaskEditor society={societyId} me={data.me ?? ''} task={editing === 'new' ? null : editing} priorities={data.priorities} categories={data.categories}
           canConvert={data.projectsOn}
           onSaved={() => { setEditing(null); closeParam(); void load(); }} onClose={() => { setEditing(null); closeParam(); }}
           onConvert={t => { setEditing(null); setConverting(t); }} />
       )}
       {preview && (
-        <TaskPreview society={societyId} item={preview} priorities={data.priorities} categories={data.categories}
+        <TaskPreview society={societyId} item={preview} priorities={data.priorities} categories={data.categories} readOnly={data.readOnly}
           onClose={() => { setPreview(null); closeParam(); }} onChanged={() => void load()} />
       )}
       {converting && (
@@ -281,18 +281,26 @@ export default function TaskList({ societyId }: { societyId: number }) {
       <div className="flex flex-wrap items-center gap-2">
         <div className="min-w-0 flex-1 basis-64">
           <h2 className="text-lg font-semibold text-slate-100">Tasks</h2>
-          <p className="text-sm text-slate-400">A personal space to manage your own tasks. Private to you only by default, with an option to share or convert to a shared project task.</p>
+          {data.readOnly ? (
+            <p className="text-sm text-slate-400">A personal space for each member to manage their own tasks, private to them by default, with an option to share
+              them or convert one into a shared project task. Here you can look at the tasks shared with everyone and the project tasks.
+              Join a Society to keep your own.</p>
+          ) : (
+            <p className="text-sm text-slate-400">A personal space to manage your own tasks. Private to you only by default, with an option to share or convert to a shared project task.</p>
+          )}
         </div>
-        <button onClick={() => setManaging('categories')} className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-slate-500">Categories</button>
-        {data.canManagePriorities && <button onClick={() => setManaging('priorities')} className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-slate-500">Priorities</button>}
-        <button onClick={() => setEditing('new')} className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-500">+ New task</button>
+        {!data.readOnly && <>
+          <button onClick={() => setManaging('categories')} className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-slate-500">Categories</button>
+          {data.canManagePriorities && <button onClick={() => setManaging('priorities')} className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:border-slate-500">Priorities</button>}
+          <button onClick={() => setEditing('new')} className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-500">+ New task</button>
+        </>}
       </div>
 
-      <form onSubmit={addQuick} className="flex gap-2">
+      {!data.readOnly && <form onSubmit={addQuick} className="flex gap-2">
         <input value={quick} onChange={e => setQuick(e.target.value)} maxLength={300} placeholder="Add a task: type it and press Enter"
           aria-label="Quick add a task" className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:border-blue-500 focus:outline-none" />
         <button type="submit" disabled={!quick.trim() || adding} className="rounded-lg border border-slate-600 px-3 text-sm text-slate-200 hover:border-blue-500/60 disabled:opacity-40">Add</button>
-      </form>
+      </form>}
 
       {notice && (
         <p className="flex items-center gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-300">
@@ -305,10 +313,12 @@ export default function TaskList({ societyId }: { societyId: number }) {
       {/* Filters */}
       <div className="space-y-2 rounded-xl border border-slate-800 bg-dr-card p-3">
         <div className="flex flex-wrap items-center gap-2">
-          <select value={filters.show} onChange={e => update({ show: e.target.value as Show })} aria-label="Show" className={smallInput}>
-            {SHOW.map(s => <option key={s.v} value={s.v}>{s.label}</option>)}
-          </select>
-          <MultiPick label="Category" options={data.categories} value={filters.categories} onChange={v => update({ categories: v })} />
+          {!data.readOnly && <>
+            <select value={filters.show} onChange={e => update({ show: e.target.value as Show })} aria-label="Show" className={smallInput}>
+              {SHOW.map(s => <option key={s.v} value={s.v}>{s.label}</option>)}
+            </select>
+            <MultiPick label="Category" options={data.categories} value={filters.categories} onChange={v => update({ categories: v })} />
+          </>}
           <MultiPick label="Priority" options={data.priorities} value={filters.priorities} onChange={v => update({ priorities: v })} />
           {showsProjects && projects.length > 0 && (
             <select value={filters.project} onChange={e => update({ project: e.target.value })} aria-label="Project" className={smallInput}>
@@ -337,7 +347,7 @@ export default function TaskList({ societyId }: { societyId: number }) {
 
       {!shown.length ? (
         <p className="rounded-2xl border border-slate-800 bg-dr-card p-8 text-center text-sm text-slate-500">
-          {rows.length ? 'No tasks match these filters.' : 'No tasks yet. Add one above: only you see it unless you share it.'}
+          {rows.length ? 'No tasks match these filters.' : data.readOnly ? 'No tasks have been shared here yet.' : 'No tasks yet. Add one above: only you see it unless you share it.'}
         </p>
       ) : (
         <>
@@ -359,7 +369,7 @@ export default function TaskList({ societyId }: { societyId: number }) {
               </thead>
               <tbody>
                 {shown.map(r => {
-                  const desc = r.q ? plain(r.q.description) : r.p?.description ?? '';
+                  const desc = r.q ? plain(r.q.description) : plain(r.p?.description ?? null);
                   return (
                     <tr key={r.key} onClick={() => open(r)} className="cursor-pointer border-b border-slate-800/60 last:border-0 hover:bg-slate-800/30">
                       <td className="truncate px-2 py-2 font-mono text-xs text-slate-500" title={r.kind === 'project' ? r.ref : undefined}>{r.kind === 'task' ? r.ref : r.ref}</td>

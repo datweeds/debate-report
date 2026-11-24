@@ -32,7 +32,7 @@ export default async function PrivacyPage() {
             <span className="text-slate-300">Privacy Policy</span>
           </div>
           <h1 className="text-4xl font-bold text-slate-100">Privacy Policy</h1>
-          <p className="mt-2 text-slate-500 text-sm">Last updated: 23 November 2026</p>
+          <p className="mt-2 text-slate-500 text-sm">Last updated: 24 November 2026</p>
         </div>
 
         <div className="space-y-6">
@@ -123,7 +123,7 @@ export default async function PrivacyPage() {
               <li>
                 <span className="font-semibold text-slate-200">Account data:</span> Your username (handle), email
                 address (if provided), account tier, the Societies you belong to and your role in each, your age
-                group (13 to 15, 16 or 17, or 18 or over: never your date of birth), and your agreement to our Terms.
+                group (16 or 17, or 18 or over: never your date of birth), any changes you make to it, and your agreement to our Terms.
                 Your age group is used only for safety: the Society Admins of Societies you belong to, or ask to join,
                 see whether you are under 18, but not your age group.
               </li>
@@ -375,19 +375,33 @@ export default async function PrivacyPage() {
 
           <Section title="11. Children">
             <p>
-              If you are 13 to 17, <Link href="/young-people" className="text-blue-400 hover:underline">new.vote for young
-              people</Link> explains this policy in plain words. You must be 13 or over to use new.vote, and you tell us your
+              If you are 16 or 17, <Link href="/young-people" className="text-blue-400 hover:underline">new.vote for young
+              people</Link> explains this policy in plain words. You must be 16 or over to use new.vote, and you tell us your
               age group when you register. If you believe
-              a child under 13 has an account, contact us and we will delete it.
+              a child under 16 has an account, contact us and we will close it.
             </p>
             <p>
               If you are under 18, we use your age group to protect you: Society Admins see an &quot;Under 18&quot;
               marker (not your exact age group), you aren&apos;t named on a Society&apos;s public pages, reports
-              involving you are reviewed first, and if you are 13 to 15 you can join video calls only in Societies run
-              as youth groups.
+              involving you are reviewed first.
             </p>
             <p>
-              Teenagers may use new.vote, so we design it to be safe for them by default, following the ICO&apos;s
+              <span className="font-semibold text-slate-200">Age checks.</span> Some features, such as joining a local
+              Society, need your age confirmed. You can prove it with a digital wallet, sharing only yes/no answers such as
+              &quot;over 18&quot;, which we check on our own server; or with a face check that runs on your own device, so
+              your face never leaves it and the provider sends us only a signed result. We keep only your age group, how it
+              was checked, and the date: never a selfie, an ID document or the wallet&apos;s answer.
+            </p>
+            <p>
+              <span className="font-semibold text-slate-200">Checking ages.</span> To keep under-16s off new.vote and
+              protect 16 and 17-year-olds, we run fixed, published rules over what members write (not sealed content, which
+              we can&apos;t read): for example, someone saying they are 14, or mentioning a school year. We also count changes
+              to your age group. These only decide whether we look more closely or ask you to confirm your age; they never
+              decide anything on their own, except that someone saying they are under 16 has their account put on hold
+              while our team looks at it. We keep only which rule matched and when, never the words.
+            </p>
+            <p>
+              16 and 17-year-olds may use new.vote, so we design it to be safe for them by default, following the ICO&apos;s
               Children&apos;s Code: we show no adverts, don&apos;t track you across other sites, don&apos;t profile you for
               marketing, don&apos;t collect your location, and don&apos;t require your real name or an email address. You
               choose which Societies to join. What you post in a public Society can be seen by anyone (though we ask AI companies not to

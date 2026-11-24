@@ -9,8 +9,8 @@ const GUIDES = [
   { href: '/guides/member', title: 'Member guide', text: 'Joining a Society, debating, voting in polls, discussions and calls, and working together.', members: true },
   { href: '/guides/admin', title: 'Admin guide', text: 'For Society Admins: what new.vote is for, configuring a Society, its tools, and your responsibilities.', members: true },
   { href: '/guides/society-admin-procedure', title: 'Society Admin procedure', text: 'What every Society Admin agrees to check and do, each week, month and year, to keep members safe.', members: false },
-  { href: '/guides/youth-groups', title: 'Running a youth group', text: 'For adults running a Society for young people: supervision, calls, privacy and what to do if something worries you.', members: false },
-  { href: '/young-people', title: 'For young people', text: 'Our rules and how we look after your information, in plain words, for members aged 13 to 17.', members: false },
+  { href: '/guides/age-check', title: 'Proving your age', text: 'Why we sometimes ask, the ways you can (a digital wallet or a face check on your device), and your privacy.', members: false },
+  { href: '/young-people', title: 'For young people', text: 'Our rules and how we look after your information, in plain words, for members aged 16 and 17.', members: false },
 ];
 
 // Logged-out visitors see only the Guest guide

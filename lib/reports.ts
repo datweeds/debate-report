@@ -23,6 +23,7 @@ export const REPORT_REASONS: Record<string, string> = {
   personal_data: 'Shares someone’s personal data',
   inappropriate: 'Inappropriate or offensive',
   spam: 'Spam or a scam',
+  underage: 'May be under 16',
   other: 'Something else',
 };
 
@@ -246,6 +247,21 @@ export async function submitReport(input: ReportInput, session: SessionPayload |
       : `You can make up to ${ANON_PER_DAY} reports a day without an account. Please try again tomorrow, or sign in.`, 429);
   }
 
+  // "May be under 16": an age concern about the author, for the new.vote team (the Society's Admins see it was raised, and the outcome)
+  if (input.reason === 'underage') {
+    if (!row.author) throw new ReportError('Choose another reason: this has no single author', 400);
+    const { raiseAgeConcern } = await import('./ageSignals');
+    const { rows: [adm] } = session && row.sid != null
+      ? await pool.query(`SELECT 1 FROM customer_roles WHERE tenant_id = $1 AND user_id = $2 AND role = 'customer_admin'`, [row.sid, session.sub])
+      : { rows: [] };
+    await raiseAgeConcern({ userId: row.author as string, societyId: row.sid, raisedBy: session?.sub ?? null,
+      raisedAs: adm ? 'society_admin' : session ? 'member' : 'visitor',
+      note: typeof input.note === 'string' && input.note.trim() ? input.note.trim().slice(0, 1000) : null, itemKind: kind.label.toLowerCase() });
+    void sendContactNotification({ name: 'new.vote', email: 'contact@new.vote', subject: 'Age concern raised (may be under 16)',
+      message: `An age concern was raised about the author of a ${kind.label.toLowerCase()}.\n\nReview it in the alert queue: ${PRODUCT_URL}/dashboard/scanner`,
+      context: 'new.vote moderation notices' }).catch(() => {});
+    return { route: 'platform' };
+  }
   const urgent = input.reason === 'illegal';
   // The author or the reporter is under 18: reviewed first
   const minor = isUnder18(await ageBandOf(row.author as string | null)) || isUnder18(await ageBandOf(session?.sub));

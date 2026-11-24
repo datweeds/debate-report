@@ -43,7 +43,7 @@ export default function PlanCard({ societyId }: { societyId: number }) {
       )}
       {p.source === 'grace' && p.until && (
         <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-          The paid plan has ended: it stays on {p.name} until {new Date(p.until).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}, then moves to Huddle.
+          The paid plan has ended: it stays on {p.name} until {new Date(p.until).toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}, then moves to Pod.
         </p>
       )}
       {p.warnings.map(w => (

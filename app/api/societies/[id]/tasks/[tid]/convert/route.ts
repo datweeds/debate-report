@@ -43,7 +43,7 @@ async function handlePOST(req: NextRequest, { params }: Params) {
        VALUES ($1, NULL, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM project_tasks WHERE project_id = $1 AND parent_id IS NULL),
                $2, $3, $4, $5, $6, $7, $8)
        RETURNING id`,
-      [c.project.id, await sealText(a.societyId, t.name.slice(0, 200)), await sealText(a.societyId, plainText(t.description)?.slice(0, 5000) ?? null),
+      [c.project.id, await sealText(a.societyId, t.name.slice(0, 200)), await sealText(a.societyId, t.description ?? null),
        t.due_date, t.status, await sealText(a.societyId, plainText(t.notes)?.slice(0, 5000) ?? null), a.me, group?.id ?? null]));
     await client.query('INSERT INTO project_task_assignees (task_id, user_id, assigned_by) VALUES ($1, $2, $2) ON CONFLICT DO NOTHING', [ptid, a.me]);
     await client.query('UPDATE task_category_links SET project_task_id = $1, task_id = NULL WHERE task_id = $2', [ptid, tid]);

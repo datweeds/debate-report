@@ -29,7 +29,8 @@ export type ProjectTask = {
 };
 export type ConvertTarget = { id: string; name: string; groups: { id: string; name: string }[] };
 export type TasksData = {
-  me: string; priorities: Swatch[]; categories: Swatch[]; canManagePriorities: boolean;
+  me: string | null; priorities: Swatch[]; categories: Swatch[]; canManagePriorities: boolean;
+  readOnly?: boolean;   // the demo Society, for someone who isn't a member: look only
   tasks: QuickTask[]; projectTasks: ProjectTask[]; convertTargets: ConvertTarget[]; projectsOn: boolean;
   priorityCounts?: Record<string, { n: number; open: number }>;
 };

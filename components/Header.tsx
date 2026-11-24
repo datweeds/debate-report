@@ -10,6 +10,11 @@ import { NvLogo } from './NvLogo';
 import { sectionsFor, societySectionHref, isSectionActive, societyRef } from './societies/SocietyTabs';
 import { siteTitle } from '@/lib/sitePages';
 import { groupPaths } from './dashboard/GroupTabs';
+import SocietyBrowser from './societies/SocietyBrowser';
+import { KeyIcon, LockIcon } from './societies/SocietyIcons';
+import AreaFilterControl from './areas/AreaFilterControl';
+import { matchIds, useAreaIndex, useMyArea, type AreaFilter } from './areas/myArea';
+import { TOPIC_OPTIONS, topicLabel, useSocietySearch, useTopicCounts, type Kind } from './societies/societyFind';
 
 export const TOPICS = [
   { label: 'Culture, Identity & Social Issues', slug: 'culture' },
@@ -26,7 +31,7 @@ export const TOPICS = [
   { label: 'Science & Technology',              slug: 'science' },
 ];
 
-type SocietyOption = { id: number; name: string; slug?: string | null; visibility?: string; isMember?: boolean; disabled?: string[] };
+type SocietyOption = { id: number; name: string; slug?: string | null; visibility?: string; isMember?: boolean; isOwner?: boolean; disabled?: string[] };
 type SocietyList = { current: SocietyOption | null; public: SocietyOption[]; private: SocietyOption[] };
 
 function NavLabel({ children }: { children: React.ReactNode }) {
@@ -161,9 +166,13 @@ function SocietyNavItem({ society, isCurrent, defaultOpen, switching, onEnter, o
           className={`flex flex-1 min-w-0 items-center gap-3 px-3 py-1.5 text-sm text-left ${isCurrent ? 'text-blue-300 font-medium' : 'text-slate-300 hover:text-blue-300'}`}
         >
           <span className={`flex-shrink-0 ${isCurrent ? 'text-blue-400' : 'text-slate-500'}`}>{icon}</span>
-          <span className="flex-1 truncate">{society.name}</span>
+          <span className="min-w-0 flex-1 truncate" title={society.name}>{society.name}</span>
+          {society.visibility && society.visibility !== 'public' && (
+            <span className="flex-shrink-0 text-sky-300" title="Private Society" role="img" aria-label="Private"><LockIcon /></span>
+          )}
+          {society.isOwner && <span className="flex-shrink-0 text-sky-300" title="You own this Society" role="img" aria-label="You own it"><KeyIcon /></span>}
           {!canEnter && <span className="rounded border border-slate-600 px-1 text-[10px] text-slate-400">Apply</span>}
-          {total > 0 && !open && <span className="rounded-full bg-blue-500/20 px-1.5 py-0.5 text-[10px] font-bold leading-none text-blue-300">{total > 99 ? '99+' : total}</span>}
+          {total > 0 && !open && <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold leading-none text-amber-300">{total > 99 ? '99+' : total}</span>}
           {switching && <span className="text-slate-600">…</span>}
         </button>
         {canEnter && (
@@ -186,7 +195,7 @@ function SocietyNavItem({ society, isCurrent, defaultOpen, switching, onEnter, o
               <Link key={sec.label} href={href} onClick={onNavigate}
                 className={`flex items-center justify-between rounded px-2 py-1 text-xs transition-colors ${active ? 'bg-blue-500/15 text-blue-300' : 'text-slate-400 hover:bg-blue-500/10 hover:text-blue-300'}`}>
                 {sec.label}
-                {n > 0 && !active && <span className="rounded-full bg-blue-500/20 px-1.5 text-[10px] font-bold text-blue-300">{n > 99 ? '99+' : n}</span>}
+                {n > 0 && !active && <span className="rounded-full bg-amber-500/20 px-1.5 text-[10px] font-bold text-amber-300">{n > 99 ? '99+' : n}</span>}
               </Link>
             );
           })}
@@ -235,13 +244,22 @@ export default function Header() {
   const pathname = usePathname();
   const pageTitle = siteTitle(pathname);
   const [menuOpen,      setMenuOpen]      = useState(false);
-  const [topicsOpen,    setTopicsOpen]    = useState(false);
   const [modCounts,     setModCounts]     = useState({ myPending: 0, joinsPending: 0, ownPending: 0, invitesAnswered: 0, contentNews: 0 });
   const [moderates,     setModerates]     = useState(0);   // Societies this user moderates
   const [unread,        setUnread]        = useState<Record<string, Record<string, number>>>({});
   const [viewedSociety, setViewedSociety] = useState<number | null>(null);
   const [societies,     setSocieties]     = useState<SocietyList | null>(null);
   const [switching,     setSwitching]     = useState<number | null>(null);
+  const [findQ,         setFindQ]         = useState('');
+  const [findTopic,     setFindTopic]     = useState('');
+  const [browsing,      setBrowsing]      = useState<{ q?: string; topic?: string; kind?: Kind; area?: AreaFilter } | null>(null);
+  const [findArea,      setFindArea]      = useState<AreaFilter>({ mode: 'any' });
+  const areaIdx = useAreaIndex(user?.sub);
+  const myArea = useMyArea();
+  const areaIds = areaIdx?.adult ? matchIds(areaIdx, findArea, myArea) : null;
+  const finding = !!findQ.trim() || !!findTopic || areaIds !== null;
+  const found = useSocietySearch({ q: findQ, topic: findTopic, kind: 'all', limit: 15, enabled: finding, ids: areaIds });
+  const topicCounts = useTopicCounts(user?.sub);
   const [guestKey,      setGuestKey]      = useState<{ label: string } | null>(null);
   const [guestWelcome,  setGuestWelcome]  = useState<{ id: string; label: string; debateCount: number } | null>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -351,7 +369,7 @@ export default function Header() {
       .catch(() => {});
   }, [user]);
 
-  async function switchSociety(id: number) {
+  async function switchSociety(id: number, slug?: string | null) {
     if (switching) return;
     setSwitching(id);
     try {
@@ -362,7 +380,7 @@ export default function Header() {
       });
       // A Society's name opens its About page; its sections are under the chevron
       const named = societies ? [...societies.public, ...societies.private].find(x => x.id === id) : undefined;
-      if (r.ok) window.location.href = `/society/${societyRef(id, named?.slug)}/about`;
+      if (r.ok) window.location.href = `/society/${societyRef(id, slug ?? named?.slug)}/about`;
     } finally {
       setSwitching(null);
     }
@@ -600,8 +618,9 @@ export default function Header() {
 
           <NavDivider />
 
-          {/* ── PUBLIC / PRIVATE SOCIETIES — public first. Sections open by
-               default when the visitor belongs to exactly one Society. ── */}
+          {/* ── SOCIETIES: the visitor's own (and the one they're viewing); any
+               other by searching as they type, optionally within a topic. Sections
+               open by default when the visitor belongs to exactly one Society. ── */}
           {societies && (() => {
             const all = [...societies.public, ...societies.private];
             const associated = all.filter(x => x.isMember).length;
@@ -612,7 +631,7 @@ export default function Header() {
                 isCurrent={viewedSociety === x.id}
                 defaultOpen={associated === 1 && !!x.isMember}
                 switching={switching === x.id}
-                onEnter={id => { close(); switchSociety(id); }}
+                onEnter={id => { close(); switchSociety(id, x.slug); }}
                 onNavigate={close}
                 pathname={pathname}
                 icon={icon}
@@ -622,51 +641,50 @@ export default function Header() {
             // Collapsed, a list's badge totals what's new across its Societies
             const fresh = (list: SocietyOption[]) => list.reduce((n, x) =>
               n + Object.values(unread[String(x.id)] ?? {}).reduce((a, b) => a + b, 0), 0);
+            const icon = (x: SocietyOption) => x.visibility === 'public' ? icons.forums : icons.settings;
+            const mine = all.filter(x => x.isMember);
+            const viewed = viewedSociety && !mine.some(x => x.id === viewedSociety) ? all.find(x => x.id === viewedSociety) : undefined;
+            const shortlist = viewed ? [...mine, viewed] : mine;
+            const small = 'rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:border-blue-500 focus:outline-none';
             return (
               <>
-                {societies.public.length > 0 && (
-                  <NavSection id="public_societies" label={`Public Societies (${societies.public.length})`} defaultOpen badge={fresh(societies.public)}>
-                    {societies.public.map(x => item(x, icons.forums))}
+                <NavLabel>Societies</NavLabel>
+                <div className="space-y-1.5 px-3 pb-1">
+                  <select value={findTopic} onChange={e => setFindTopic(e.target.value)} aria-label="Topic" className={`${small} w-full text-slate-300`}>
+                    <option value="">All topics</option>
+                    {TOPIC_OPTIONS.map(t => <option key={t.key} value={t.key}>{topicLabel(t.label, t.key, topicCounts)}</option>)}
+                  </select>
+                  {areaIdx?.adult && <AreaFilterControl compact value={findArea} onChange={setFindArea} mine={myArea} onNavigate={close} />}
+                  <div className="relative">
+                    <input value={findQ} onChange={e => setFindQ(e.target.value)} placeholder="Find a Society…" aria-label="Find a Society"
+                      className={`${small} w-full pr-7`} />
+                    {finding && (
+                      <button type="button" onClick={() => { setFindQ(''); setFindTopic(''); setFindArea({ mode: 'any' }); }} aria-label="Clear the search"
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 px-1 text-slate-500 hover:text-slate-300">×</button>
+                    )}
+                  </div>
+                </div>
+                {finding ? (
+                  <div className="space-y-0.5" aria-live="polite">
+                    {found.list.map(x => item({ id: x.id, name: x.name, slug: x.slug, visibility: x.visibility, isMember: x.isMember, disabled: x.disabled }, icon(x as SocietyOption)))}
+                    {!found.list.length && (
+                      <p className="px-3 py-1.5 text-xs text-slate-500">{found.loading ? 'Searching…' : found.error ? 'Couldn’t search. Try again.' : 'No Societies match.'}</p>
+                    )}
+                    {found.more && (
+                      <button type="button" onClick={() => { close(); setBrowsing({ q: findQ, topic: findTopic, area: findArea }); }}
+                        className="px-3 py-1 text-xs text-blue-400 hover:text-blue-300">See all results →</button>
+                    )}
+                  </div>
+                ) : shortlist.length > 0 ? (
+                  <NavSection id="my_societies" label={`Your Societies (${mine.length})`} defaultOpen badge={fresh(mine)}>
+                    {shortlist.map(x => item(x, icon(x)))}
                   </NavSection>
-                )}
-                {societies.private.length > 0 && (
-                  <NavSection id="private_societies" label={`Private Societies (${societies.private.length})`} defaultOpen badge={fresh(societies.private)}>
-                    {societies.private.map(x => item(x, icons.settings))}
-                  </NavSection>
-                )}
+                ) : null}
+                <button type="button" onClick={() => { close(); setBrowsing({}); }}
+                  className="px-3 py-1 text-xs text-blue-400 hover:text-blue-300">Browse all Societies →</button>
               </>
             );
           })()}
-
-          {/* ── DEBATE: browse debates by topic (collapsible) ── */}
-          <NavLabel>Debate</NavLabel>
-          <button
-            onClick={() => setTopicsOpen(o => !o)}
-            className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium text-slate-400 transition-colors hover:bg-blue-500/10 hover:text-slate-300"
-          >
-            <span className="flex items-center gap-3">
-              <span className="text-slate-600">{icons.topics}</span>
-              Debate Topics
-            </span>
-            <svg className={`h-4 w-4 text-slate-600 transition-transform ${topicsOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="m19 9-7 7-7-7" />
-            </svg>
-          </button>
-
-          {topicsOpen && (
-            <div className="ml-3 mt-1 space-y-0.5 border-l border-blue-900/20 pl-3">
-              {TOPICS.map(t => (
-                <Link
-                  key={t.slug}
-                  href={`/chamber?subject=${t.slug}`}
-                  onClick={close}
-                  className="block rounded px-2 py-1.5 text-xs text-slate-400 transition-colors hover:bg-blue-500/10 hover:text-blue-300"
-                >
-                  {t.label}
-                </Link>
-              ))}
-            </div>
-          )}
 
           <NavDivider />
 
@@ -837,6 +855,7 @@ export default function Header() {
           </div>
         </div>
       )}
+      {browsing && <SocietyBrowser initial={browsing} onClose={() => setBrowsing(null)} />}
     </>
   );
 }

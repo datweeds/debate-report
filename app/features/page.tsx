@@ -84,12 +84,20 @@ const GROUPS: Group[] = [
     { title: 'Deleted means gone', text: 'Delete a Society and its key goes too, so its encrypted content can no longer be read.' },
   ] },
   { id: 'moderation', eyebrow: 'Safety and moderation', title: 'Safe by design, on every plan', items: [
-    { title: 'Image scanning', text: 'Every image uploaded is checked on our own server before it’s saved, on every plan, Huddle included. Sexually explicit images are stopped before anyone sees them, and your images never leave new.vote to be checked.' },
+    { title: 'Image scanning', text: 'Every image uploaded is checked on our own server before it’s saved, on every plan, Pod included. Sexually explicit images are stopped before anyone sees them, and your images never leave new.vote to be checked.' },
     { title: 'Text scanning', text: 'New posts are checked automatically for hate, threats, abuse and exposed personal details, and flagged for a person to review.' },
-    { title: 'Safer for younger members', text: 'Members choose their age group when they join. Under-16s join video calls only in Societies run as youth groups; under-18s are marked for Society Admins, kept off public pages, and reports involving them are reviewed first.' },
     { title: 'One review queue', text: 'Society Admins and the platform team see the same alerts, so action taken is visible to both.' },
     { title: 'Appeals', text: 'Authors can appeal a moderation decision.' },
     { title: 'Anyone can report', text: 'A Report button on everything, for members and visitors alike. Possibly illegal content goes straight to the new.vote team.' },
+  ] },
+  { id: 'child-safety', eyebrow: 'Child safety', title: 'Protecting young people, on every plan', items: [
+    { title: '16 and over', text: 'A neutral age check at sign-up: anyone under 16 can’t join, and can’t simply try again with a different answer.' },
+    { title: 'Extra care for 16 and 17-year-olds', text: 'They’re marked Under 18 for Society Admins, never named on public pages, see no location features, and reports involving them are reviewed first.' },
+    { title: 'No private messages', text: 'There’s no one-to-one messaging: conversations happen where a Society’s members and Admins can see them.' },
+    { title: 'Local Societies are for adults', text: 'Find Societies near you by area. Your area stays on your own device, never on our servers, and joining a local Society is for people aged 18 and over.' },
+    { title: 'Age signals, reviewed by people', text: 'Fixed, published rules notice when someone may be younger than they said, such as “I’m 14” or a school year. Only which rule matched is kept, never the words, and a person always decides.' },
+    { title: 'Age checks when it matters', text: 'Coming soon for local Societies: prove your age with a digital wallet, sharing only “over 18: yes”, checked on our own server; or with a face check that runs on your own device. We keep only your age group, how it was checked and the date.' },
+    { title: 'Age concerns, with outcomes', text: 'Society Admins and members can raise a concern that someone may be under 16. The new.vote team reviews it, and the Society’s Admins see when it was raised, why, and the outcome.' },
   ] },
   { id: 'running', eyebrow: 'Running a Society', title: 'Make it yours', items: [
     { title: 'Feature switches', text: 'Switch any tool off, or back on, for your Society.' },

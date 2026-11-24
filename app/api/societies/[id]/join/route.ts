@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getSessionFromRequest } from '@/lib/auth';
 import { addMember, getSocietyAccess } from '@/lib/societies';
+import { areaJoinProblem } from '@/lib/ageCheck';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -14,6 +15,10 @@ export async function POST(req: NextRequest, { params }: Params) {
   const access = Number.isInteger(id) ? await getSocietyAccess(session, id) : null;
   if (!access || access.visibility === 'invite') return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (access.isMember || access.isModerator) return NextResponse.json({ error: 'You are already a member' }, { status: 409 });
+  const areaProblem = await areaJoinProblem(session.sub, id);
+  if (areaProblem) return NextResponse.json(areaProblem === 'CHECK'
+    ? { error: 'This is a local Society: please confirm your age first.', ageCheck: true }
+    : { error: areaProblem }, { status: 403 });
   if (access.visibility === 'public') {
     await addMember(id, session.sub);
     return NextResponse.json({ ok: true, joined: true }, { status: 201 });

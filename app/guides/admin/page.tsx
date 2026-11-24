@@ -22,8 +22,7 @@ const SECTIONS: GuideSection[] = [
     <Note>A Society can have several Society Admins. In its debates, they are the moderators.</Note>
     <P>
       Every Society Admin follows the <a href="/guides/society-admin-procedure" className="text-blue-400 hover:underline">Society Admin
-      procedure</a>: a short list of what to check each week, month and year. Running a Society for young people? Read{' '}
-      <a href="/guides/youth-groups" className="text-blue-400 hover:underline">Running a youth group</a> too.
+      procedure</a>: a short list of what to check each week, month and year.
     </P>
   </> },
 
@@ -31,7 +30,7 @@ const SECTIONS: GuideSection[] = [
     <Steps items={[
       <>Create a free account: just a username and a passkey on your device. Keep the recovery code you’re shown.</>,
       <>Open {a('/dashboard/societies', 'Manage Societies')} and choose <strong className="text-slate-100">+ New Society</strong>. No approval is needed.</>,
-      <>It uses your plan: Huddle is free for up to 3 Societies. Move to Team or Network from {a('/dashboard/billing', 'Plans & billing')} for more Societies, room, longer calls or formal ballots (see {a('/pricing', 'Pricing')}).</>,
+      <>It uses your plan: Pod is free for up to 3 Societies. Move to Team or Network from {a('/dashboard/billing', 'Plans & billing')} for more Societies, room, longer calls or formal ballots (see {a('/pricing', 'Pricing')}).</>,
       <>Fill in the details: name, a short line for the top of its pages, a description, a contact email (never shown publicly) and an image.</>,
       <>Choose who can see it, switch on the tools you want, invite your first members, and write its principles.</>,
     ]} />
@@ -136,7 +135,7 @@ const SECTIONS: GuideSection[] = [
     ]} />
     <P>The new.vote platform team sees the same alerts as a backstop, and can see when you’ve acted. In a private Society they see only that an alert exists, never its content.</P>
     <P>Every uploaded image is checked before it’s saved. A sexually explicit image is refused straight away and held, encrypted, for the new.vote team to review; there’s nothing for you to review.</P>
-    <P><strong className="text-slate-100">Younger members.</strong> Members aged under 18 are marked <em>Under 18</em> in your member list and join requests, and aren’t named on your public About page. Reports involving them go to the top of the queue. Members aged 13 to 15 can join video calls only if you run your Society as a youth group (Manage Societies, <em>Young members</em>): turn that on only if a responsible adult supervises its calls.</P>
+    <P><strong className="text-slate-100">Younger members.</strong> Members aged under 18 are marked <em>Under 18</em> in your member list and join requests, and aren’t named on your public About page. Reports involving them go to the top of the queue. new.vote is for people aged 16 and over: if you think a member is younger, raise an age concern in Manage Societies (<em>Age concerns</em>), or report one of their posts as <em>may be under 16</em>. The new.vote team reviews it, and you see the outcome there.</P>
   </> },
 
   { id: 'privacy', title: 'Privacy and security', short: 'Privacy', body: <>

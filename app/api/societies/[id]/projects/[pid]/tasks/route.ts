@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { openRows, sealText } from '@/lib/societyCrypto';
 import { checkDeps, projectContext, readDate, readDeps, readDocumentId, readGroup, saveDeps, text, TASK_STATUSES, UUID_RE, ptext } from '@/lib/projects';
+import { RICH_MAX } from '@/lib/tasks';
 import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ id: string; pid: string }> };
@@ -42,7 +43,7 @@ async function handlePOST(req: NextRequest, { params }: Params) {
      VALUES ($1, $2, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM project_tasks WHERE project_id = $1 AND parent_id IS NOT DISTINCT FROM $2),
              $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
      RETURNING id`,
-    [pid, parent, await sealText(c.a.societyId, name), await sealText(c.a.societyId, ptext(c, b.description, 5000)), start, end, due, status,
+    [pid, parent, await sealText(c.a.societyId, name), await sealText(c.a.societyId, ptext(c, b.description, RICH_MAX)), start, end, due, status,
      await sealText(c.a.societyId, ptext(c, b.comments, 5000)), c.me, doc ?? null, group?.id ?? null],
   );
   if (deps?.length) await saveDeps(t.id, deps);

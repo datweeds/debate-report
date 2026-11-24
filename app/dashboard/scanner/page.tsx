@@ -212,7 +212,7 @@ const REASON_LABELS: Record<string, string> = {
 };
 
 // Labels for every kind of scanned content (debates, discussions, documents, …)
-const CONTENT_LABELS: Record<string, string> = { ...SCAN_LABELS, image_upload: 'Image upload (blocked)' };
+const CONTENT_LABELS: Record<string, string> = { ...SCAN_LABELS, image_upload: 'Image upload (blocked)', age_review: 'Age review' };
 
 function timeAgo(d: string) {
   const mins = Math.floor((Date.now() - new Date(d).getTime()) / 60000);
@@ -305,6 +305,36 @@ function AppealBanner({ alert, onHandled }: { alert: ContentAlert; onHandled: (i
 
 // A quarantined image (blocked at upload): the Sys Admin can look, delete it, or
 // record an NCA report, which keeps it a year. Nothing is shown until asked.
+// An age review (rules fired, a change of age group, or "I'm under 16"): only
+// the new.vote team sees it. No content is shown: just the rules and the score.
+function AgeReviewPanel({ alert }: { alert: ContentAlert }) {
+  const [done, setDone] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  async function decide(action: 'adult' | '16-17' | 'close', label: string) {
+    if (action === 'close' && !confirm('Close this account? Do this only if you are satisfied the member is under 16. It can’t be undone.')) return;
+    setBusy(true); setErr('');
+    const r = await fetch(`/api/admin/age-review/${alert.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) });
+    const d = await r.json().catch(() => ({}));
+    setBusy(false);
+    if (!r.ok) { setErr(d.error ?? 'Couldn’t save'); return; }
+    setDone(label);
+  }
+  if (done) return <p className="text-xs text-emerald-300">Decided: {done}.</p>;
+  const btn = 'rounded border px-2.5 py-1 text-xs disabled:opacity-50';
+  return (
+    <div className="space-y-2 rounded-lg border border-amber-700/40 bg-amber-950/10 p-3">
+      <p className="text-xs text-slate-300">Follow the age procedure. Look at the member&apos;s recent posts if you need to, and decide. Once age checks exist, ask for one instead.</p>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" disabled={busy} onClick={() => decide('adult', 'no concern')} className={`${btn} border-slate-700 text-slate-300 hover:bg-slate-800`}>No concern: lift any hold</button>
+        <button type="button" disabled={busy} onClick={() => decide('16-17', 'treated as 16 or 17')} className={`${btn} border-amber-700/60 text-amber-300 hover:bg-amber-950/40`}>Treat as 16 or 17</button>
+        <button type="button" disabled={busy} onClick={() => decide('close', 'under 16, account closed')} className={`${btn} border-red-700/60 font-semibold text-red-300 hover:bg-red-950/40`}>Under 16: close the account</button>
+      </div>
+      {err && <p className="text-xs text-rose-400">{err}</p>}
+    </div>
+  );
+}
+
 function QuarantinePanel({ alert }: { alert: ContentAlert }) {
   const [shown, setShown] = useState(false);
   const [state, setState] = useState<{ until: string | null; ref: string | null; gone: boolean }>({
@@ -389,10 +419,11 @@ function ScannerCard({ alert, onAction }: { alert: ContentAlert; onAction: (id: 
 
   return (
     <div className={`rounded-xl border ${alert.urgent ? 'border-red-600/60' : 'border-slate-800'} bg-dr-card p-4 space-y-3`}>
-      {alert.urgent && <p className="text-xs font-bold uppercase tracking-wide text-red-400">{alert.content_type === 'image_upload' ? 'Urgent: sexually explicit image blocked at upload' : 'Urgent: reported as possibly illegal'}</p>}
+      {alert.urgent && <p className="text-xs font-bold uppercase tracking-wide text-red-400">{alert.content_type === 'image_upload' ? 'Urgent: sexually explicit image blocked at upload' : alert.content_type === 'age_review' ? 'Urgent: possibly under 16 (account on hold)' : 'Urgent: reported as possibly illegal'}</p>}
       {alert.involves_minor && <p className="text-xs font-bold uppercase tracking-wide text-amber-400">Someone under 18 is involved: review first</p>}
       {alert.report_route === 'platform' && <p className="text-xs font-semibold text-violet-300">For the new.vote team only: the Society’s admins and the author can’t see this report</p>}
       {alert.content_type === 'image_upload' && <QuarantinePanel alert={alert} />}
+      {alert.content_type === 'age_review' && alert.status === 'pending' && <AgeReviewPanel alert={alert} />}
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-wrap items-center gap-1.5 min-w-0">
           <span className="rounded-full border bg-slate-700/50 text-slate-400 border-slate-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">

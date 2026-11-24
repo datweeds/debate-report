@@ -3,11 +3,11 @@
 // A plan belongs to a person. Each Society has an owner (customers.owner_id:
 // its creator, unless handed on) and uses the owner's plan; storage and AI
 // are shared across all the Societies that person owns. Members never pay.
-// A Society with no owner (the site's own) stands alone on Huddle.
+// A Society with no owner (the site's own) stands alone on Pod.
 //
 // A person's plan, best first: a live Stripe subscription (product metadata
 // plan=society|society_plus, for=user), a plan grant from a Sys Admin, a paid
-// plan that ended less than 30 days ago, otherwise Huddle (free).
+// plan that ended less than 30 days ago, otherwise Pod (free).
 //
 // Limits are only enforced once a Sys Admin turns on "Enforce plan limits"
 // (Admin → Plans). Until then usage is measured and shown, nothing is blocked.
@@ -38,7 +38,7 @@ const MB = 1024 ** 2, GB = 1024 ** 3;
 
 export const PLANS: Record<PlanKey, { name: string; month: number; year: number; limits: Limits }> = {
   free: {
-    name: 'Huddle', month: 0, year: 0,
+    name: 'Pod', month: 0, year: 0,
     limits: { societies: 3, storageBytes: 500 * MB, aiUsdMonth: 0.5, maxFileBytes: 25 * MB, aiStandard: false, meetMinutes: 30, meetParticipants: 10,
       votingCodes: false, recurringEvents: false, formalBallots: false, support: 'Help pages' },
   },

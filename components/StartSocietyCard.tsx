@@ -21,7 +21,7 @@ export default function StartSocietyCard({ where, className = '' }: { where: str
       <p className="text-sm font-semibold text-emerald-200">Run a group of your own?</p>
       <p className="mt-1 text-xs text-slate-400">
         Start a Society for your club, team or project: debates, polls, documents, events and calls in one place, private if you like.
-        Huddle is free, for up to 3 Societies; no approval needed.
+        Pod is free, for up to 3 Societies; no approval needed.
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
         <Link href="/dashboard/societies" className="rounded-lg bg-emerald-600 px-3 py-1.5 font-semibold text-white hover:bg-emerald-500">Start a Society</Link>

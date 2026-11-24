@@ -126,7 +126,7 @@ export default function BillingPage() {
         </div>
         {s.plan.source === 'grace' && s.plan.until && (
           <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-            Your paid plan has ended. You keep {s.plan.name} until {day(s.plan.until)}, then move to Huddle, the free plan. Choose a plan below to keep it.
+            Your paid plan has ended. You keep {s.plan.name} until {day(s.plan.until)}, then move to Pod, the free plan. Choose a plan below to keep it.
           </p>
         )}
         {s.warnings.map(w => (
@@ -167,7 +167,7 @@ export default function BillingPage() {
               </div>
             );
           })}
-          {current && <p className="text-xs text-slate-500 sm:col-span-2">To go back to Huddle, cancel from “Invoices, card, cancel”: your plan runs to the end of the period you’ve paid for, then 30 days more.</p>}
+          {current && <p className="text-xs text-slate-500 sm:col-span-2">To go back to Pod, cancel from “Invoices, card, cancel”: your plan runs to the end of the period you’ve paid for, then 30 days more.</p>}
         </div>
       )}
 

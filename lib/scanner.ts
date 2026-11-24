@@ -4,6 +4,7 @@ import { SCAN_TARGETS, TARGET_BY_TYPE } from './scanTargets';
 import { isSealed, openText, sealText } from './societyCrypto';
 import { isUnlocked } from './masterKey';
 import { debateSealing } from './debateCrypto';
+import { noteAgeSignals } from './ageSignals';
 
 const SCANNER_URL = process.env.SCANNER_URL ?? '';
 const SCANNER_KEY = process.env.SCANNER_API_KEY ?? '';
@@ -42,6 +43,8 @@ type Item = {
 // isn't scanned again unless it changes) and raises an alert if flagged.
 // Returns true if an alert was raised; null if the scanner was unavailable.
 async function scanItem(item: Item): Promise<boolean | null> {
+  // Age signals run on the same text, whether or not the abuse scanner is up
+  void noteAgeSignals({ authorId: item.authorId, text: item.text, contentType: item.type, contentKey: item.key, societyId: item.societyId });
   const result = await callScanner(item.text);
   if (!result) return null;
   // The hash is of what is stored, so unchanged encrypted text isn't rescanned

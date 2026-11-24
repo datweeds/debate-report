@@ -75,7 +75,7 @@ export default function PlansTab() {
             </tbody>
           </table>
         </div>
-        {d.ownerless.length > 0 && <p className="mt-3 text-xs text-slate-500">No owner (each stands alone on Huddle): {d.ownerless.map(s => s.name).join(', ')}.</p>}
+        {d.ownerless.length > 0 && <p className="mt-3 text-xs text-slate-500">No owner (each stands alone on Pod): {d.ownerless.map(s => s.name).join(', ')}.</p>}
       </div>
 
       <div className="space-y-4 rounded-2xl border border-slate-800 bg-dr-card p-5">

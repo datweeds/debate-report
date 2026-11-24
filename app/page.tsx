@@ -5,16 +5,10 @@ import { ClosingCta, OnlyHere, SectionHead, ThreeSteps, ToolkitStrip, UseCases }
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthProvider';
+import SocietyBrowser from '@/components/societies/SocietyBrowser';
+import { AreaLabel, CardStats, PrivacyBadge, TopicLozenge, useTopicCounts, type Kind, type SocietyCard } from '@/components/societies/societyFind';
 
-type Society = {
-  id: number;
-  name: string;
-  subdomain: string;
-  description: string | null;
-  is_public: boolean;
-  visibility?: 'public' | 'apply' | 'invite';
-  is_member: boolean;
-};
+type Featured = { public: SocietyCard[]; private: SocietyCard[]; totals: { public: number; private: number } };
 
 const SUBJECT_AREAS = [
   { label: 'Culture, Identity & Social Issues', emoji: '🎭', slug: 'culture' },
@@ -35,14 +29,17 @@ const SUBJECT_AREAS = [
 export default function HomePage() {
   const { user } = useAuth();
   const [subjectsOpen, setSubjectsOpen] = useState(false);
-  const [societies, setSocieties] = useState<Society[] | null>(null);
+  const [featured, setFeatured] = useState<Featured | null>(null);
   const [entering, setEntering] = useState<number | null>(null);
+  const [browsing, setBrowsing] = useState<{ kind?: Kind; topic?: string } | null>(null);
+  const topicCounts = useTopicCounts(user?.sub);
 
+  // A few Societies at random (the visitor's own private ones first)
   useEffect(() => {
-    fetch('/api/societies')
-      .then(r => r.ok ? r.json() : [])
-      .then(setSocieties)
-      .catch(() => setSocieties([]));
+    fetch('/api/societies/featured')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setFeatured(d ?? { public: [], private: [], totals: { public: 0, private: 0 } }))
+      .catch(() => setFeatured({ public: [], private: [], totals: { public: 0, private: 0 } }));
   }, [user]); // re-fetch when login state changes
 
   // "Society House" makes that society the active one (so proposals/bills/
@@ -63,8 +60,16 @@ export default function HomePage() {
     }
   }
 
-  const publicSocieties  = societies?.filter(s => s.is_public)  ?? [];
-  const privateSocieties = societies?.filter(s => !s.is_public) ?? [];
+  const publicSocieties  = featured?.public ?? [];
+  const privateSocieties = featured?.private ?? [];
+  const browseAll = (kind: Kind, n: number, what: string) => (
+    <div className="flex justify-center">
+      <button type="button" onClick={() => setBrowsing({ kind })}
+        className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:border-blue-500/60 hover:text-blue-300">
+        {n > 4 ? `Browse all ${n} ${what}` : `Search ${what}`} →
+      </button>
+    </div>
+  );
 
   return (
     <div className="flex flex-col">
@@ -141,7 +146,8 @@ export default function HomePage() {
       <div id="societies" className="scroll-mt-24 bg-dr-base px-4 sm:px-6 pb-4 space-y-4">
         <div className="mx-auto max-w-5xl space-y-4">
 
-          {societies === null && (
+          {browsing && <SocietyBrowser initial={browsing} onClose={() => setBrowsing(null)} />}
+          {featured === null && (
             <div className="card-dr px-5 py-6 text-center text-slate-600 text-sm italic">Loading societies…</div>
           )}
 
@@ -154,6 +160,7 @@ export default function HomePage() {
                   <SocietyTile key={s.id} s={s} entering={entering === s.id} onEnter={() => enterSociety(s.id)} chamber />
                 ))}
               </ul>
+              {browseAll('public', featured?.totals.public ?? 0, 'public Societies')}
             </section>
           )}
 
@@ -163,9 +170,10 @@ export default function HomePage() {
               <SectionHead id="private-societies-h" eyebrow="For 2 or more people collaborating in private" title="Private Societies" />
               <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {privateSocieties.map(s => (
-                  <SocietyTile key={s.id} s={s} entering={entering === s.id} onEnter={() => enterSociety(s.id)} chamber={s.is_member} />
+                  <SocietyTile key={s.id} s={s} entering={entering === s.id} onEnter={() => enterSociety(s.id)} chamber={s.isMember} />
                 ))}
               </ul>
+              {browseAll('private', featured?.totals.private ?? 0, 'private Societies')}
             </section>
           )}
 
@@ -191,9 +199,9 @@ export default function HomePage() {
             >
               <div>
                 <h2 className="text-base font-semibold text-slate-200 group-hover:text-blue-300 transition-colors">
-                  Debate Topics
+                  Topics
                 </h2>
-                <p className="text-xs text-slate-500 mt-0.5">Browse debates by subject area</p>
+                <p className="text-xs text-slate-500 mt-0.5">Find Societies by subject area</p>
               </div>
               <svg
                 className={`h-5 w-5 text-slate-500 transition-transform duration-200 ${subjectsOpen ? 'rotate-180' : ''}`}
@@ -206,14 +214,15 @@ export default function HomePage() {
             {subjectsOpen && (
               <div className="border-t border-blue-900/15 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                 {SUBJECT_AREAS.map((s, i) => (
-                  <Link
+                  <button
                     key={s.slug}
-                    href={`/chamber?subject=${s.slug}`}
-                    className={`flex items-center gap-3 px-5 py-3 text-sm text-slate-300 transition-colors hover:bg-blue-500/5 hover:text-blue-300 ${i % 3 !== 2 ? 'sm:border-r border-blue-900/10' : ''} border-b border-blue-900/10`}
+                    type="button"
+                    onClick={() => setBrowsing({ topic: s.slug })}
+                    className={`flex items-center gap-3 px-5 py-3 text-left text-sm text-slate-300 transition-colors hover:bg-blue-500/5 hover:text-blue-300 ${i % 3 !== 2 ? 'sm:border-r border-blue-900/10' : ''} border-b border-blue-900/10`}
                   >
                     <span className="text-xl leading-none">{s.emoji}</span>
-                    {s.label}
-                  </Link>
+                    <span className="flex-1">{s.label}{topicCounts && <span className="text-slate-500"> ({topicCounts[s.slug] ?? 0})</span>}</span>
+                  </button>
                 ))}
               </div>
             )}
@@ -270,18 +279,18 @@ export default function HomePage() {
 }
 
 // One Society as a tile: its name (to its About page), what it's for, and the way in
-function SocietyTile({ s, entering, onEnter, chamber }: { s: Society; entering: boolean; onEnter: () => void; chamber?: boolean }) {
+function SocietyTile({ s, entering, onEnter, chamber }: { s: SocietyCard; entering: boolean; onEnter: () => void; chamber?: boolean }) {
   return (
     <li className="card-dr flex flex-col gap-2 p-4">
-      <Link href={`/society/${s.subdomain || s.id}/about`} className="text-sm font-semibold text-slate-100 hover:text-blue-300 hover:underline underline-offset-4 decoration-blue-400/50">
+      <Link href={`/society/${s.slug || s.id}/about`} className="text-sm font-semibold text-slate-100 hover:text-blue-300 hover:underline underline-offset-4 decoration-blue-400/50">
         {s.name}
       </Link>
-      {!s.is_public && (
-        <span className="self-start rounded border border-slate-700/60 bg-slate-700/50 px-1.5 py-0.5 text-[10px] text-slate-400">
-          🔒 {s.is_member ? 'Member' : s.visibility === 'apply' ? 'Apply to join' : 'Invite only'}
-        </span>
+      {(s.visibility !== 'public' || s.topics.length > 0) && (
+        <span className="flex flex-wrap gap-1.5"><PrivacyBadge s={s} />{s.topics.map(t => <TopicLozenge key={t} topic={t} />)}</span>
       )}
       {s.description && <p className="line-clamp-3 text-xs leading-relaxed text-slate-500">{s.description}</p>}
+      <CardStats s={s} />
+      <AreaLabel area={s.area} />
       <div className="mt-auto flex flex-col gap-2 pt-2">
         <button onClick={onEnter} disabled={entering}
           className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 disabled:opacity-50 transition-colors">

@@ -1,7 +1,10 @@
 'use client';
 
+import { TOPIC_OPTIONS, topicLabel, useTopicCounts } from '@/components/societies/societyFind';
+import PlaceSearch from '@/components/areas/PlaceSearch';
+import AgeConcernsCard from '@/components/societies/AgeConcernsCard';
+import { useAreaIndex, LEVEL_LABEL } from '@/components/areas/myArea';
 import PlanCard from '@/components/PlanCard';
-import YouthGroupCard from '@/components/societies/YouthGroupCard';
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -22,8 +25,8 @@ type SocietyRow = {
 };
 
 type Detail = {
-  society: { id: number; name: string; visibility: Visibility; hero_text: string | null; hero_image: string | null; description: string | null; contact_email: string | null; is_default: boolean; disabled_sections: string[]; subdomain: string | null; allow_sealed: boolean; status: string | null; is_demo: boolean; youth_group: boolean };
-  members: { user_id: string; joined_at: string; user_handle: string | null; user_full_name: string | null; is_moderator: boolean; under18?: boolean | null }[];
+  society: { id: number; name: string; visibility: Visibility; hero_text: string | null; hero_image: string | null; description: string | null; contact_email: string | null; is_default: boolean; disabled_sections: string[]; subdomain: string | null; allow_sealed: boolean; status: string | null; is_demo: boolean; topics: string[]; area: { id: string; label: string; level: string } | null };
+  members: { user_id: string; joined_at: string; user_handle: string | null; user_full_name: string | null; is_moderator: boolean; under18?: boolean | null; confirmed_adult?: boolean | null }[];
   requests: { id: string; user_id: string; message: string | null; created_at: string; user_handle: string | null; user_full_name: string | null; under18?: boolean | null }[];
   invites: { id: string; label: string | null; created_at: string; expires_at: string | null; revoked_at: string | null; use_count: number; last_used_at: string | null }[];
   me: string;
@@ -243,10 +246,19 @@ function CreateSociety({ onCreated }: { onCreated: (id: number) => void }) {
 function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void }) {
   const [data, setData] = useState<Detail | null>(null);
   const [error, setError] = useState('');
-  const [form, setForm] = useState({ name: '', slug: '', visibility: 'public' as Visibility, hero_text: '', description: '', contact_email: '' });
+  const [form, setForm] = useState({ name: '', slug: '', visibility: 'public' as Visibility, hero_text: '', description: '', contact_email: '', topics: [] as string[] });
   const [slugOk, setSlugOk] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const topicCounts = useTopicCounts(saved);
+  const areaIdx = useAreaIndex();
+  const [areaMsg, setAreaMsg] = useState('');
+  async function saveArea(areaId: string | null) {
+    setAreaMsg('');
+    const r = await fetch(`/api/manage/societies/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ area_id: areaId }) });
+    if (!r.ok) { setAreaMsg((await r.json().catch(() => ({}))).error ?? 'Couldn’t save'); return; }
+    load();
+  }
   const [newLink, setNewLink] = useState<string | null>(null);
   const [inviteLabel, setInviteLabel] = useState('');
   const [inviteDays, setInviteDays] = useState('30');
@@ -258,7 +270,7 @@ function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void })
     if (!r.ok) { setError('You don\'t moderate this Society.'); return; }
     const d: Detail = await r.json();
     setData(d);
-    setForm({ name: d.society.name, slug: d.society.subdomain ?? '', visibility: d.society.visibility, hero_text: d.society.hero_text ?? '', description: d.society.description ?? '', contact_email: d.society.contact_email ?? '' });
+    setForm({ name: d.society.name, slug: d.society.subdomain ?? '', visibility: d.society.visibility, hero_text: d.society.hero_text ?? '', description: d.society.description ?? '', contact_email: d.society.contact_email ?? '', topics: d.society.topics ?? [] });
   }, [id]);
   useEffect(() => { load(); }, [load]);
 
@@ -356,6 +368,34 @@ function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void })
               <label className="block text-xs text-slate-400 mb-1">Description</label>
               <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={6} className={inputCls} />
             </div>
+            {areaIdx?.adult && (
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Area <span className="text-slate-600">(optional: where the Society is based, if it&apos;s local. Only adults see it, and members must be 18 or over to join)</span></label>
+                {s.area ? (
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <span className="rounded-lg border border-slate-700 px-3 py-1.5 text-slate-200">📍 {s.area.label} <span className="text-xs text-slate-500">({LEVEL_LABEL[s.area.level] ?? s.area.level})</span></span>
+                    <button type="button" onClick={() => saveArea(null)} className="text-xs text-slate-500 hover:text-slate-300">Clear</button>
+                  </div>
+                ) : <PlaceSearch onPick={a => saveArea(a.id)} placeholder="Type a town, city, county or country…" />}
+                {areaMsg && <p className="mt-1 text-xs text-rose-400">{areaMsg}</p>}
+              </div>
+            )}
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Topics <span className="text-slate-600">(up to 3: they help people find the Society)</span></label>
+              <div className="flex flex-wrap gap-1.5">
+                {TOPIC_OPTIONS.map(t => {
+                  const on = form.topics.includes(t.key);
+                  const full = !on && form.topics.length >= 3;
+                  return (
+                    <button key={t.key} type="button" disabled={full} aria-pressed={on}
+                      onClick={() => setForm(f => ({ ...f, topics: on ? f.topics.filter(x => x !== t.key) : [...f.topics, t.key] }))}
+                      className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors disabled:opacity-40 ${on ? 'border-blue-500/60 bg-blue-500/15 font-semibold text-blue-200' : 'border-slate-700 text-slate-400 hover:text-slate-200'}`}>
+                      {on && '✓ '}{topicLabel(t.label, t.key, topicCounts)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <div>
               <label className="block text-xs text-slate-400 mb-1">Contact email <span className="text-slate-600">(messages from the About page go here; never shown publicly)</span></label>
               <input value={form.contact_email} onChange={e => setForm(f => ({ ...f, contact_email: e.target.value }))} type="email" className={inputCls} placeholder="e.g. hello@yoursociety.org" />
@@ -376,7 +416,6 @@ function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void })
       <SocietyAiCard societyId={s.id} />
 
       <AccessLogCard key={`privacy-${s.id}`} societyId={s.id} visibility={s.visibility} allowSealed={!!s.allow_sealed} />
-      <YouthGroupCard key={`youth-${s.id}`} societyId={s.id} initial={!!s.youth_group} />
 
       {(s.visibility === 'apply' || data.requests.length > 0) && (
         <Card title={`Requests to join (${data.requests.length})`}>
@@ -452,6 +491,7 @@ function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void })
               <span className="text-sm text-slate-200">{m.user_full_name || `@${m.user_handle ?? 'unknown'}`}</span>
               {m.is_moderator && <span className="rounded border border-blue-500/40 bg-blue-500/10 px-1.5 text-[10px] font-semibold text-blue-300">Society Admin</span>}
               {m.under18 && <span className="rounded border border-amber-500/40 bg-amber-500/10 px-1.5 text-[10px] font-semibold text-amber-300">Under 18</span>}
+              {s.area && m.confirmed_adult && <span className="rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 text-[10px] font-semibold text-emerald-300" title="Age confirmed by a check">Confirmed 18+</span>}
               {m.user_id === data.owner && <span className="rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 text-[10px] font-semibold text-emerald-300">Owner: uses their plan</span>}
               {m.user_id === data.me && <span className="text-[10px] text-slate-500">(you)</span>}
               <span className="text-[11px] text-slate-600">joined {fmt(m.joined_at)}</span>
@@ -472,6 +512,8 @@ function SocietyEditor({ id, onChanged }: { id: number; onChanged: () => void })
           ))}
         </ul>
       </Card>
+
+      <AgeConcernsCard societyId={s.id} members={data.members.filter(m => m.user_id !== data.me).map(m => ({ user_id: m.user_id, label: m.user_full_name ? `${m.user_full_name} (@${m.user_handle})` : `@${m.user_handle ?? 'unknown'}` }))} />
 
       <div className="rounded-2xl border border-slate-800 bg-dr-card p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

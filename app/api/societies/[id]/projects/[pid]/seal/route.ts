@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { projectContext, text } from '@/lib/projects';
 import { sealText } from '@/lib/societyCrypto';
+import { RICH_MAX } from '@/lib/tasks';
 import { lockSafe } from '@/lib/lockSafe';
 import { allowsSealed, firstLocks, readLocks } from '@/lib/sealed/server';
 
@@ -38,7 +39,7 @@ async function handlePOST(req: NextRequest, { params }: Params) {
   const sealing = b.action === 'seal';
   if (!sealing && b.action !== 'unseal') return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
   if (sealing === !!c.sealed) return NextResponse.json({ error: sealing ? 'It’s already sealed' : 'It isn’t sealed' }, { status: 409 });
-  const isE2E = (v: unknown) => typeof v === 'string' && v.length <= 30000 && /^sn1:1:[A-Za-z0-9+/]+={0,2}$/.test(v);
+  const isE2E = (v: unknown) => typeof v === 'string' && v.length <= 140000 && /^sn1:1:[A-Za-z0-9+/]+={0,2}$/.test(v);
   // Sealing: sealed text stored as it is. Unsealing: plain text, stored by the Society's usual rule.
   const put = async (v: unknown, max: number, required = false): Promise<string | null | false> => {
     if (v == null || v === '') return required ? false : null;
@@ -64,7 +65,7 @@ async function handlePOST(req: NextRequest, { params }: Params) {
     if (name === false || desc === false) return fail('The project’s name and description couldn’t be stored');
     await client.query('UPDATE projects SET name = $1, description = $2, updated_at = now() WHERE id = $3', [name, desc, pid]);
     for (const t of tasks) {
-      const n = await put(t.name, 200, true), d = await put(t.description, 5000), cm = await put(t.comments, 5000);
+      const n = await put(t.name, 200, true), d = await put(t.description, RICH_MAX), cm = await put(t.comments, 5000);
       if (n === false || d === false || cm === false) return fail('A task couldn’t be stored');
       await client.query('UPDATE project_tasks SET name = $1, description = $2, comments = $3 WHERE id = $4', [n, d, cm, t.id]);
     }

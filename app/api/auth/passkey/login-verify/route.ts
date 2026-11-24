@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   const pkRes = chal.userId
     ? await pool.query(
         `SELECT p.id, p.credential_id, p.public_key, p.counter, p.transports,
-                u.id AS user_id, u.user_handle, u.is_sys_admin, u.is_scotparl_mod, u.user_tier, u.user_plan
+                u.id AS user_id, u.user_handle, u.is_sys_admin, u.is_scotparl_mod, u.user_tier, u.user_plan, u.user_status, u.age_hold_at
          FROM passkeys p
          JOIN users u ON u.id = p.user_id
          WHERE p.user_id = $1 AND p.credential_id = $2`,
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
       )
     : await pool.query(
         `SELECT p.id, p.credential_id, p.public_key, p.counter, p.transports,
-                u.id AS user_id, u.user_handle, u.is_sys_admin, u.is_scotparl_mod, u.user_tier, u.user_plan
+                u.id AS user_id, u.user_handle, u.is_sys_admin, u.is_scotparl_mod, u.user_tier, u.user_plan, u.user_status, u.age_hold_at
          FROM passkeys p
          JOIN users u ON u.id = p.user_id
          WHERE p.credential_id = $1`,
@@ -67,6 +67,12 @@ export async function POST(req: NextRequest) {
 
   if (!verification.verified) {
     return NextResponse.json({ error: 'Passkey verification failed' }, { status: 401 });
+  }
+
+  if (pk.user_status !== 'active') {
+    return NextResponse.json({ error: pk.age_hold_at
+      ? 'Your account is on hold while we check that you’re old enough to use new.vote. Contact us if you think this is a mistake.'
+      : 'This account is suspended. Contact us if you think this is a mistake.' }, { status: 403 });
   }
 
   // Update counter and last_used_at

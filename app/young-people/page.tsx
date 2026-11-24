@@ -5,7 +5,7 @@ import { COMPANY } from '@/lib/company';
 
 export const metadata: Metadata = {
   title: 'new.vote for young people',
-  description: 'Our Terms and Privacy Policy in plain words, for members aged 13 to 17.',
+  description: 'Our Terms and Privacy Policy in plain words, for members aged 16 and 17.',
 };
 
 export default function YoungPeoplePage() {
@@ -13,9 +13,9 @@ export default function YoungPeoplePage() {
     <LegalPage
       crumbs={[{ href: '/', label: 'Home' }, { label: 'For young people' }]}
       title="new.vote for young people"
-      updated="23 November 2026"
+      updated="24 November 2026"
       intro={<>
-        <p>If you&apos;re 13 to 17, this page explains our rules and how we look after your information, in plain words.</p>
+        <p>If you&apos;re 16 or 17, this page explains our rules and how we look after your information, in plain words.</p>
         <p className="text-sm text-slate-400">
           It&apos;s a summary. The full versions are our <Link href="/terms" className={A}>Terms</Link> and{' '}
           <Link href="/privacy" className={A}>Privacy Policy</Link>; if they say something different, they&apos;re what count.
@@ -24,9 +24,9 @@ export default function YoungPeoplePage() {
     >
       <Card title="Who can join">
         <Bullets items={[
-          <>You must be <span className={B}>13 or over</span>.</>,
-          <>When you join, you tell us your <span className={B}>age group</span>: 13 to 15, 16 or 17, or 18 or over. Please be honest: it decides
-            the protections you get. You can move up a group as you get older, but not down.</>,
+          <>You must be <span className={B}>16 or over</span>.</>,
+          <>When you join, you tell us your <span className={B}>age group</span>: 16 or 17, or 18 or over. Please be honest: it decides
+            the protections you get. If you picked the wrong one, you can change it, but changes are recorded and we may ask you to prove your age.</>,
           <>It&apos;s a good idea to tell a parent or carer that you use new.vote.</>,
         ]} />
       </Card>
@@ -61,7 +61,6 @@ export default function YoungPeoplePage() {
       <Card title="Staying safe">
         <Bullets items={[
           <>There are no private messages on new.vote, and nobody can search for you.</>,
-          <>If you&apos;re 13 to 15, you can only join video calls in Societies run as youth groups, with adults supervising.</>,
           <>Every picture is checked when it&apos;s uploaded, and sexual images are blocked.</>,
           <>Never share your address, school, phone number or passwords, and never agree to move a chat somewhere else with someone you don&apos;t know.</>,
           <>If anything worries you, press <span className={B}>Report</span>. The person you report, and the Society&apos;s admins, aren&apos;t told it was you, and

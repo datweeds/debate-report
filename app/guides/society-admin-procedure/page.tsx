@@ -53,7 +53,6 @@ export default function SocietyAdminProcedurePage() {
           <>Look through your members and Society Admins. Remove anyone who has left, and make sure every Society Admin still needs to be one.</>,
           <>Revoke invite links you no longer use.</>,
           <>Read your Society&apos;s access log (Manage Societies, Privacy): every emergency access by the new.vote team is listed with its reason.</>,
-          <>If your Society is a youth group, check it still meets our <Link href="/guides/youth-groups" className={A}>guide for youth groups</Link>.</>,
         ]} />
       </Card>
 
@@ -68,8 +67,7 @@ export default function SocietyAdminProcedurePage() {
       <Card title="Young members">
         <Bullets items={[
           <>Members under 18 are marked <em>Under 18</em>. Treat them with extra care, and never ask them for personal details or to move a conversation off new.vote.</>,
-          <>Turn on <em>Run as a youth group</em> only if your Society is for young people and a responsible adult supervises its calls. Read the{' '}
-            <Link href="/guides/youth-groups" className={A}>guide for youth groups</Link> first.</>,
+          <>new.vote is for people aged 16 and over. If you think a member is younger, raise an age concern (Manage Societies, <em>Age concerns</em>): the new.vote team reviews it, and you see when, why and the outcome there.</>,
         ]} />
       </Card>
 

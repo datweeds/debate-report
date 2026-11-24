@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import AgeBandCard from '@/components/AgeBandCard';
+import MyAreaCard from '@/components/areas/MyAreaCard';
+import { useAreaIndex } from '@/components/areas/myArea';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { startRegistration, browserSupportsWebAuthn } from '@simplewebauthn/browser';
@@ -41,6 +43,12 @@ interface Profile {
   newsletter: boolean;
   user_tier: string;
   passkeys: Passkey[];
+}
+
+function AreaSection() {
+  const idx = useAreaIndex();
+  if (!idx?.adult) return null;
+  return <Section title="My area"><MyAreaCard /></Section>;
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -441,6 +449,9 @@ export default function ProfilePage() {
           <AgeBandCard />
         </Section>
 
+        {/* ── My area (adults only; kept on this device) ── */}
+        <AreaSection />
+
         {/* ── Plan ─────────────────────────────────────── */}
         <Section title="Your plan">
           <form onSubmit={saveTier} className="space-y-4">
@@ -476,7 +487,7 @@ export default function ProfilePage() {
           {profile.user_tier !== 'moderator' && (
             <div className="mt-5 rounded-lg border border-emerald-500/25 bg-emerald-500/5 p-4">
               <p className="text-sm font-semibold text-emerald-300">Start your own Society</p>
-              <p className="mt-1 text-xs text-slate-400">Create a Society and you become its Society Admin. Huddle is free for up to 3 Societies; Team and Network cover more, with more room and features for all of them.</p>
+              <p className="mt-1 text-xs text-slate-400">Create a Society and you become its Society Admin. Pod is free for up to 3 Societies; Team and Network cover more, with more room and features for all of them.</p>
               <Link href="/dashboard/societies" className="mt-3 inline-block rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500">Start a Society</Link>
             </div>
           )}

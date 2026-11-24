@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import AgeCheckBanner from '@/components/AgeCheckBanner';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import Header from '@/components/Header';
@@ -53,7 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider>
           <AuthProvider>
             <Header />
-            <main className="dr-pin-main flex-1 pt-16 pb-14 sm:pb-0"><SiteBack />{children}</main>
+            <main className="dr-pin-main flex-1 pt-16 pb-14 sm:pb-0"><AgeCheckBanner /><SiteBack />{children}</main>
             <Footer />
           </AuthProvider>
         </ThemeProvider>

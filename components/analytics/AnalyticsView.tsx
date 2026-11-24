@@ -1,5 +1,6 @@
 'use client';
 
+import { LockIcon } from '@/components/societies/SocietyIcons';
 import { useState } from 'react';
 
 // Analytics: metric tiles with 12-month charts, AI cost, the most active
@@ -117,7 +118,7 @@ function ActiveSocieties({ data }: { data: NonNullable<Stats['activeSocieties']>
             <li key={s.id} className="grid grid-cols-[1.5rem_minmax(0,11rem)_minmax(0,1fr)_auto] items-center gap-2 text-xs sm:grid-cols-[1.5rem_minmax(0,16rem)_minmax(0,1fr)_auto]">
               <span className="text-right tabular-nums text-slate-500">{i + 1}</span>
               <span className="truncate text-slate-300" title={s.name}>
-                {s.private && <span aria-label="Private" title="Private Society">🔒 </span>}
+                {s.private && <span role="img" aria-label="Private" title="Private Society" className="mr-1 inline-block align-[-1px] text-amber-300"><LockIcon /></span>}
                 {s.href ? <a href={s.href} className="hover:text-blue-300 hover:underline">{s.name}</a> : <span className="italic text-slate-400">{s.name}</span>}
                 {s.closed && <span className="ml-1 rounded border border-amber-500/40 px-1 text-[10px] text-amber-300">Closed</span>}
               </span>

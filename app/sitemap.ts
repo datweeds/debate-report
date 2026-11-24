@@ -12,7 +12,7 @@ const SITE = "https://new.vote";
 const PAGES: [string, number][] = [
   ["/", 1], ["/features", 0.9], ["/pricing", 0.9], ["/about", 0.7], ["/how-it-works", 0.7],
   ["/guides", 0.7], ["/guides/member", 0.6], ["/guides/admin", 0.6], ["/guides/guest", 0.5],
-  ["/guides/youth-groups", 0.5], ["/guides/society-admin-procedure", 0.5], ["/young-people", 0.6],
+  ["/guides/society-admin-procedure", 0.5], ["/young-people", 0.6], ["/guides/age-check", 0.5],
   ["/blog", 0.6], ["/contact", 0.5], ["/support", 0.5], ["/service", 0.4],
   ["/status", 0.3], ["/security", 0.3], ["/terms", 0.3], ["/privacy", 0.3],
 ];

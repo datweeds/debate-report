@@ -3,6 +3,7 @@
 import ReportButton from '@/components/ReportButton';
 import { useState } from 'react';
 import RefHtml from '@/components/refs/RefHtml';
+import Description from '@/components/projects/Description';
 import RichText from '@/components/discussions/RichText';
 import { Chip, fmtDay, Modal, overdue, send, TASK_STATUS, taskNo, type ProjectTask, type QuickTask, type Swatch } from './shared';
 
@@ -10,9 +11,10 @@ import { Chip, fmtDay, Modal, overdue, send, TASK_STATUS, taskNo, type ProjectTa
 // Task (with a link to it in its project). On a Project Task you can set your
 // own categories. A click outside or Escape closes it. showOpen (e.g. from the
 // Calendar): also a button to open a task in Tasks.
-export default function TaskPreview({ society, item, priorities, categories, onClose, onChanged, showOpen = false }: {
+export default function TaskPreview({ society, item, priorities, categories, onClose, onChanged, showOpen = false, readOnly = false }: {
   society: number; item: { kind: 'task'; t: QuickTask } | { kind: 'project'; t: ProjectTask };
   priorities: Swatch[]; categories: Swatch[]; onClose: () => void; onChanged: () => void; showOpen?: boolean;
+  readOnly?: boolean;   // the demo Society, for someone who isn't a member
 }) {
   const t = item.t;
   const [cats, setCats] = useState<string[]>(t.categories);
@@ -36,7 +38,7 @@ export default function TaskPreview({ society, item, priorities, categories, onC
           <div className="min-w-0 flex-1">
             <p className="text-[11px] text-slate-500">
               {item.kind === 'task'
-                ? (item.t.mine ? <>{taskNo(item.t.number)} · Your task</> : <>{taskNo(item.t.number)} · Task by @{item.t.owner} · shared with you · read-only</>)
+                ? (item.t.mine ? <>{taskNo(item.t.number)} · Your task</> : <>{taskNo(item.t.number)} · Task by @{item.t.owner} · shared with {readOnly ? 'everyone' : 'you'} · read-only</>)
                 : <>Project Task · {item.t.project}{item.t.assignees.length ? ` · ${item.t.assignees.map(a => '@' + a.handle).join(', ')}` : ''}</>}
             </p>
             <h3 className="text-base font-semibold text-slate-100">{item.kind === 'project' && item.t.locked && '🔐 '}{t.name}</h3>
@@ -61,12 +63,12 @@ export default function TaskPreview({ society, item, priorities, categories, onC
           <p className="text-sm text-slate-400">This project is sealed. Open it in its project to read it with your secure access.</p>
         ) : (
           <>
-            <div><p className={label}>Description</p>{item.t.description ? <RichText text={item.t.description} /> : <p className="text-sm italic text-slate-500">None</p>}</div>
+            <div><p className={label}>Description</p>{item.t.description ? <Description text={item.t.description} /> : <p className="text-sm italic text-slate-500">None</p>}</div>
             {item.t.comments && <div><p className={label}>Comments</p><RichText text={item.t.comments} /></div>}
           </>
         )}
 
-        {item.kind === 'project' && (
+        {item.kind === 'project' && !readOnly && (
           <div>
             <p className={label}>Your categories <span className="normal-case tracking-normal font-normal text-slate-600">(only you see them)</span></p>
             {categories.length ? (

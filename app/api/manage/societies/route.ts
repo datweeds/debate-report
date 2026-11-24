@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
   const session = await getSessionFromRequest(req);
   if (!session) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
   // Anyone signed in can start a Society (no approval). While plan limits are
-  // enforced, their plan says how many they can run (Huddle 3, Team 10, Network 25).
+  // enforced, their plan says how many they can run (Pod 3, Team 10, Network 25).
   if (!session.isSysAdmin && await enforcementOn()) {
     const plan = (await personPlan(session.sub)).plan;
     const cap = PLANS[plan].limits.societies;

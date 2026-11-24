@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { areaJoinProblem } from '@/lib/ageCheck';
 import pool from '@/lib/db';
 import { addMember, moderatedSociety } from '@/lib/societies';
 import { notifyJoinDecision } from '@/lib/joinNotice';
@@ -19,7 +20,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     [requestId, ctx.id, action === 'approve' ? 'approved' : 'rejected', ctx.session.sub],
   );
   if (!jr) return NextResponse.json({ error: 'Request not found' }, { status: 404 });
-  if (action === 'approve') await addMember(ctx.id, jr.user_id);
+  if (action === 'approve') {
+    // A local Society: the member must (still) be a confirmed adult
+    const problem = await areaJoinProblem(jr.user_id, ctx.id);
+    if (problem) {
+      await pool.query(`UPDATE society_join_requests SET status = 'pending', decided_by = NULL, decided_at = NULL WHERE id = $1`, [requestId]);
+      return NextResponse.json({ error: problem === 'CHECK' ? 'They need to confirm their age before joining a local Society. They’ll be asked when they next sign in.' : 'This member can’t join a local Society: it’s for people aged 18 and over.' }, { status: 409 });
+    }
+    await addMember(ctx.id, jr.user_id);
+  }
   void notifyJoinDecision(jr.user_id, ctx.id, action === 'approve', 'society');
   return NextResponse.json({ ok: true });
 }

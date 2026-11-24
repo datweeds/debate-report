@@ -6,6 +6,8 @@ import { isUnlocked } from '@/lib/masterKey';
 import { cleanFeatures } from '@/lib/features';
 import { slugAvailable, slugProblem } from '@/lib/societyRef';
 import { sealedSection } from '@/lib/sealed/server';
+import { readTopics } from '@/lib/societyTopics';
+import { areaById, isAdult } from '@/lib/areas';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -15,15 +17,16 @@ export async function GET(req: NextRequest, { params }: Params) {
   if (!ctx) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   const [{ rows: [society] }, { rows: members }, { rows: requests }, { rows: invites }] = await Promise.all([
     pool.query(
-      `SELECT id, name, visibility, hero_text, hero_image, description, contact_email, subdomain, is_default, disabled_sections, allow_sealed, status, is_demo, youth_group
+      `SELECT id, name, visibility, hero_text, hero_image, description, contact_email, subdomain, is_default, disabled_sections, allow_sealed, status, is_demo, topics,
+              (SELECT json_build_object('id', a.id, 'label', a.label, 'level', a.level) FROM areas a WHERE a.id = customers.area_id) AS area
        FROM customers WHERE id = $1`, [ctx.id]),
     pool.query(
-      `SELECT m.user_id, m.joined_at, u.user_handle, u.user_full_name, u.age_band IN ('13-15', '16-17') AS under18,
+      `SELECT m.user_id, m.joined_at, u.user_handle, u.user_full_name, u.age_band = '16-17' AS under18, (u.age_source = 'checked' AND u.age_band = '18+') AS confirmed_adult,
               EXISTS (SELECT 1 FROM customer_roles r WHERE r.tenant_id = m.customer_id AND r.user_id = m.user_id AND r.role = 'customer_admin') AS is_moderator
        FROM customer_members m LEFT JOIN users u ON u.id::text = m.user_id
        WHERE m.customer_id = $1 ORDER BY is_moderator DESC, u.user_handle`, [ctx.id]),
     pool.query(
-      `SELECT j.id, j.user_id, j.message, j.created_at, u.user_handle, u.user_full_name, u.age_band IN ('13-15', '16-17') AS under18
+      `SELECT j.id, j.user_id, j.message, j.created_at, u.user_handle, u.user_full_name, u.age_band = '16-17' AS under18
        FROM society_join_requests j LEFT JOIN users u ON u.id::text = j.user_id
        WHERE j.customer_id = $1 AND j.status = 'pending' ORDER BY j.created_at`, [ctx.id]),
     pool.query(
@@ -60,10 +63,21 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     set('contact_email', e || null);
   }
   if (Array.isArray(body.disabled_sections)) set('disabled_sections', cleanFeatures(body.disabled_sections));
+  // Topics, for people finding Societies (up to 3)
+  const topics = readTopics(body.topics);
+  if (topics) set('topics', topics);
+  // The Society's Area (adult Society Admins only; null clears it)
+  if ('area_id' in body) {
+    if (!await isAdult(ctx.session)) return NextResponse.json({ error: 'Only Society Admins aged 18 or over can set an Area' }, { status: 403 });
+    if (body.area_id === null) set('area_id', null);
+    else {
+      const a = await areaById(body.area_id);
+      if (!a) return NextResponse.json({ error: 'Choose an area from the list' }, { status: 400 });
+      set('area_id', a.id);
+    }
+  }
   // Members may create Sealed (end-to-end encrypted) items
   if (typeof body.allow_sealed === 'boolean') set('allow_sealed', body.allow_sealed);
-  // Run as a youth group: members aged 13 to 15 may join its calls
-  if (typeof body.youth_group === 'boolean') set('youth_group', body.youth_group);
   if (typeof body.slug === 'string') {
     const slug = body.slug.trim().toLowerCase();
     const problem = slugProblem(slug);

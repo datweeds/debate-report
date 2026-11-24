@@ -49,7 +49,7 @@ const SECTIONS: GuideSection[] = [
     <P>
       Anyone with an account can start a Society and become its Society Admin: public, by application, or invitation-only and
       encrypted. Society Admins choose which tools to switch on, invite members, run debates and polls, and look after the
-      community. Every Society starts on Huddle, which is free.
+      community. Every Society starts on Pod, which is free.
     </P>
     <Steps items={[
       <>{a('/pricing', 'Sign up')} for free.</>,

@@ -77,7 +77,7 @@ export function text(v: unknown, max: number): string | null {
 export function ptext(c: Pick<ProjectContext, 'sealed'>, v: unknown, max: number): string | null {
   if (v == null || (typeof v === 'string' && !v.trim())) return null;
   if (c.sealed) {
-    if (sealedFor(c.sealed, v, 30000)) return v as string;
+    if (sealedFor(c.sealed, v, Math.max(30000, Math.ceil(max * 4 / 3) + 200))) return v as string;
     throw new SealedTextError('This sealed project’s keys have changed: reload the page and try again');
   }
   if (typeof v === 'string' && v.startsWith('sn1:')) throw new SealedTextError('This project isn’t sealed');

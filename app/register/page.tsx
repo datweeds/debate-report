@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, Suspense } from 'react';
-import { AGE_BANDS, AGE_LABELS, type AgeBand } from '@/lib/ageBands';
+import { useEffect, useState, Suspense } from 'react';
+import { AGE_BANDS, AGE_LABELS, UNDER_16, type AgeBand } from '@/lib/ageBands';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { startRegistration, browserSupportsWebAuthn } from '@simplewebauthn/browser';
@@ -102,7 +102,20 @@ function RegisterForm() {
   const [loading,     setLoading]     = useState(false);
   const [accessCode,  setAccessCode]  = useState<string | null>(null);
   const [agreed,      setAgreed]      = useState(false);
-  const [ageBand,     setAgeBand]     = useState<AgeBand | null>(null);
+  const [ageBand,     setAgeBand]     = useState<AgeBand | typeof UNDER_16 | null>(null);
+  // The age gate: once someone says they're under 16, this browser can't sign up for a day
+  const [gated,       setGated]       = useState(false);
+  useEffect(() => {
+    try { const t = Number(localStorage.getItem('nv_age_gate')); if (t && Date.now() - t < 24 * 3600_000) setGated(true); } catch { /* storage blocked */ }
+  }, []);
+  function pickAge(b: AgeBand | typeof UNDER_16) {
+    setAgeBand(b);
+    if (b === UNDER_16) {
+      setGated(true);
+      try { localStorage.setItem('nv_age_gate', String(Date.now())); } catch { /* storage blocked */ }
+      void fetch('/api/auth/passkey/register-options', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ageBand: UNDER_16 }) }).catch(() => {});
+    }
+  }
 
   if (accessCode) {
     return (
@@ -330,15 +343,17 @@ function RegisterForm() {
           <div>
             <p className="block text-xs font-medium text-slate-400 mb-1">How old are you?</p>
             <div className="flex flex-wrap gap-2">
-              {AGE_BANDS.map(b => (
-                <button key={b} type="button" onClick={() => setAgeBand(b)}
-                  className={`rounded-lg border px-3 py-1.5 text-sm ${ageBand === b ? 'border-blue-500 bg-blue-500/15 text-blue-200' : 'border-slate-700 text-slate-300 hover:border-slate-500'}`}>
-                  {AGE_LABELS[b]}
+              {([UNDER_16, ...AGE_BANDS] as const).map(b => (
+                <button key={b} type="button" onClick={() => pickAge(b)} disabled={gated}
+                  className={`rounded-lg border px-3 py-1.5 text-sm disabled:opacity-40 ${ageBand === b ? 'border-blue-500 bg-blue-500/15 text-blue-200' : 'border-slate-700 text-slate-300 hover:border-slate-500'}`}>
+                  {b === UNDER_16 ? 'Under 16' : AGE_LABELS[b]}
                 </button>
               ))}
             </div>
-            <p className="mt-1 text-[11px] text-slate-500">You must be 13 or over. We keep only your age group, to give younger members extra protection.
-              Under 18? <Link href="/young-people" target="_blank" className="text-blue-400 hover:text-blue-300">Read this first</Link>.</p>
+            {gated
+              ? <p className="mt-2 rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2 text-xs text-slate-300">Sorry, you can’t create an account on new.vote.</p>
+              : <p className="mt-1 text-[11px] text-slate-500">We keep only your age group, to give younger members extra protection.
+                  Under 18? <Link href="/young-people" target="_blank" className="text-blue-400 hover:text-blue-300">Read this first</Link>.</p>}
           </div>
 
           {/* Terms */}

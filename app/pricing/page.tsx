@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Pricing',
-  description: 'One price for the whole group, never per member. Huddle is free; Team £4 a month; Network £9 a month.',
+  description: 'One price for the whole group, never per member. Pod is free; Team £4 a month; Network £9 a month.',
 };
 
 // Plans and limits come from lib/plans.ts, so this page always matches what the
@@ -20,7 +20,7 @@ const TAGLINE: Record<PlanKey, string> = {
 };
 const HIGHLIGHTS: Record<PlanKey, string[]> = {
   free: ['Up to 3 Societies, free', 'Unlimited members', '500 MB of storage, shared', 'Video calls up to 30 minutes, 10 people', 'Live AI quality checks on debates', 'Everything in “On every plan” below'],
-  society: ['Everything in Huddle', 'Up to 10 Societies', '5 GB of storage, shared', 'Video calls up to 90 minutes, 25 people', 'Debate Quality Reports and the AI helper', 'Voting codes for people without an account', 'Repeating events'],
+  society: ['Everything in Pod', 'Up to 10 Societies', '5 GB of storage, shared', 'Video calls up to 90 minutes, 25 people', 'Debate Quality Reports and the AI helper', 'Voting codes for people without an account', 'Repeating events'],
   society_plus: ['Everything in Team', 'Up to 25 Societies', '15 GB of storage, shared', 'Video calls of any length, 50 people', 'Three times the AI allowance', 'Formal ballots for AGMs and elections, with a certified result', 'Email support within 2 working days'],
 };
 
@@ -61,6 +61,8 @@ const ADDONS = [
   ['AI', 'Quality checks, Debate Quality Reports and the AI helper on new.vote’s AI, for servers without an AI account of their own. Pay for what you use, with a cap you set.'],
   ['News', 'Your Societies’ News, gathered from many sources and summarised, delivered to your server: no news pipeline to run.'],
   ['Safety scanning', 'The same image and text scanning as new.vote, for new posts and uploads, with alerts to your Society Admins: help with your Online Safety Act duties.'],
+  ['Age assurance', 'Age checks for your server without a contract of your own: wallet proofs checked against an up-to-date list of trusted issuers, and a certified face check that runs on members’ own devices, with our updated age-signal rules.'],
+  ['Safety review desk', 'Trained people to review age concerns, age reviews and urgent reports for your server, within an agreed response time.'],
   ['Encrypted backups', 'Nightly, encrypted, off-site copies of your server, kept for up to 90 days. Only you hold the key.'],
   ['Support', 'Help with installing, upgrading and running your server, for organisations that need an agreed response time.'],
 ];
@@ -76,7 +78,8 @@ const EVERY_PLAN = [
   'Principles your members can discuss and amend',
   'News for your Society’s topics',
   'Analytics, and a full export of everything, any time',
-  'Safety built in: image and text scanning, reporting, and protections for younger members',
+  'Safety built in: image and text scanning, reporting, appeals',
+  'Child safety: 16+ sign-up, protections for 16 and 17-year-olds, no private messages, age concerns with outcomes, and age checks for local Societies at no cost to you',
 ];
 
 const TRUST = [
@@ -92,11 +95,12 @@ const FAQ = [
   ['What is a Society?', 'A Society is your group on new.vote: its members, debates, polls, documents, events and calls. Your plan covers every Society you run, with storage and AI shared across them. You never pay per member, so adding people is always free.'],
   ['Why charge at all?', 'Storage, AI and video calls cost us money each month, so that is what the plans cover. Privacy and encryption are on every plan, never a paid extra, and we never show ads or sell data.'],
   ['When does billing start?', 'The day you choose a paid plan. You pay in advance, monthly or yearly, through Stripe, and the plan renews until you downgrade. If prices change, we tell you at least 30 days before your next payment. Taking a plan as a consumer? Cancel within 14 days of your first payment for a full refund. Details are in the Terms, section 9.'],
-  ['What happens if we stop paying?', 'Your plan carries on for 30 days, then moves to Huddle. If you run more than 3 Societies, you choose which stay active; the rest become read-only. Nothing is deleted: everything stays readable and exportable, and you can pick up a paid plan again at any time.'],
+  ['What happens if we stop paying?', 'Your plan carries on for 30 days, then moves to Pod. If you run more than 3 Societies, you choose which stay active; the rest become read-only. Nothing is deleted: everything stays readable and exportable, and you can pick up a paid plan again at any time.'],
   ['What if I lose access to my account?', 'Sign in with your recovery code, or a passkey on another device. If you signed up with only a username and lose both your passkey and your recovery code, we can’t restore the account, so keep the code somewhere safe. Society Admins: add a second admin, so a Society never depends on one account.'],
+  ['Do we pay for child safety or age checks?', 'No. Every child safety protection is on every plan, Pod included, and age checks cost you and your members nothing. We pay for them, and they’re only used when needed, such as joining a local Society.'],
   ['Can we use our own AI?', 'Yes, on every plan. Connect your own AI provider in your Society’s settings and you pay it directly, with no limit from us.'],
   ['Discounts?', 'Pay yearly and get two months free. Charities, community groups and student societies: contact us for a discount.'],
-  ['Can we run it ourselves?', 'From 2027, yes: on your own server, free, connected to new.vote. Your identity is yours, so no server can lock you out. Add AI, News, safety scanning or backups from us if you want them. See “Run new.vote on your own server” below.'],
+  ['Can we run it ourselves?', 'From 2027, yes: on your own server, free, connected to new.vote. Your identity is yours, so no server can lock you out. Add AI, News, safety scanning, age checks, a safety review desk or backups from us if you want them. See “Run new.vote on your own server” below.'],
   ['One AGM a year?', 'Take Network for the month of your AGM, then downgrade. Your Societies keep everything they made.'],
 ];
 
@@ -145,7 +149,7 @@ export default async function PricingPage() {
             <p className="mt-3 inline-block self-start rounded-full border border-violet-500/40 bg-violet-500/10 px-2.5 py-0.5 text-xs font-semibold text-violet-200">Coming 2027</p>
             <p className="mt-3 text-sm text-slate-300">For groups that want their data on their own hardware</p>
             <ul className="mt-5 flex-1 space-y-2">
-              {['Run new.vote on your own server', 'Your identity is yours, not any server’s', 'No server admin can lock you out', 'Unlimited Societies, members and storage', 'Add AI, News, safety scanning or backups from us'].map(f => (
+              {['Run new.vote on your own server', 'Your identity is yours, not any server’s', 'No server admin can lock you out', 'Unlimited Societies, members and storage', 'Add AI, News, safety and age checks, or backups from us'].map(f => (
                 <li key={f} className="flex gap-2 text-sm text-slate-300">
                   <svg className="mt-0.5 h-4 w-4 flex-shrink-0 text-violet-400" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
                   {f}
@@ -183,7 +187,7 @@ export default async function PricingPage() {
 
         <div className="mt-14 grid gap-8 md:grid-cols-2">
           <div>
-            <h2 className="mb-4 text-xl font-semibold text-slate-100">On every plan, Huddle included</h2>
+            <h2 className="mb-4 text-xl font-semibold text-slate-100">On every plan, Pod included</h2>
             <ul className="space-y-2">
               {EVERY_PLAN.map(f => <li key={f} className="flex gap-2 text-sm text-slate-300"><span className="text-emerald-400">✓</span>{f}</li>)}
             </ul>

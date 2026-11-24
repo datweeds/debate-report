@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import MasterKeyCard from './MasterKeyCard';
+import AgeChecksCard from './AgeChecksCard';
 
 type Society = { id: number; name: string; visibility: string; my_grant_until: string | null };
 type Entry = { id: string; society: string; sysadmin: string | null; reason: string; created_at: string; expires_at: string; ended_at: string | null };
@@ -49,6 +50,7 @@ export default function PrivacyTab() {
   if (!data) return <div className="h-24 rounded-xl bg-slate-800/40 animate-pulse" />;
   return (
     <div className="space-y-6">
+      <AgeChecksCard />
       <p className="text-sm text-slate-400">
         You have no routine access to a private Society’s content: its discussions, documents, debates, chat, or the text of its flagged content.
         Their stored content is encrypted with the Society’s own key. In an emergency, such as a serious report or a legal request, open time-limited access ({data.minutes} minutes) with a reason.

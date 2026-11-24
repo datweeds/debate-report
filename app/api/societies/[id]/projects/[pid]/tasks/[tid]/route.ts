@@ -3,6 +3,7 @@ import pool from '@/lib/db';
 import { openRows, sealText } from '@/lib/societyCrypto';
 import { checkDeps, projectContext, readDate, readDeps, readDocumentId, readGroup, saveDeps, text, TASK_STATUSES, UUID_RE, ptext } from '@/lib/projects';
 import { openText } from '@/lib/societyCrypto';
+import { RICH_MAX } from '@/lib/tasks';
 import { lockSafe } from '@/lib/lockSafe';
 
 type Params = { params: Promise<{ id: string; pid: string; tid: string }> };
@@ -41,7 +42,7 @@ async function handlePATCH(req: NextRequest, { params }: Params) {
   if ('comments' in b) set('comments', await seal(ptext(c, b.comments, 5000)));
   if (c.canManage) {
     if ('name' in b) { const n = ptext(c, b.name, 200); if (!n) return NextResponse.json({ error: 'A project task name is required' }, { status: 400 }); set('name', await seal(n)); }
-    if ('description' in b) set('description', await seal(ptext(c, b.description, 5000)));
+    if ('description' in b) set('description', await seal(ptext(c, b.description, RICH_MAX)));
     const start = readDate(b.startDate), end = readDate(b.endDate), due = readDate(b.dueDate);
     const doc = await readDocumentId(c.a.societyId, b.documentId);
     if (doc === false) return NextResponse.json({ error: 'That document was not found' }, { status: 404 });

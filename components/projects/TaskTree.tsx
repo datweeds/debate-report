@@ -3,6 +3,8 @@
 import ReportButton from '@/components/ReportButton';
 import { Fragment, useEffect, useState } from 'react';
 import RichText from '@/components/discussions/RichText';
+import Description, { toHtml } from './Description';
+import { plain, RichField } from '@/components/tasks/shared';
 import { Badge, fmtDate, inputCls, openFor, send, Sheet, TASK_STATUS, todayKey, type Member } from './shared';
 import DocViewer from '@/components/documents/DocViewer';
 import { DEP_KINDS, DEP_LABEL, depProblem, earliestStart, family, type Dep, type DepKind } from './deps';
@@ -275,6 +277,7 @@ function TaskForm({ base, tasks, groups, parentId, groupId, task, onDone }: {
   const NEW = '__new';
   const [group, setGroup] = useState<string>(task?.group_id ?? groupId ?? '');
   const [newGroup, setNewGroup] = useState('');
+  const [startDesc] = useState(() => toHtml(task?.description));
   const [f, setF] = useState({
     name: task?.name ?? '', description: task?.description ?? '', status: task?.status ?? 'new', comments: task?.comments ?? '',
     startDate: task?.start_date ?? '', endDate: task?.end_date ?? '', dueDate: task?.due_date ?? '',
@@ -313,7 +316,8 @@ function TaskForm({ base, tasks, groups, parentId, groupId, task, onDone }: {
   return (
     <form onSubmit={save} className="space-y-3">
       <input value={f.name} onChange={e => setF(v => ({ ...v, name: e.target.value }))} required maxLength={200} placeholder="Project task name" className={inputCls} autoFocus />
-      <textarea value={f.description} onChange={e => setF(v => ({ ...v, description: e.target.value }))} rows={3} maxLength={5000} placeholder="Description" className={inputCls} />
+      <RichField society={Number(base.match(/\/societies\/(\d+)/)?.[1])} value={startDesc} label="Description"
+        onChange={html => setF(v => ({ ...v, description: html }))} />
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <label className="text-xs text-slate-400">Start<input type="date" value={f.startDate} onChange={e => setF(v => ({ ...v, startDate: e.target.value }))} className={`${inputCls} mt-1`} /></label>
         <label className="text-xs text-slate-400">End<input type="date" value={f.endDate} min={f.startDate || undefined}
@@ -455,7 +459,7 @@ function TaskSheet({ base, task, tasks, groups, me, canManage, onClose, onChange
     <Sheet title={task.name} onClose={onClose}>
       <div className="mb-2 flex justify-end">
         <ReportButton kind="project_task" id={task.id} what="this project task"
-          shown={() => [task.name, task.description].filter(Boolean).join('\n')} />
+          shown={() => [task.name, plain(task.description)].filter(Boolean).join('\n')} />
       </div>
       {error && <p className="mb-3 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">{error}</p>}
       {mode === 'edit' ? (
@@ -521,7 +525,7 @@ function TaskSheet({ base, task, tasks, groups, me, canManage, onClose, onChange
               )}
             </div>
           )}
-          {task.description && <RichText text={task.description} />}
+          {task.description && <Description text={task.description} />}
           {task.document_id && (
             <div className="flex items-center gap-2 text-sm">
               <span className="text-slate-500">Document:</span>

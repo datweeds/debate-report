@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { openRows, sealText } from '@/lib/societyCrypto';
 import { lockSafe } from '@/lib/lockSafe';
+import { societyContentAccess } from '@/lib/societies';
 import {
   canSeeSql, memberIds, priorityId, myCategories, ownCategoryIds, priorities, QUICK_STATUSES, readDate, readRich, setMyCategories,
   taskAccess, TITLE_MAX,
@@ -13,8 +14,16 @@ type Params = { params: Promise<{ id: string }> };
 // with them, the Society's Project Tasks (sealed projects' text arrives sealed,
 // for the browser to open), the Society's priorities and this member's categories.
 export async function GET(req: NextRequest, { params }: Params) {
-  const r = await taskAccess(req, (await params).id);
-  if ('error' in r) return NextResponse.json({ error: r.error }, { status: r.status });
+  const id = (await params).id;
+  const r = await taskAccess(req, id);
+  if ('error' in r) {
+    // The demo Society: anyone may look (read-only)
+    if (r.status !== 404) {
+      const d = await societyContentAccess(req, id);
+      if (d?.isDemo) return demoView(d.societyId);
+    }
+    return NextResponse.json({ error: r.error }, { status: r.status });
+  }
   const { a } = r;
   const [prios, cats, tasks, ptasks] = await Promise.all([
     priorities(a.societyId),
@@ -67,6 +76,41 @@ export async function GET(req: NextRequest, { params }: Params) {
        FROM society_tasks WHERE customer_id = $1 AND deleted_at IS NULL AND priority_id IS NOT NULL GROUP BY priority_id`,
       [a.societyId])).rows.map(r => [r.priority_id, { n: r.n, open: r.open }])) : undefined,
     tasks: tasks.rows, projectTasks: ptasks.rows, convertTargets: targets, projectsOn,
+  });
+  res.headers.set('Cache-Control', 'no-store');
+  return res;
+}
+
+// The demo Society, for visitors and logged-in non-members: read-only, the tasks
+// shared with everyone and the project tasks of its projects that aren't sealed.
+// Members' private tasks stay private, even here.
+async function demoView(societyId: number) {
+  const projectsOn = !(await disabled(societyId, 'projects'));
+  const [prios, tasks, ptasks] = await Promise.all([
+    priorities(societyId),
+    pool.query(
+      `SELECT t.id, t.number, t.name, t.description, t.notes, t.status, t.priority_id, t.shared_all,
+              to_char(t.due_date, 'YYYY-MM-DD') AS due_date, t.created_at, t.updated_at, t.completed_at,
+              false AS mine, u.user_handle AS owner, NULL AS shares, '[]'::json AS categories
+       FROM society_tasks t LEFT JOIN users u ON u.id = t.owner_id
+       WHERE t.customer_id = $1 AND t.deleted_at IS NULL AND t.shared_all
+       ORDER BY t.number`, [societyId]),
+    projectsOn ? pool.query(
+      `SELECT t.id, t.project_id, p.name AS project, p.protection, t.name, t.description, t.comments, t.status,
+              to_char(COALESCE(t.due_date, t.end_date), 'YYYY-MM-DD') AS due_date, t.created_at, t.updated_at,
+              false AS assigned_to_me,
+              COALESCE((SELECT json_agg(json_build_object('id', u.id, 'handle', u.user_handle) ORDER BY u.user_handle)
+                        FROM project_task_assignees x JOIN users u ON u.id = x.user_id WHERE x.task_id = t.id), '[]') AS assignees,
+              '[]'::json AS categories
+       FROM project_tasks t JOIN projects p ON p.id = t.project_id
+       WHERE p.customer_id = $1 AND p.deleted_at IS NULL AND p.protection <> 'sealed'
+       ORDER BY p.created_at, t.sort_order LIMIT 3000`, [societyId]) : { rows: [] },
+  ]);
+  await openRows(societyId, tasks.rows, ['name', 'description', 'notes']);
+  await openRows(societyId, ptasks.rows, ['project', 'name', 'description', 'comments']);
+  const res = NextResponse.json({
+    me: null, readOnly: true, priorities: prios, categories: [], canManagePriorities: false,
+    tasks: tasks.rows, projectTasks: ptasks.rows, convertTargets: [], projectsOn,
   });
   res.headers.set('Cache-Control', 'no-store');
   return res;

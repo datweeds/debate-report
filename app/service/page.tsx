@@ -40,7 +40,7 @@ export default function ServicePage() {
           <table className="w-full text-left text-sm">
             <thead><tr className="border-b border-slate-800 text-slate-400"><th className="py-2 pr-4 font-medium">Plan</th><th className="py-2 font-medium">Support</th></tr></thead>
             <tbody className="text-slate-300">
-              <tr className="border-b border-slate-800/60"><td className="py-2 pr-4">Huddle</td><td className="py-2"><Link href="/guides" className={A}>Guides</Link> and help pages; email us about your account or safety</td></tr>
+              <tr className="border-b border-slate-800/60"><td className="py-2 pr-4">Pod</td><td className="py-2"><Link href="/guides" className={A}>Guides</Link> and help pages; email us about your account or safety</td></tr>
               <tr className="border-b border-slate-800/60"><td className="py-2 pr-4">Team</td><td className="py-2">Email, answered as soon as we can</td></tr>
               <tr><td className="py-2 pr-4">Network</td><td className="py-2">Email, answered within 2 working days</td></tr>
             </tbody>

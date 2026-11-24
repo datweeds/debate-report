@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ageBandOf, isUnder16 } from '@/lib/age';
 import pool from '@/lib/db';
 import { societyContentAccess } from '@/lib/societies';
 import { getRoom, joinToken, liveParticipants, logRtc, roomStartedAt, rtcConfigured } from '@/lib/rtc';
@@ -20,13 +19,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (held) return NextResponse.json({ error: 'This Society is read-only for now, so its rooms are closed. A Society Admin can choose a plan for it.' }, { status: 423 });
   const room = await getRoom(a.societyId, roomId);
   if (!room) return NextResponse.json({ error: 'Room not found' }, { status: 404 });
-  // Members aged 13 to 15 join calls only in Societies run as youth groups
-  if (isUnder16(await ageBandOf(a.session.sub))) {
-    const { rows: [y] } = await pool.query('SELECT youth_group FROM customers WHERE id = $1', [a.societyId]);
-    if (!y?.youth_group) {
-      return NextResponse.json({ error: 'Members aged 13 to 15 can join video calls only in Societies run as youth groups. A Society Admin can turn this on in Manage Societies.' }, { status: 403 });
-    }
-  }
 
   const me = a.session.sub;
   const now = Date.now();

@@ -12,6 +12,7 @@ const REASONS: [string, string][] = [
   ['hate_speech', 'Hate speech'],
   ['personal_data', 'Shares someone’s personal data'],
   ['spam', 'Spam or a scam'],
+  ['underage', 'The person who wrote it may be under 16'],
   ['illegal', 'Possibly illegal: terrorism, child abuse, threats, fraud'],
   ['other', 'Something else'],
 ];
